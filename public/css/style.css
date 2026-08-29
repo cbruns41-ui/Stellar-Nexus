@@ -2677,6 +2677,8 @@ button.linkish {
   overflow: hidden;
   touch-action: none;
   cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .city-stage:active { cursor: grabbing; }
 .city-map {
@@ -2828,35 +2830,30 @@ button.linkish {
   overflow: hidden;
 }
 .mini-bar b { display: block; height: 100%; background: var(--cyan); }
-.city-nux {
+.city-side [data-city-zoom] { font-size: 18px; line-height: 1; }
+.city-tut {
   position: absolute;
-  inset: 0;
-  z-index: 8;
-  background: rgba(0,0,0,0.45);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 72px 16px 0;
-  pointer-events: none;
-}
-.city-nux-card {
-  pointer-events: auto;
-  max-width: 320px;
-  padding: 14px 16px;
+  left: 10px;
+  right: 10px;
+  bottom: 12px;
+  z-index: 7;
+  padding: 12px 14px;
   border-radius: 14px;
   border: 1px solid var(--cyan);
   background: rgba(6, 12, 18, 0.94);
   box-shadow: 0 12px 32px rgba(0,0,0,0.5);
 }
-.city-nux-card em {
+.city-tut em {
   font-style: normal;
   font-family: var(--display);
   font-size: 10px;
   letter-spacing: 0.14em;
   color: var(--cyan);
 }
-.city-nux-card p { margin: 8px 0 12px; font-size: 14px; line-height: 1.4; }
-.city-nux-card .btn { width: 100%; }
+.city-tut h3 { margin: 4px 0 6px; font-size: 15px; }
+.city-tut p { margin: 0 0 10px; font-size: 13px; line-height: 1.4; color: var(--muted); }
+.city-tut-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.city-tut-acts .btn { min-height: 42px; width: 100%; }
 .city-sheet {
   position: absolute;
   left: 0;

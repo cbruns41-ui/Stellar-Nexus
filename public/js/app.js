@@ -18,8 +18,43 @@ const state = {
   openReports: new Set(),
   highlightBuilding: null,
   citySheet: null,
-  cityCam: { x: 0, y: 0, scale: 1.15, ready: false },
+  cityCam: { x: 0, y: 0, scale: 1, ready: false },
 };
+
+const TUTORIAL = [
+  {
+    id: "move",
+    title: "Schau dir deine Kolonie an",
+    text: "Zieh die Stadt mit dem Finger (am Computer mit der Maus). − und + zoomen, das Haus zeigt alles.",
+  },
+  {
+    id: "mine",
+    title: "Baue die Metall-Mine",
+    text: "Tippe die Mine mit dem grünen Pfeil. Metall ist der Grundstoff für alles.",
+    plot: "matter_mine",
+    done: (s) => (s.planet?.buildings?.matter_mine || 0) >= 1,
+  },
+  {
+    id: "upgrade",
+    title: "Baue die Mine aus",
+    text: "Eine Stufe reicht nicht. Baue die Metall-Mine auf Stufe 2 — sonst bleibt die Werft leer.",
+    plot: "matter_mine",
+    done: (s) => (s.planet?.buildings?.matter_mine || 0) >= 2,
+  },
+  {
+    id: "energy",
+    title: "Energie einschalten",
+    text: "Als Nächstes das Energie-Array. Ohne Strom stehen Schilde und Labor still.",
+    plot: "energy_array",
+    done: (s) => (s.planet?.buildings?.energy_array || 0) >= 1,
+  },
+  {
+    id: "galaxy",
+    title: "Raus in die Galaxie",
+    text: "Unten in der Leiste: Galaxie. Dort fliegst du, spionierst und holst Trümmer. Die Kolonie bleibt dein Zuhause.",
+    tab: "map",
+  },
+];
 
 const CITY_PLOTS = [
   { id: "command", x: 30, y: 34, view: "infra", building: "command", short: "Nexus" },
@@ -378,6 +413,9 @@ function tabIdFor(view) {
 }
 
 function setView(name) {
+  if (name === "galaxy" && tutorialActive() && TUTORIAL[tutorialIndex()]?.id === "galaxy") {
+    setTutorialIndex(TUTORIAL.length);
+  }
   state.view = name || "command";
   try {
     localStorage.setItem("sn-view", state.view);
@@ -1177,19 +1215,45 @@ function buildRailHtml() {
   return `<nav class="build-rail" aria-label="Bau">${item("infra", "Gebäude")}${item("yard", "Werft")}${item("research", "Labor")}${item("defense", "Orbit")}${item("tree", "Tech-Tree")}</nav>`;
 }
 
-function nuxSeen() {
+function tutorialSaved() {
   try {
-    return localStorage.getItem("sn-nux-city") === "1";
+    const t = localStorage.getItem("sn-tut-v1");
+    if (t != null && t !== "") return t;
+    if (localStorage.getItem("sn-nux-city") === "1") return "done";
+    return "0";
   } catch {
-    return false;
+    return "done";
   }
 }
-function markNuxSeen() {
+function tutorialIndex() {
+  const v = tutorialSaved();
+  if (v === "done") return TUTORIAL.length;
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.max(0, n) : TUTORIAL.length;
+}
+function setTutorialIndex(n) {
   try {
-    localStorage.setItem("sn-nux-city", "1");
+    if (n >= TUTORIAL.length) localStorage.setItem("sn-tut-v1", "done");
+    else localStorage.setItem("sn-tut-v1", String(n));
   } catch {
     /* ignore */
   }
+}
+function tutorialActive() {
+  const e = state.snap?.empire;
+  if (!e) return false;
+  if (tutorialIndex() >= TUTORIAL.length) return false;
+  if ((e.level || 1) >= 2 || (e.score || 0) >= 80) {
+    setTutorialIndex(TUTORIAL.length);
+    return false;
+  }
+  return true;
+}
+function advanceTutorial() {
+  let i = tutorialIndex();
+  while (i < TUTORIAL.length && TUTORIAL[i].done?.(state.snap)) i += 1;
+  if (i !== tutorialIndex()) setTutorialIndex(i);
+  return i;
 }
 
 function plotNeedText(buildingId, buildings) {
@@ -1287,10 +1351,9 @@ function colonyCityHtml() {
   const e = state.snap.empire;
   const buildings = p.buildings || {};
   const prev = Object.fromEntries((state.preview?.buildings || []).map((b) => [b.id, b]));
-  const recId = recommendedPlotId();
-  const mineLvl = buildings.matter_mine || 0;
-  const isNewbie = (e.level || 1) <= 1 && (e.score || 0) < 80;
-  const showNux = !nuxSeen() && isNewbie && mineLvl < 2;
+  const tutI = tutorialActive() ? advanceTutorial() : TUTORIAL.length;
+  const tut = TUTORIAL[tutI];
+  const recId = tut?.plot || recommendedPlotId();
   const plots = CITY_PLOTS.map((plot) => {
     const info = plot.building ? prev[plot.building] : null;
     const lvl = plot.building ? buildings[plot.building] || 0 : 0;
@@ -1323,12 +1386,14 @@ function colonyCityHtml() {
         <span>${esc(sub)}</span>
       </button>`;
   }).join("");
-  const nux = showNux
-    ? `<div class="city-nux">
-        <div class="city-nux-card">
-          <em>START 1 / 3</em>
-          <p>Schiebe die Stadt mit dem Finger. Tippe die <b>Mine</b> — der grüne Pfeil zeigt, was als Nächstes zählt.</p>
-          <button type="button" class="btn primary" data-nux-ok="1">Verstanden</button>
+  const tutHtml = tut
+    ? `<div class="city-tut">
+        <em>TUTORIAL ${tutI + 1} / ${TUTORIAL.length}</em>
+        <h3>${esc(tut.title)}</h3>
+        <p>${esc(tut.text)}</p>
+        <div class="city-tut-acts">
+          <button type="button" class="btn ghost small" data-tut-skip="1">Überspringen</button>
+          <button type="button" class="btn primary small" data-tut-next="1">${tutI === 0 ? "Verstanden" : tutI === TUTORIAL.length - 1 ? "Los" : "Weiter"}</button>
         </div>
       </div>`
     : "";
@@ -1361,9 +1426,11 @@ function colonyCityHtml() {
     <div class="city-side">
       <button type="button" data-city-sheet="quests" title="Aufträge">!</button>
       <button type="button" data-city-sheet="planet" title="Planet">i</button>
+      <button type="button" data-city-zoom="out" title="Rauszoomen">−</button>
+      <button type="button" data-city-zoom="fit" title="Ganze Stadt">▣</button>
+      <button type="button" data-city-zoom="in" title="Ranzoomen">+</button>
     </div>
-    ${cityQuestCard()}
-    ${nux}
+    ${tut ? tutHtml : cityQuestCard()}
     ${sheet}
   </section>`;
 }
@@ -2252,15 +2319,29 @@ function bindSim(root) {
 }
 
 function bindCity(root) {
-  root.querySelectorAll("[data-nux-ok]").forEach((b) =>
+  root.querySelectorAll("[data-tut-skip]").forEach((b) =>
     b.addEventListener("click", () => {
-      markNuxSeen();
-      const nux = root.querySelector(".city-nux");
-      if (nux) nux.remove();
+      setTutorialIndex(TUTORIAL.length);
+      renderView({ preserveForm: false });
+    })
+  );
+  root.querySelectorAll("[data-tut-next]").forEach((b) =>
+    b.addEventListener("click", () => {
+      const step = TUTORIAL[tutorialIndex()];
+      if (step?.tab === "map") {
+        setTutorialIndex(TUTORIAL.length);
+        setView("galaxy");
+        return;
+      }
+      setTutorialIndex(tutorialIndex() + 1);
+      state.cityCam.ready = false;
+      renderView({ preserveForm: false });
     })
   );
   root.querySelectorAll(".city-plot:not(.locked)").forEach((b) =>
-    b.addEventListener("click", () => markNuxSeen())
+    b.addEventListener("click", () => {
+      if (tutorialActive() && TUTORIAL[tutorialIndex()]?.id === "move") setTutorialIndex(1);
+    })
   );
   root.querySelectorAll("[data-city-lock]").forEach((b) =>
     b.addEventListener("click", () => toast(b.dataset.cityLock || "Noch gesperrt.", true))
@@ -2285,26 +2366,38 @@ function bindCity(root) {
     const h = map.offsetHeight || w;
     return { w, h };
   };
+  const viewSize = () => ({ sw: stage.clientWidth || 390, sh: stage.clientHeight || 640 });
+  const minScale = () => {
+    const { w, h } = mapSize();
+    const { sw, sh } = viewSize();
+    return Math.min(sw / w, sh / h) * 0.96;
+  };
+  const clampScale = (s) => Math.min(2.8, Math.max(minScale(), s));
   const clampCam = () => {
-    const sw = stage.clientWidth || 390;
-    const sh = stage.clientHeight || 640;
+    const { sw, sh } = viewSize();
     const { w, h } = mapSize();
     const mw = w * cam.scale;
     const mh = h * cam.scale;
-    const minX = Math.min(sw - mw - 40, 40);
-    const maxX = 40;
-    const minY = Math.min(sh - mh - 40, 40);
-    const maxY = 40;
-    cam.x = Math.min(maxX, Math.max(minX, cam.x));
-    cam.y = Math.min(maxY, Math.max(minY, cam.y));
+    if (mw <= sw) cam.x = (sw - mw) / 2;
+    else cam.x = Math.min(0, Math.max(sw - mw, cam.x));
+    if (mh <= sh) cam.y = (sh - mh) / 2;
+    else cam.y = Math.min(0, Math.max(sh - mh, cam.y));
   };
   const apply = () => {
     map.style.transform = `translate(${cam.x}px, ${cam.y}px) scale(${cam.scale})`;
   };
+  const zoomAt = (cx, cy, next) => {
+    const s = clampScale(next);
+    const k = s / Math.max(0.01, cam.scale);
+    cam.x = cx - (cx - cam.x) * k;
+    cam.y = cy - (cy - cam.y) * k;
+    cam.scale = s;
+    clampCam();
+    apply();
+  };
   const centerOn = (px, py) => {
     const { w, h } = mapSize();
-    const sw = stage.clientWidth || 390;
-    const sh = stage.clientHeight || 640;
+    const { sw, sh } = viewSize();
     cam.x = sw / 2 - (px / 100) * w * cam.scale;
     cam.y = sh / 2 - (py / 100) * h * cam.scale;
     clampCam();
@@ -2312,11 +2405,14 @@ function bindCity(root) {
   };
   const bootCam = () => {
     if (cam.ready) {
+      cam.scale = clampScale(cam.scale);
+      clampCam();
       apply();
       return;
     }
-    const rec = CITY_PLOTS.find((p) => p.id === "command") || CITY_PLOTS[0];
-    cam.scale = 1.05;
+    const focusId = TUTORIAL[tutorialIndex()]?.plot || "command";
+    const rec = CITY_PLOTS.find((p) => p.id === focusId) || CITY_PLOTS[0];
+    cam.scale = clampScale(Math.max(minScale() * 2.05, 0.72));
     centerOn(rec.x, rec.y);
     cam.ready = true;
   };
@@ -2324,8 +2420,21 @@ function bindCity(root) {
   if (img && !img.complete) img.addEventListener("load", bootCam, { once: true });
   else bootCam();
   requestAnimationFrame(bootCam);
+  root.querySelectorAll("[data-city-zoom]").forEach((b) =>
+    b.addEventListener("click", () => {
+      const { sw, sh } = viewSize();
+      const mode = b.dataset.cityZoom;
+      if (mode === "fit") {
+        cam.scale = minScale();
+        clampCam();
+        apply();
+      } else if (mode === "out") zoomAt(sw / 2, sh / 2, cam.scale * 0.76);
+      else zoomAt(sw / 2, sh / 2, cam.scale * 1.3);
+    })
+  );
   stage.addEventListener("pointerdown", (e) => {
-    if (e.target.closest(".city-quest, .city-side, .city-nux, .city-sheet")) return;
+    if (e.target.closest(".city-quest, .city-side, .city-tut, .city-sheet, .city-zoom")) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     dragging = pts.size === 1;
     moved = false;
@@ -2344,15 +2453,7 @@ function bindCity(root) {
       const dist = Math.hypot(a.x - b.x, a.y - b.y);
       if (lastDist > 0) {
         const rect = stage.getBoundingClientRect();
-        const midX = (a.x + b.x) / 2 - rect.left;
-        const midY = (a.y + b.y) / 2 - rect.top;
-        const next = Math.min(2.2, Math.max(0.7, cam.scale * (dist / lastDist)));
-        const k = next / cam.scale;
-        cam.x = midX - (midX - cam.x) * k;
-        cam.y = midY - (midY - cam.y) * k;
-        cam.scale = next;
-        clampCam();
-        apply();
+        zoomAt((a.x + b.x) / 2 - rect.left, (a.y + b.y) / 2 - rect.top, cam.scale * (dist / lastDist));
       }
       lastDist = dist;
       moved = true;
@@ -2361,13 +2462,26 @@ function bindCity(root) {
     if (!dragging) return;
     const dx = e.clientX - prev.x;
     const dy = e.clientY - prev.y;
-    if (Math.abs(dx) + Math.abs(dy) > 2) moved = true;
+    if (Math.abs(dx) + Math.abs(dy) > 6) {
+      moved = true;
+      if (e.pointerType === "mouse" && !stage.hasPointerCapture?.(e.pointerId)) {
+        try {
+          stage.setPointerCapture(e.pointerId);
+        } catch {
+          /* ignore */
+        }
+      }
+    }
     cam.x += dx;
     cam.y += dy;
     clampCam();
     apply();
   });
   const endPtr = (e) => {
+    if (moved && tutorialActive() && TUTORIAL[tutorialIndex()]?.id === "move") {
+      setTutorialIndex(1);
+      renderView({ preserveForm: false });
+    }
     pts.delete(e.pointerId);
     if (pts.size < 2) lastDist = 0;
     if (pts.size === 0) dragging = false;
@@ -2391,16 +2505,11 @@ function bindCity(root) {
       const rect = stage.getBoundingClientRect();
       const cx = e.clientX - rect.left;
       const cy = e.clientY - rect.top;
-      const next = Math.min(2.2, Math.max(0.7, cam.scale * (e.deltaY < 0 ? 1.1 : 0.9)));
-      const k = next / cam.scale;
-      cam.x = cx - (cx - cam.x) * k;
-      cam.y = cy - (cy - cam.y) * k;
-      cam.scale = next;
-      clampCam();
-      apply();
+      zoomAt(cx, cy, cam.scale * (e.deltaY < 0 ? 1.14 : 0.86));
     },
     { passive: false }
   );
+  stage.addEventListener("contextmenu", (e) => e.preventDefault());
 }
 
 function bindView(root) {
