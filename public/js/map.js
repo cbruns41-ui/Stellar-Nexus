@@ -342,7 +342,7 @@ export function systemHtml(sys, catalog, originShips, opts = {}) {
       <div class="section-title"><h2>${esc(sys.name)}</h2><span class="muted">${esc(sys.star?.name || "")} · ${Math.round(sys.x || 0)} : ${Math.round(sys.y || 0)}</span></div>
       ${quick}
       ${sys.isHub ? `<p class="hint">Nexus-Hub — Mehrheitskontrolle gewährt Kristall-Bonus.</p>` : ""}
-      ${sys.pirate ? `<p class="hint" style="color:#ff8a3a">Piratenhorst Stufe ${sys.pirate} — Angriff bringt Prisen (Schiffe, Erz, Batterien). Sie werden stärker.</p>` : ""}
+      ${sys.pirate ? `<p class="hint" style="color:#ff8a3a">Piratenhorst Stufe ${sys.pirate} — Angriff bringt Prisen. Schwache Horste bleiben, starke wachsen mit den Commandern.</p>` : ""}
       ${sys.warlord ? `<p class="hint" style="color:#f0c14a">Warlord: ${esc(sys.warlord)} — extra Flotte, garantiertes Relikt.</p>` : ""}
       ${sys.rift ? `<p class="hint" style="color:var(--cyan)">Nexus-Riss aktiv — Expeditionen hier finden mehr.</p>` : ""}
       ${sys.remnant ? `<p class="hint danger">Remnant-Wache: ${remnant.map(([id, n]) => n + "× " + (catalog.ships[id]?.name || id)).join(", ") || "unbekannt"}</p>` : ""}

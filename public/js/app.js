@@ -1,6 +1,6 @@
 import { api, getState, getCatalog, getPreview, getGalaxy, getSystem, getReports, getRanks, getEmpire, combatPreview, combatSim, getAlliances, getAlliance, getAllianceActivity } from "./api.js";
 import { esc, fmt, eta, when, costHtml, planetCss, planetGlobeUrl, planetColonyUrl, mediaTag, bindMediaFallbacks, toast, showModal, hideModal, shipList, starfield, resourceIcon, icon, beep, notify, tickEta, ticksOf, tickMsFrom } from "./ui.js";
-import { createMap, systemHtml } from "./map.js?v=41";
+import { createMap, systemHtml } from "./map.js?v=43";
 import { battleReplayHtml, bindBattleReplays } from "./battle.js";
 
 const $ = (id) => document.getElementById(id);
@@ -1214,7 +1214,7 @@ const views = {
           <div><b>Commander</b> ${esc(state.snap.user.username)} · ${esc(e.name)}</div>
           <div><b>Spezies</b> ${esc(state.snap.species?.glyph || "")} ${esc(state.snap.species?.name || "Terraner")}
             · ${esc(state.snap.species?.perk || "")}</div>
-          <div><b>Piraten-Bedrohung</b> Stufe ${e.raidLevel || 1} (skaliert auf Commander ${e.level || 1})</div>
+          <div><b>Piraten-Bedrohung</b> Stufe ${e.raidLevel || 1} (an deine Flotte und Technik angepasst)</div>
           <div><b>Position</b> Galaxie ${p.galaxyIndex || 1} → ${esc(p.systemName)}</div>
           ${
             e.newbieLeft
@@ -1540,7 +1540,7 @@ const views = {
   galaxy() {
     const bookmarks = (state.snap.bookmarks || []).map((b) => `<span class="map-bookmark"><button type="button" data-bookmark-focus="${b.planetId}">${esc(b.label || "Gespeicherter Planet")}</button><button type="button" data-bookmark-delete="${b.planetId}" aria-label="Gespeichertes Ziel löschen">×</button></span>`).join("");
     return `<div class="map-wrap"><canvas id="starmap"></canvas>
-      <div class="map-tools panel"><select id="planet-focus"><option value="">— Planet springen —</option></select><input id="map-search" type="search" placeholder="System suchen…"><label><input type="checkbox" data-map-filter="own"> Eigene</label><label><input type="checkbox" data-map-filter="hostile"> Feindlich</label><label><input type="checkbox" data-map-filter="free"> Frei</label><label><input type="checkbox" data-map-filter="special"> Besonderheiten</label>${bookmarks ? `<div class="map-bookmarks"><b>Gespeicherte Ziele</b>${bookmarks}</div>` : ""}</div>
+      <div class="map-tools panel"><select id="planet-focus"><option value="">— Planet springen —</option></select><input id="map-search" type="search" placeholder="System suchen…"><details class="map-filters"><summary>Filter</summary><div class="map-filters-body"><label><input type="checkbox" data-map-filter="own"> Eigene</label><label><input type="checkbox" data-map-filter="hostile"> Feindlich</label><label><input type="checkbox" data-map-filter="free"> Frei</label><label><input type="checkbox" data-map-filter="special"> Besonderheiten</label></div></details>${bookmarks ? `<div class="map-bookmarks"><b>Gespeicherte Ziele</b>${bookmarks}</div>` : ""}</div>
       <div class="map-legend panel">Ziehen: Schwenken · Rad: Zoom · Klick: System
         <div>Großer Punkt + weißer Ring + Kreuz = dein System · Teal-Puls = dein System · Rotbogen = Remnants · Orange-Ring = Piratenhorst · Goldbogen = Warlord · Cyan-Halo = Nexus-Riss</div></div>
       <div class="map-flight-note">Eigene Flüge: farbige Route mit bewegtem Marker · gestrichelt = Rückflug</div>
@@ -2011,6 +2011,15 @@ const views = {
             <label>Aktuelles Passwort (nur bei Änderung)<input name="oldPassword" type="password" autocomplete="current-password"></label>
             <button class="btn primary" type="submit">Speichern</button>
           </form>
+        </section>
+        <section class="panel" style="padding:16px">
+          <h3 style="margin:0 0 8px;font-size:13px">App aufs Handy</h3>
+          <p class="hint">Ohne Store: als PWA auf den Startbildschirm. Geht nur über HTTPS (z. B. Vercel) oder localhost.</p>
+          <button class="btn primary" type="button" data-pwa-install onclick="stellarInstallApp()">App installieren</button>
+          <p class="muted" style="margin:10px 0 0;font-size:12px">
+            <b>Android:</b> Chrome-Menü ⋮ → „App installieren“.<br>
+            <b>iPhone:</b> Safari → Teilen → „Zum Home-Bildschirm“.
+          </p>
         </section>
         <section class="panel settings-danger" style="padding:16px">
           <h3 style="margin:0 0 8px;font-size:13px">Account löschen</h3>
@@ -4429,6 +4438,7 @@ async function enterGame() {
   hide($("auth"));
   hide($("landing"));
   document.body.classList.remove("land", "gate-open");
+  document.body.dataset.mode = "play";
   const game = $("game");
   if (game) {
     game.hidden = false;
@@ -4489,10 +4499,6 @@ async function boot() {
     console.warn(err);
   }
   showLanding();
-}
-
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister())).catch(() => {});
 }
 
 boot().catch(() => showLanding());

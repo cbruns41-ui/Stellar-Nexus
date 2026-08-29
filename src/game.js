@@ -2567,7 +2567,7 @@ function spawnRaid(db) {
   if (!target) return;
   const owner = db.prepare("SELECT * FROM empires WHERE id = ?").get(target.empire_id);
   const raidLv = pirates.raidLevelFor(db, owner);
-  const ships = pirates.fleetFor(raidLv, "raid");
+  const ships = pirates.raidFleetFor(db, owner, target);
   const kind = raidLv >= 6 && Math.random() < 0.2 ? "echo" : "pirates";
   const arrives = Date.now() + 40_000 + Math.floor(Math.random() * 50_000);
   db.prepare("INSERT INTO raids(target_planet_id, ships, arrives_at, kind) VALUES(?,?,?,?)").run(
@@ -2580,8 +2580,8 @@ function spawnRaid(db) {
   addReport(db, target.empire_id, "alert", `Eingehender Raid: ${target.name}`, {
     text:
       kind === "echo"
-        ? `Ein Nexus-Echo (Stufe ${raidLv}) bricht in den Orbit — skaliert auf dein Level.`
-        : `Piraten Stufe ${raidLv} auf Abfangkurs (angepasst an dein Level ${progress.commanderLevel(owner.xp || 0)}). Bei Abwehr gibt es Prisen.`,
+        ? `Ein Nexus-Echo (Stufe ${raidLv}) bricht in den Orbit — Stärke an dein Imperium angepasst.`
+        : `Piraten Stufe ${raidLv} auf Abfangkurs — Stärke und Technik an dein Imperium und diesen Orbit angepasst. Bei Abwehr gibt es Prisen.`,
     planetId: target.id,
     ships,
     arrivesAt: arrives,

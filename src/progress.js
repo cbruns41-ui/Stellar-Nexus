@@ -263,7 +263,7 @@ const CONTRACTS = [
   {
     id: "pirate3",
     title: "Kaperbrief",
-    blurb: "Drei Piratenhorste genommen. Der Rim merkt deinen Namen.",
+    blurb: "Drei Piratenhorste genommen. Der Rim merkt deinen Namen. Piraten wachsen mit dir.",
     hint: "Galaxie → orangener Ring",
     view: "galaxy",
     xp: 130,
@@ -437,7 +437,7 @@ const CONTRACTS = [
   {
     id: "pirate10",
     title: "Rim-Jäger",
-    blurb: "Zehn Piratenhorste. Ihre Stufen wachsen mit der Galaxie.",
+    blurb: "Zehn Piratenhorste. Ihre Stufen folgen den stärksten Flotten, nicht der Uhr.",
     hint: "Galaxie → orangene Ringe, regelmäßig jagen",
     view: "galaxy",
     xp: 200,
@@ -560,7 +560,7 @@ const CONTRACTS = [
   {
     id: "pirate30",
     title: "Hortbrecher",
-    blurb: "Dreißig Piratenhorste. Stufe 16 wartet am Rand der Karte.",
+    blurb: "Dreißig Piratenhorste. Die stärksten Schwärme halten mit den Veteranen mit.",
     hint: "Galaxie → Piraten, sie wachsen nach",
     view: "galaxy",
     xp: 300,
