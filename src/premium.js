@@ -1,7 +1,9 @@
 "use strict";
 
-const DAILY_NEX_FREE = 10;
-const DAILY_NEX_VIP = 16;
+const DAILY_NEX_FREE = 5;
+const DAILY_NEX_VIP = 10;
+const VIP_DAILY_LOOT = { metal: 480, helium: 240, energy: 480, titan: 50, crystal: 50 };
+const SHIP_CAP_BONUS = 10;
 const BOOKMARK_FREE = 8;
 const BOOKMARK_VIP = 24;
 const REPORT_FREE = 80;
@@ -34,8 +36,9 @@ const PLANS = [
 ];
 
 const VIP_PERKS = [
-  "Funk- und Ranglisten-Abzeichen „Pass“ (rein kosmetisch)",
-  "Tägliches Nex: 16 statt 10",
+  "Täglich 10 Nex (statt 5) — Nex gibt es nur noch als Tagesbonus, nicht als Kaufpaket",
+  "Tägliches Versorger-Paket auf der Heimatwelt (Erz, Helium, Energie, Titan, Kristall)",
+  "Funk-Abzeichen „Pass“ (kosmetisch)",
   "24 statt 8 gespeicherte Kartenziele",
   "200 statt 80 Nachrichten im Archiv",
   "Spezieswechsel nach 24 statt 48 Stunden",
@@ -46,35 +49,35 @@ const SHOP = {
   recall: {
     id: "recall",
     name: "Flotten-Rückruf",
-    cost: 12,
+    cost: 15,
     kind: "comfort",
     blurb: "Alle eigenen Flotten kehren um. Kein extra Tempo, kein Kampfvorteil.",
   },
   chrono: {
     id: "chrono",
     name: "Chrono-Takt",
-    cost: 18,
+    cost: 22,
     kind: "comfort",
     blurb: "Schließt einen laufenden Bau-, Werft- oder Forschungsauftrag ab. Dieselbe 8-Minuten-Pause wie der Diamant-Riss — Bezahlen stapelt keine Extra-Skips.",
   },
   rename: {
     id: "rename",
     name: "Planetenname",
-    cost: 10,
+    cost: 14,
     kind: "cosmetic",
     blurb: "Benennt den Fokus-Planeten um. Rein kosmetisch.",
   },
   signet: {
     id: "signet",
     name: "Funk-Signet",
-    cost: 25,
+    cost: 32,
     kind: "cosmetic",
     blurb: "Kleines Zeichen neben deinem Namen im Funk. Kein Spielvorteil.",
   },
   crate_ore: {
     id: "crate_ore",
     name: "Erz-Konvoi",
-    cost: 28,
+    cost: 36,
     kind: "supply",
     blurb: "Fester Nachschub auf dem Fokus-Planeten. Inhalt steht fest, kein Zufall.",
     loot: { metal: 2400, helium: 1200, energy: 2400 },
@@ -82,7 +85,7 @@ const SHOP = {
   crate_rare: {
     id: "crate_rare",
     name: "Seltene Fracht",
-    cost: 42,
+    cost: 52,
     kind: "supply",
     blurb: "Titan, Kristalle, Diamanten — Mengen sind ausgewiesen.",
     loot: { titan: 600, crystal: 600, diamond: 20 },
@@ -90,7 +93,7 @@ const SHOP = {
   crate_fleet: {
     id: "crate_fleet",
     name: "Staffel-Paket",
-    cost: 36,
+    cost: 44,
     kind: "fleet",
     blurb: "8 Jäger und 2 Abfangjäger, sofort am Fokus-Planeten.",
     ships: { fighter: 8, interceptor: 2 },
@@ -98,7 +101,7 @@ const SHOP = {
   aeon: {
     id: "aeon",
     name: "Aeon-Korvette",
-    cost: 48,
+    cost: 58,
     kind: "fleet",
     blurb: "Schaltet die Nexus-Klasse frei und liefert 1 Korvette. Danach in der Werft mit Ressourcen baubar. Werte stehen im Tech-Tree.",
     ships: { aeon: 1 },
@@ -107,7 +110,7 @@ const SHOP = {
   aeon_more: {
     id: "aeon_more",
     name: "Weitere Aeon",
-    cost: 32,
+    cost: 40,
     kind: "fleet",
     blurb: "1 weitere Aeon-Korvette. Nur nach Freischaltung.",
     ships: { aeon: 1 },
@@ -116,7 +119,7 @@ const SHOP = {
   helix: {
     id: "helix",
     name: "Helix-Kampfdrohne",
-    cost: 54,
+    cost: 66,
     kind: "fleet",
     blurb: "Schaltet die KI-Drohne frei und liefert 1 Stück. Stark gegen Kapital, schwach gegen Schwärme. Danach in der Werft baubar.",
     ships: { helix: 1 },
@@ -125,7 +128,7 @@ const SHOP = {
   helix_more: {
     id: "helix_more",
     name: "Weitere Helix",
-    cost: 38,
+    cost: 46,
     kind: "fleet",
     blurb: "1 weitere Helix-Kampfdrohne. Nur nach Freischaltung.",
     ships: { helix: 1 },
@@ -134,14 +137,15 @@ const SHOP = {
   ship_cap_boost: {
     id: "ship_cap_boost",
     name: "Werft-Turbine",
-    cost: 20,
+    cost: 40,
     kind: "comfort",
-    blurb: "Erhöht das Schiffslimit pro Planet für 24 Stunden um 20 %. Legal-Hinweis: Kein Kampfvorteil, reines Komfort-Item.",
+    once: true,
+    blurb: "Einmalig: +10 Schiffslimit auf allen Planeten, dauerhaft. Kein Kampfvorteil.",
   },
   alliance_expand: {
     id: "alliance_expand",
     name: "Allianz-Ausbau",
-    cost: 30,
+    cost: 38,
     kind: "comfort",
     blurb: "Erhöht das Mitgliederlimit der Allianz um 5. Start 15, Maximum 30 — das ist das absolute Limit.",
   },
@@ -195,6 +199,7 @@ function publicVip(empire, db) {
     plan: active ? empire.vip_plan || "pass30" : "",
     cancelAtEnd: !!empire.vip_cancel,
     dailyNex: dailyNexOf(empire, db),
+    dailyLoot: active ? VIP_DAILY_LOOT : null,
     bookmarkCap: bookmarkCap(empire, db),
     reportCap: reportCap(empire),
     speciesCdHours: isVip(empire) ? 24 : 48,
@@ -213,7 +218,7 @@ function publicShop(db) {
   const s = db ? require("./settings").get(db) : {};
   return {
     items: Object.values(SHOP).map(decorateShopItem),
-    packs: PACKS.map((p) => ({ ...p, eur: eurFromCents(p.eurCents) })),
+    packs: [],
     plans: PLANS.map((p) => ({ ...p, eur: eurFromCents(p.eurCents), perks: VIP_PERKS })),
     changeCost: species.CHANGE_COST,
     changeCdHours: species.CHANGE_CD / 3600000,
@@ -224,9 +229,9 @@ function publicShop(db) {
     bookmarkVip: BOOKMARK_VIP,
     legal: {
       currencyNote:
-        "Euro-Preise neben Nex folgen den CPC-Leitlinien 2025 zur Transparenz virtueller Währungen. Der Gegenwert richtet sich nach der kleinsten Packung.",
+        "Nex gibt es nur noch als täglichen Bonus. Käufe von Nex-Paketen sind abgeschaltet.",
       noLoot:
-        "Keine Lootboxen, kein Zufall: jedes Paket listet Inhalt und Euro-Preis. Ressourcen und die Aeon-Korvette sind optionales Pay-to-Progress — legal, weil der Inhalt feststeht (CPC 2025, kein Glücksspiel).",
+        "Shop-Angebote haben festen Inhalt, kein Zufall. Nex verdienst du täglich — mit Pass 10 statt 5, plus ein kleines Ressourcen-Paket.",
       withdrawal:
         "Digitale Inhalte: 14 Tage Widerruf, solange die Leistung nicht begonnen hat. Mit ausdrücklichem Verlangen der sofortigen Ausführung erlischt das Widerrufsrecht (§ 356 Abs. 5 BGB).",
       age: "Käufe und Abos sind nur für Personen ab 18 Jahren.",
@@ -273,11 +278,12 @@ function buyPack(db, empire, sku, opts) {
 }
 
 function buyShipCapBoost(db, empire) {
-  assertCheckout({});
-  const until = Date.now() + 24 * 60 * 60 * 1000;
-  db.prepare("UPDATE empires SET ship_cap_boost_until = ? WHERE id = ?").run(until, empire.id);
-  recordPurchase(db, empire, "comfort", "ship_cap_boost", 20, 0);
-  return { until, name: SHOP.ship_cap_boost.name };
+  if (Number(empire.ship_cap_bonus || 0) >= SHIP_CAP_BONUS) {
+    throw new Error("Werft-Turbine ist bereits eingebaut.");
+  }
+  db.prepare("UPDATE empires SET ship_cap_bonus = IFNULL(ship_cap_bonus,0) + ? WHERE id = ?").run(SHIP_CAP_BONUS, empire.id);
+  recordPurchase(db, empire, "comfort", "ship_cap_boost", SHOP.ship_cap_boost.cost, 0);
+  return { bonus: SHIP_CAP_BONUS, name: SHOP.ship_cap_boost.name };
 }
 
 function subscribe(db, empire, sku, opts) {
@@ -319,6 +325,8 @@ function markVipRecall(db, empire) {
 module.exports = {
   DAILY_NEX_FREE,
   DAILY_NEX_VIP,
+  VIP_DAILY_LOOT,
+  SHIP_CAP_BONUS,
   BOOKMARK_FREE,
   BOOKMARK_VIP,
   RUSH_CD,

@@ -424,6 +424,7 @@ function migrate(db) {
   if (!hasCol(db, "empires", "aeon_unlock")) db.exec("ALTER TABLE empires ADD COLUMN aeon_unlock INTEGER NOT NULL DEFAULT 0");
   if (!hasCol(db, "empires", "helix_unlock")) db.exec("ALTER TABLE empires ADD COLUMN helix_unlock INTEGER NOT NULL DEFAULT 0");
   if (!hasCol(db, "empires", "ship_cap_boost_until")) db.exec("ALTER TABLE empires ADD COLUMN ship_cap_boost_until INTEGER NOT NULL DEFAULT 0");
+  if (!hasCol(db, "empires", "ship_cap_bonus")) db.exec("ALTER TABLE empires ADD COLUMN ship_cap_bonus INTEGER NOT NULL DEFAULT 0");
   if (!hasCol(db, "empires", "alliance_member_boost")) db.exec("ALTER TABLE empires ADD COLUMN alliance_member_boost INTEGER NOT NULL DEFAULT 0");
   if (!hasCol(db, "empires", "last_survey")) db.exec("ALTER TABLE empires ADD COLUMN last_survey INTEGER NOT NULL DEFAULT 0");
   if (!hasCol(db, "empires", "last_drill")) db.exec("ALTER TABLE empires ADD COLUMN last_drill INTEGER NOT NULL DEFAULT 0");

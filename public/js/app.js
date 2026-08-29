@@ -1318,7 +1318,7 @@ const views = {
       .join("");
     return `<div class="section-title"><h2>Schiffswerft</h2><span class="muted">${p.isAlliance ? "Allianz-Planet · " : ""}${esc(p.name)}</span></div>
       <p class="hint">Tempo = Reisegeschwindigkeit. Eine gemischte Flotte fliegt so schnell wie das langsamste Schiff. Weite Systeme brauchen länger.</p>
-      <p class="hint">Schiffslimit: ${p.shipCount || 0} / ${p.shipCap || 0}${(state.snap.empire?.shipCapBoostUntil && state.snap.empire.shipCapBoostUntil > Date.now()) ? " · +20 % bis " + new Date(state.snap.empire.shipCapBoostUntil).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : ""}</p>
+      <p class="hint">Schiffslimit: ${p.shipCount || 0} / ${p.shipCap || 0}${state.snap.empire?.shipCapBonus ? " · Werft-Turbine +" + state.snap.empire.shipCapBonus : ""}${(state.snap.empire?.shipCapBoostUntil && state.snap.empire.shipCapBoostUntil > Date.now()) ? " · +20 % bis " + new Date(state.snap.empire.shipCapBoostUntil).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : ""}</p>
       <div class="og-list">${rows}</div>`;
   },
 
@@ -1475,7 +1475,9 @@ const views = {
               .join(" · ")
           : "";
         const unlocked = { aeon_unlock: e.aeonUnlock, helix_unlock: e.helixUnlock };
-        const locked = it.needUnlock && !unlocked[it.needUnlock];
+        const locked =
+          (it.needUnlock && !unlocked[it.needUnlock]) ||
+          (it.id === "ship_cap_boost" && (e.shipCapBonus || 0) >= 10);
         return `<article class="nex-card panel">
           <h3>${esc(it.name)}</h3>
           <p class="hint">${esc(it.blurb)}</p>
@@ -1483,7 +1485,7 @@ const views = {
           ${loot || ships ? `<p class="ok" style="margin:6px 0 0;font-size:12px">Inhalt: ${loot}${loot && ships ? " · " : ""}${ships}</p>` : ""}
           <div class="row" style="margin-top:8px">
             <span class="nex-cost">${it.cost} Nex <small>(${esc(it.eur || "")})</small></span>
-            <button class="btn primary small" data-nex="${it.id}" ${locked ? "disabled" : it.id === "recall" && vip.freeRecallReady ? "" : e.nex >= it.cost ? "" : "disabled"}>${locked ? "Erst freischalten" : it.id === "recall" && vip.freeRecallReady ? "Pass: kostenlos" : "Einlösen"}</button>
+            <button class="btn primary small" data-nex="${it.id}" ${locked ? "disabled" : it.id === "recall" && vip.freeRecallReady ? "" : e.nex >= it.cost ? "" : "disabled"}>${it.id === "ship_cap_boost" && (e.shipCapBonus || 0) >= 10 ? "Bereits eingebaut" : locked ? "Erst freischalten" : it.id === "recall" && vip.freeRecallReady ? "Pass: kostenlos" : "Einlösen"}</button>
           </div>
         </article>`;
       })
@@ -1524,20 +1526,20 @@ const views = {
           </div>
         </div>
       </div>
-      <div class="section-title"><h2>Nexus-Pass</h2><span class="muted">Abo · Komfort</span></div>
-      <p class="hint">${vip.active ? `Aktiv bis ${when(vip.until)}${vip.cancelAtEnd ? " · gekündigt, läuft aus" : ""}` : "Pass = Komfort. Nachschub und die Aeon-Korvette kaufst du separat — Inhalt und Euro-Preis sind ausgewiesen, kein Zufall."}</p>
+      <div class="section-title"><h2>Nexus-Pass</h2><span class="muted">Abo · Komfort + Tagespaket</span></div>
+      <p class="hint">${vip.active ? `Aktiv bis ${when(vip.until)}${vip.cancelAtEnd ? " · gekündigt, läuft aus" : ""} · täglich 10 Nex und ein Versorger-Paket auf der Heimatwelt.` : "Pass = mehr Tages-Nex (10 statt 5), kleines tägliches Ressourcen-Paket, Komfort. Kein Kampfbonus."}</p>
       ${vip.active && !vip.cancelAtEnd ? `<p><button class="btn ghost small" id="vip-cancel">Pass zum Periodenende kündigen</button></p>` : ""}
       <div class="nex-shop">${plans}</div>
-      <div class="section-title" style="margin-top:18px"><h2>Nex</h2><span class="muted">eine Währung · Euro-Preis immer sichtbar</span></div>
-      <p class="hint">${esc(legal.currencyNote || "")} Täglich ${vip.dailyNex || shop.daily || 10} Nex abholen. F2P ${shop.daily || 10}, Pass ${shop.dailyVip || 16}.</p>
+      <div class="section-title" style="margin-top:18px"><h2>Nex</h2><span class="muted">nur Tagesbonus</span></div>
+      <p class="hint">${esc(legal.currencyNote || "")} F2P ${shop.daily || 5} Nex / Tag, Pass ${shop.dailyVip || 10} Nex / Tag${vip.active ? " plus Versorger-Paket" : ""}.</p>
       <div class="row" style="gap:8px;margin-bottom:12px">
-        <button class="btn primary" id="nex-daily" ${e.nexDailyReady ? "" : "disabled"}>${e.nexDailyReady ? `+${vip.dailyNex || shop.daily || 10} Nex abholen` : "Heute bereits abgeholt"}</button>
+        <button class="btn primary" id="nex-daily" ${e.nexDailyReady ? "" : "disabled"}>${e.nexDailyReady ? (vip.active ? `+${vip.dailyNex || 10} Nex + Versorger-Paket` : `+${vip.dailyNex || shop.daily || 5} Nex abholen`) : "Heute bereits abgeholt"}</button>
         ${state.snap.user.isAdmin ? `<button class="btn ghost" id="nex-grant">Admin +100 Nex</button><button class="btn ghost" id="vip-grant">Admin +30 Tage Pass</button>` : ""}
       </div>
       <div class="nex-shop">${shopCards}</div>
-      <div class="section-title" style="margin-top:18px"><h2>Nex-Pakete</h2><span class="muted">feste Mengen, keine Lootbox</span></div>
+      ${(shop.packs || []).length ? `<div class="section-title" style="margin-top:18px"><h2>Nex-Pakete</h2><span class="muted">feste Mengen</span></div>
       <p class="hint">${esc(legal.noLoot || "")} ${esc(legal.demo || "")}</p>
-      <div class="nex-shop">${packs}</div>
+      <div class="nex-shop">${packs}</div>` : ""}
       <p class="legal-note">${esc(legal.age || "")} ${esc(legal.withdrawal || "")} ${esc(legal.sub || "")} <a href="/legal.html">AGB, Widerruf, Impressum</a></p>
       <div class="section-title" style="margin-top:18px"><h2>Relikte</h2></div>
       <p class="hint">Relikte findest du auf Expeditionen und bei Warlords (goldener Ring auf der Karte). Maximal 3 ausgerüstet.</p>
@@ -1644,7 +1646,7 @@ const views = {
     const atk = Object.entries(stationed).reduce((s, [id, n]) => s + (state.catalog.ships[id]?.attack || 0) * n, 0);
     const defAtk = Object.entries(defs).reduce((s, [id, n]) => s + (state.catalog.defenses[id]?.attack || 0) * n, 0);
     return `<div class="section-title"><h2>Flotte & Orbit</h2>
-        <span class="muted">${esc(p?.name || "")} · Feuerkraft Schiffe ${fmt(atk)} · Batterien ${fmt(defAtk)} · Schiffe ${p?.shipCount || 0} / ${p?.shipCap || 0}${(state.snap.empire?.shipCapBoostUntil && state.snap.empire.shipCapBoostUntil > Date.now()) ? " (+20 % bis " + new Date(state.snap.empire.shipCapBoostUntil).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + ")" : ""}</span></div>
+        <span class="muted">${esc(p?.name || "")} · Feuerkraft Schiffe ${fmt(atk)} · Batterien ${fmt(defAtk)} · Schiffe ${p?.shipCount || 0} / ${p?.shipCap || 0}${state.snap.empire?.shipCapBonus ? " · Turbine +" + state.snap.empire.shipCapBonus : ""}${(state.snap.empire?.shipCapBoostUntil && state.snap.empire.shipCapBoostUntil > Date.now()) ? " (+20 % bis " + new Date(state.snap.empire.shipCapBoostUntil).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + ")" : ""}</span></div>
       ${incoming ? `<div class="section-title"><h2>Eingehend</h2></div><div class="mission-list">${incoming}</div>` : ""}
       <div class="section-title"><h2>Unterwegs</h2><span class="muted">Missionen über die Sternenkarte</span></div>
       <div class="mission-list">${missionCards || `<div class="muted panel" style="padding:14px">Keine Flotten unterwegs.</div>`}</div>

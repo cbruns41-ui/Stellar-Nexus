@@ -128,9 +128,10 @@ function shipCap(db, planetId) {
     .get(planetId);
   const level = shipyard?.level || 0;
   let cap = 20 + level * 20;
-  const empire = db.prepare("SELECT ship_cap_boost_until FROM empires WHERE id = ?").get(planet.empire_id);
+  const empire = db.prepare("SELECT ship_cap_boost_until, ship_cap_bonus FROM empires WHERE id = ?").get(planet.empire_id);
   const until = Number(empire?.ship_cap_boost_until || 0);
   if (until > Date.now()) cap = Math.floor(cap * 1.2);
+  cap += Number(empire?.ship_cap_bonus || 0);
   return Math.min(2000, Math.max(0, cap));
 }
 
@@ -2340,6 +2341,7 @@ function snapshot(db, user, planetId) {
       aeonUnlock: !!empireFresh.aeon_unlock,
       helixUnlock: !!empireFresh.helix_unlock,
       shipCapBoostUntil: empireFresh.ship_cap_boost_until || 0,
+      shipCapBonus: empireFresh.ship_cap_bonus || 0,
       raidLevel: pirates.raidLevelFor(db, empireFresh),
       title: prog.title,
     },
@@ -2831,7 +2833,22 @@ function changeSpecies(db, empire, nextId) {
 }
 
 function claimDailyNex(db, empire) {
-  return species.claimDaily(db, empire);
+  const amount = premium.claimDaily(db, empire);
+  let loot = null;
+  if (premium.isVip(empire)) {
+    loot = premium.VIP_DAILY_LOOT;
+    const home = db
+      .prepare("SELECT * FROM planets WHERE empire_id = ? AND IFNULL(alliance_id,0) = 0 ORDER BY id LIMIT 1")
+      .get(empire.id);
+    if (home && loot) {
+      credit(db, accruePlanet(db, home), bag(loot));
+      addReport(db, empire.id, "event", "VIP-Versorger gelandet", {
+        text: "Tägliches Ressourcen-Paket auf der Heimatwelt.",
+        loot,
+      });
+    }
+  }
+  return { nex: amount, loot };
 }
 
 function grantNex(db, empire, amount) {
@@ -2926,8 +2943,8 @@ function buyNexItem(db, empire, planet, itemId, extra) {
     if (!planet) throw new Error("Kein Fokus-Planet.");
     addShips(db, planet.id, item.ships);
   } else if (itemId === "ship_cap_boost") {
-    const until = Date.now() + 24 * 60 * 60 * 1000;
-    db.prepare("UPDATE empires SET ship_cap_boost_until = ? WHERE id = ?").run(until, empire.id);
+    if (Number(empire.ship_cap_bonus || 0) >= 10) throw new Error("Werft-Turbine ist bereits eingebaut.");
+    db.prepare("UPDATE empires SET ship_cap_bonus = IFNULL(ship_cap_bonus,0) + 10 WHERE id = ?").run(empire.id);
   } else if (itemId === "alliance_expand") {
     const mine = social.myAlliance(db, empire.id);
     if (!mine) throw new Error("Du bist in keiner Allianz.");

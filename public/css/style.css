@@ -2120,15 +2120,33 @@ img.og-art-ship[src*="battleship"] {
     min-height: 100dvh;
     grid-template-rows: auto 1fr auto;
     overflow: hidden;
+    background: #03050a;
   }
+  .land-vid, .land-hero-img {
+    object-fit: contain;
+    object-position: center center;
+    background: #03050a;
+  }
+  .land-hero-img {
+    background-size: contain;
+    background-position: center center;
+    animation: none;
+  }
+  .land-veil {
+    background: linear-gradient(180deg, rgba(3,5,10,0.72) 0%, transparent 18%, transparent 78%, rgba(3,5,10,0.82) 100%);
+  }
+  .land-grid, .land-orbit, .land-orbit-2 { display: none; }
   .land-hero-copy {
     grid-template-columns: 1fr;
-    align-self: end;
-    padding: 8px 20px 8px;
+    align-self: start;
+    padding: 4px 20px 0;
     width: 100%;
   }
-  .land-hero-copy h1 { font-size: clamp(40px, 13vw, 64px); }
-  .land-lead { font-size: 14px; max-width: 34ch; margin: 0 0 8px; }
+  .land-hero-copy h1 {
+    font-size: clamp(28px, 9vw, 44px);
+    text-shadow: 0 2px 18px #03050a;
+  }
+  .land-lead { display: none; }
   .land-playbar {
     display: grid;
     grid-template-columns: 1fr;

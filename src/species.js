@@ -1,9 +1,9 @@
 "use strict";
 
-const CHANGE_COST = 80;
+const CHANGE_COST = 100;
 const CHANGE_CD = 48 * 60 * 60 * 1000;
 const STARTER_NEX = 40;
-const DAILY_NEX = 10;
+const DAILY_NEX = 5;
 
 const SHOP = require("./premium").SHOP;
 const PACKS = require("./premium").PACKS;
