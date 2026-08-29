@@ -68,6 +68,7 @@ export function createMap(canvas, onSelect) {
     if (drag && !drag.moved) {
       const s = hit(world(e));
       if (s) onSelect(s);
+      else if (typeof onSelect === "function") onSelect(null);
     }
     drag = null;
   });
@@ -244,21 +245,38 @@ export function createMap(canvas, onSelect) {
         ctx.font = `${12 / cam.scale}px Sora, sans-serif`;
         ctx.fillText(s.warlord ? s.name + "  †" : s.name, s.x + 10, s.y - 8);
       }
-      if (highlightSystemId === s.id) {
+      if (data.self?.homeSystemId === s.id) {
+        ctx.strokeStyle = "#ff3b4d";
+        ctx.lineWidth = 3.2 / cam.scale;
+        ctx.globalAlpha = 0.85 + 0.15 * Math.sin(t * 3);
+        ctx.setLineDash([]);
+        const box = 24 / cam.scale;
+        ctx.strokeRect(s.x - box, s.y - box, box * 2, box * 2);
+      }
+      if (highlightSystemId === s.id && data.self?.homeSystemId !== s.id) {
         ctx.strokeStyle = "#ff4d6d";
-        ctx.lineWidth = 2.8 / cam.scale;
+        ctx.lineWidth = 2.4 / cam.scale;
         ctx.globalAlpha = 0.7 + 0.3 * Math.sin(t * 4);
         ctx.beginPath();
         ctx.arc(s.x, s.y, r + 16, 0, Math.PI * 2);
         ctx.stroke();
-        ctx.setLineDash([6 / cam.scale, 4 / cam.scale]);
-        ctx.globalAlpha = 0.95;
-        const box = 20 / cam.scale;
-        ctx.strokeRect(s.x - box, s.y - box, box * 2, box * 2);
-        ctx.setLineDash([]);
       }
     }
     ctx.restore();
+  }
+
+  function centerHome(open) {
+    if (!data) return;
+    const homeId = data.self?.homeSystemId;
+    const home =
+      data.systems.find((s) => s.id === homeId) ||
+      data.systems.find((s) => s.owners.some((o) => o.empireId === data.self.empireId));
+    if (!home) return;
+    highlightSystemId = home.id;
+    cam.x = home.x;
+    cam.y = home.y;
+    cam.scale = 2.7;
+    if (open && typeof onSelect === "function") onSelect(home);
   }
 
   let raf = 0;
@@ -272,13 +290,10 @@ export function createMap(canvas, onSelect) {
     setData(next) {
       const first = !data;
       data = next;
-      if (first) {
-        const home = next.systems.find((s) => s.owners.some((o) => o.empireId === next.self.empireId));
-        if (home) {
-          cam.x = home.x;
-          cam.y = home.y;
-        }
-      }
+      if (first) centerHome(false);
+    },
+    focusHome(open) {
+      centerHome(!!open);
     },
     setFilter(next) {
       filter = { ...filter, ...(next || {}) };
@@ -331,16 +346,18 @@ export function systemHtml(sys, catalog, originShips, opts = {}) {
             ? `<span class="danger">Remnants</span>`
             : `<span class="muted">unbesetzt</span>`;
       const alert = highlightPlanetId && p.id === highlightPlanetId;
-      const ownStyle = p.own && !alert ? ` style="border-left:3px solid ${p.owner?.color || "#3ee0ff"};background:rgba(255,255,255,0.03)"` : "";
-      const nameHtml = p.own ? `<b>${esc(p.name)}</b>` : esc(p.name);
-      return `<tr class="${alert ? "sys-planet-alert" : ""}" data-planet-id="${p.id}"${ownStyle}>
-        <td class="sys-planet">
-          <img class="planet-thumb" src="/assets/planets/${p.type || "terran"}.jpg" alt="" />
-          <span>${nameHtml}<div class="muted">${esc(p.typeName)} · Größe ${p.size}</div></span>
-        </td>
-        <td>${owner}${p.owner?.newbie ? ` <span class="chip ok">Schutz</span>` : p.owner?.protected ? ` <span class="chip ok">Fair-Play</span>` : ""}</td>
-        <td>${p.own || p.canManage ? `<button class="btn small" data-focus="${p.id}">Fokus</button> <button class="btn small" data-target="${p.id}">Expedition</button>` : `<button class="btn small" data-target="${p.id}">Mission</button>`} <button class="btn small" data-bookmark="${p.id}" data-bookmark-name="${esc(p.name)}">Speichern</button>${p.debris ? ` <button class="btn small" data-target="${p.id}">Bergen</button>` : ""}</td>
-      </tr>`;
+      const acts = p.own || p.canManage
+        ? `<button class="btn small" data-focus="${p.id}">Fokus</button><button class="btn small" data-target="${p.id}">Mission</button>`
+        : `<button class="btn small" data-target="${p.id}">Mission</button>`;
+      return `<article class="sys-planet-card${alert ? " sys-planet-alert" : ""}${p.own ? " own" : ""}" data-planet-id="${p.id}">
+        <img class="planet-thumb" src="/assets/planets/${p.type || "terran"}.jpg" alt="" />
+        <div class="sys-planet-copy">
+          <b>${esc(p.name)}${p.isHome ? ` <span class="chip ok">Heimat</span>` : ""}</b>
+          <span class="muted">${esc(p.typeName)} · Größe ${p.size}</span>
+          <span class="sys-owner">${owner}${p.owner?.newbie ? ` <span class="chip ok">Schutz</span>` : p.owner?.protected ? ` <span class="chip ok">Fair-Play</span>` : ""}</span>
+        </div>
+        <div class="sys-planet-acts">${acts}<button class="btn ghost small" data-bookmark="${p.id}" data-bookmark-name="${esc(p.name)}">Merken</button>${p.debris ? `<button class="btn small" data-target="${p.id}">Bergen</button>` : ""}</div>
+      </article>`;
     })
     .join("");
   const focus = sys.planets.find((x) => x.id === highlightPlanetId) || sys.planets.find((x) => x.own || x.canManage) || sys.planets[0];
@@ -350,33 +367,34 @@ export function systemHtml(sys, catalog, originShips, opts = {}) {
       quick = `<div class="sys-actions">
         <button class="btn primary" data-focus="${focus.id}">Fokus</button>
         <button class="btn" data-target="${focus.id}">Mission</button>
-        <button class="btn ghost" data-bookmark="${focus.id}" data-bookmark-name="${esc(focus.name)}">Speichern</button>
+        <button class="btn ghost" data-bookmark="${focus.id}" data-bookmark-name="${esc(focus.name)}">Merken</button>
       </div>`;
     } else if (!focus.owner && !sys.pirate && !sys.remnant) {
       quick = `<div class="sys-actions">
         <button class="btn primary" data-target="${focus.id}">Kolonie</button>
         <button class="btn" data-target="${focus.id}">Mission</button>
-        <button class="btn ghost" data-bookmark="${focus.id}" data-bookmark-name="${esc(focus.name)}">Speichern</button>
+        <button class="btn ghost" data-bookmark="${focus.id}" data-bookmark-name="${esc(focus.name)}">Merken</button>
       </div>`;
     } else {
       quick = `<div class="sys-actions">
         <button class="btn" data-target="${focus.id}">Spionage</button>
         <button class="btn primary" data-target="${focus.id}">Angriff</button>
-        <button class="btn ghost" data-bookmark="${focus.id}" data-bookmark-name="${esc(focus.name)}">Speichern</button>
+        <button class="btn ghost" data-bookmark="${focus.id}" data-bookmark-name="${esc(focus.name)}">Merken</button>
       </div>`;
     }
   }
   return `
     <div class="sys-panel panel">
-      <div class="section-title"><h2>${esc(sys.name)}</h2><span class="muted">${esc(sys.star?.name || "")} · ${Math.round(sys.x || 0)} : ${Math.round(sys.y || 0)}</span></div>
+      <i class="sys-sheet-handle" aria-hidden="true"></i>
+      <div class="section-title"><h2>${esc(sys.name)}</h2><button type="button" class="sys-close" data-sys-close aria-label="Schließen">×</button></div>
+      <p class="muted sys-starline">${esc(sys.star?.name || "")}</p>
       ${quick}
       ${sys.isHub ? `<p class="hint">Nexus-Hub — Mehrheitskontrolle gewährt Kristall-Bonus.</p>` : ""}
-      ${sys.pirate ? `<p class="hint" style="color:#ff8a3a">Piratenhorst Stufe ${sys.pirate} — Angriff bringt Prisen. Schwache Horste bleiben, starke wachsen mit den Commandern.</p>` : ""}
-      ${sys.warlord ? `<p class="hint" style="color:#f0c14a">Warlord: ${esc(sys.warlord)} — extra Flotte, garantiertes Relikt.</p>` : ""}
+      ${sys.pirate ? `<p class="hint" style="color:#ff8a3a">Piratenhorst Stufe ${sys.pirate} — Angriff bringt Prisen.</p>` : ""}
+      ${sys.warlord ? `<p class="hint" style="color:#f0c14a">Warlord: ${esc(sys.warlord)} — extra Flotte, Relikt.</p>` : ""}
       ${sys.rift ? `<p class="hint" style="color:var(--cyan)">Nexus-Riss aktiv — Expeditionen hier finden mehr.</p>` : ""}
       ${sys.remnant ? `<p class="hint danger">Remnant-Wache: ${remnant.map(([id, n]) => n + "× " + (catalog.ships[id]?.name || id)).join(", ") || "unbekannt"}</p>` : ""}
-      <table class="table"><thead><tr><th>Planet</th><th>Kontrolle</th><th></th></tr></thead>
-      <tbody>${planetRows}</tbody></table>
-      ${ships.length ? `<p class="muted" style="margin-top:10px">Flotte am Fokus-Planeten bereit.</p>` : `<p class="muted">Keine Schiffe am Fokus-Planeten.</p>`}
+      <div class="sys-planet-list">${planetRows}</div>
+      ${ships.length ? `<p class="muted" style="margin-top:10px">Flotte am Fokus-Planeten bereit.</p>` : `<p class="muted sys-fleet-note">Keine Schiffe am Fokus-Planeten.</p>`}
     </div>`;
 }

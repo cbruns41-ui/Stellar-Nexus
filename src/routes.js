@@ -818,9 +818,20 @@ function attachRoutes(app, db) {
         riftId = 0;
       }
     }
+    const home = db
+      .prepare(
+        "SELECT id, system_id FROM planets WHERE empire_id = ? AND IFNULL(alliance_id,0) = 0 ORDER BY id LIMIT 1"
+      )
+      .get(empire.id);
     res.json({
       now: Date.now(),
-      self: { empireId: empire.id, color: empire.color, warp: techs.warp || 0 },
+      self: {
+        empireId: empire.id,
+        color: empire.color,
+        warp: techs.warp || 0,
+        homePlanetId: home?.id || 0,
+        homeSystemId: home?.system_id || 0,
+      },
       riftSystemId: riftId || null,
       systems: systems.map((s) => ({
         id: s.id,
@@ -848,6 +859,11 @@ function attachRoutes(app, db) {
     if (!sys) return fail(res, 404, "System unbekannt.");
     const planets = db.prepare("SELECT * FROM planets WHERE system_id = ? ORDER BY slot").all(sys.id);
     const focus = db.prepare("SELECT * FROM planets WHERE id = ?").get(empire.last_planet_id);
+    const home = db
+      .prepare(
+        "SELECT id FROM planets WHERE empire_id = ? AND IFNULL(alliance_id,0) = 0 ORDER BY id LIMIT 1"
+      )
+      .get(empire.id);
     const techs = game.techsMap(db, empire.id);
     res.json({
       id: sys.id,
@@ -877,6 +893,7 @@ function attachRoutes(app, db) {
           size: p.size,
           owner,
           own: p.empire_id === empire.id && !p.alliance_id,
+          isHome: !!(home && p.id === home.id),
           alliancePlanet: !!p.alliance_id,
           canManage: social.canAccessPlanet(db, empire.id, p),
           ships: visibleShips,

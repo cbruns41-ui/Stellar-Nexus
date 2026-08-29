@@ -1,6 +1,6 @@
 import { api, getState, getCatalog, getPreview, getGalaxy, getSystem, getReports, getRanks, getEmpire, combatPreview, combatSim, getAlliances, getAlliance, getAllianceActivity } from "./api.js";
 import { esc, fmt, eta, when, costHtml, planetCss, planetGlobeUrl, planetColonyUrl, mediaTag, bindMediaFallbacks, toast, showModal, hideModal, shipList, starfield, resourceIcon, icon, beep, notify, tickEta, ticksOf, tickMsFrom } from "./ui.js";
-import { createMap, systemHtml } from "./map.js?v=44";
+import { createMap, systemHtml } from "./map.js?v=45";
 import { battleReplayHtml, bindBattleReplays } from "./battle.js";
 
 const $ = (id) => document.getElementById(id);
@@ -495,6 +495,7 @@ function applyMapFocus() {
   }
   if (!systemId) return;
   state.map.focusPlanet(focus.planetId, systemId);
+  state.mapFocus = null;
 }
 
 function paintAllianceActivityFromSnap() {
@@ -3803,11 +3804,19 @@ async function bootMap() {
   if (!canvas) return;
   state.galaxy = await getGalaxy();
   state.map = createMap(canvas, async (sys, opts) => {
-    const detail = await getSystem(sys.id);
     const box = $("sysbox");
+    if (!box) return;
+    if (!sys) {
+      box.innerHTML = "";
+      return;
+    }
+    const detail = await getSystem(sys.id);
     const highlightPlanetId = Number(opts?.planetId || (state.mapFocus?.systemId === sys.id ? state.mapFocus.planetId : 0));
     if (!opts?.planetId && state.mapFocus && state.mapFocus.systemId !== sys.id) state.mapFocus = null;
     box.innerHTML = systemHtml(detail, state.catalog, state.snap.planet?.ships, { highlightPlanetId });
+    box.querySelector("[data-sys-close]")?.addEventListener("click", () => {
+      box.innerHTML = "";
+    });
     const alertRow = box.querySelector(".sys-planet-alert");
     if (alertRow) alertRow.scrollIntoView({ block: "nearest", behavior: "smooth" });
     box.querySelectorAll("[data-focus]").forEach((b) =>
@@ -3830,7 +3839,8 @@ async function bootMap() {
     );
   });
   state.map.setData(state.galaxy);
-  applyMapFocus();
+  if (state.mapFocus?.planetId || state.mapFocus?.systemId) applyMapFocus();
+  else state.map.focusHome(false);
   const root = $("view");
   const applyMapFilter = () => {
     const filters = { query: root.querySelector("#map-search")?.value || "" };
