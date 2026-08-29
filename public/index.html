@@ -19,7 +19,7 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Sora:wght@400;500;600;700&family=Tektur:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/css/style.css?v=40" />
+    <link rel="stylesheet" href="/css/style.css?v=41" />
   </head>
   <body class="land">
     <canvas id="stars" aria-hidden="true"></canvas>
@@ -63,7 +63,8 @@
               <b>Closed Beta:</b> Aktuell sind keine Zahlungen möglich. Das Spiel dient ausschließlich privaten Testzwecken. Es besteht kein Anspruch auf Funktionsfähigkeit, Verfügbarkeit oder einen späteren Release. <a href="/legal.html">Mehr erfahren</a>
             </div>
             <div class="land-cta">
-              <button class="btn primary land-cta-main" type="button" data-gate="register">Imperium gründen</button>
+              <button class="btn primary land-cta-main" type="button" data-gate="login">Anmelden</button>
+              <button class="btn" type="button" data-gate="register">Imperium gründen</button>
               <button class="btn ghost" type="button" data-pwa-install hidden onclick="stellarInstallApp()">Als App installieren</button>
             </div>
             <div class="land-stats">
@@ -82,7 +83,11 @@
             <p class="muted" style="margin:10px 0 0;font-size:12px">Neu hier? <button type="button" class="linkish" data-gate="register">Imperium gründen</button></p>
           </form>
         </div>
-        <a class="land-scroll" href="#story">Scrollen</a>
+        <div class="land-playbar">
+          <button class="btn primary" type="button" data-gate="login">Anmelden</button>
+          <button class="btn" type="button" data-gate="register">Imperium gründen</button>
+        </div>
+        <a class="land-scroll" href="#story">Mehr erfahren</a>
       </div>
 
       <section id="story" class="land-block">
@@ -355,6 +360,6 @@
         });
     </script>
     <script src="/js/pwa.js?v=1"></script>
-    <script type="module" src="/js/app.js?v=43"></script>
+    <script type="module" src="/js/app.js?v=44"></script>
   </body>
 </html>

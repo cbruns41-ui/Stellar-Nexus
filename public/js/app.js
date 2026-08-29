@@ -1,6 +1,6 @@
 import { api, getState, getCatalog, getPreview, getGalaxy, getSystem, getReports, getRanks, getEmpire, combatPreview, combatSim, getAlliances, getAlliance, getAllianceActivity } from "./api.js";
 import { esc, fmt, eta, when, costHtml, planetCss, planetGlobeUrl, planetColonyUrl, mediaTag, bindMediaFallbacks, toast, showModal, hideModal, shipList, starfield, resourceIcon, icon, beep, notify, tickEta, ticksOf, tickMsFrom } from "./ui.js";
-import { createMap, systemHtml } from "./map.js?v=43";
+import { createMap, systemHtml } from "./map.js?v=44";
 import { battleReplayHtml, bindBattleReplays } from "./battle.js";
 
 const $ = (id) => document.getElementById(id);
@@ -804,7 +804,7 @@ function colonyOverview(p) {
     })
     .join("");
   return `
-    <section class="colony">
+    <section class="colony desk-only">
       <div class="section-title"><h2>Kolonie-Übersicht</h2><span class="muted">${built.length} Module errichtet</span></div>
       <div class="colony-grid">
         ${tiles || `<div class="muted">Noch keine Module. Unter Infrastruktur bauen.</div>`}
@@ -1211,18 +1211,18 @@ const views = {
           <div class="muted">${esc(p.systemName)} · ${esc(p.typeName)} · Größe ${p.size}</div>
         </div>
         <div class="og-meta panel">
-          <div><b>Commander</b> ${esc(state.snap.user.username)} · ${esc(e.name)}</div>
-          <div><b>Spezies</b> ${esc(state.snap.species?.glyph || "")} ${esc(state.snap.species?.name || "Terraner")}
+          <div class="desk-only"><b>Commander</b> ${esc(state.snap.user.username)} · ${esc(e.name)}</div>
+          <div class="desk-only"><b>Spezies</b> ${esc(state.snap.species?.glyph || "")} ${esc(state.snap.species?.name || "Terraner")}
             · ${esc(state.snap.species?.perk || "")}</div>
-          <div><b>Piraten-Bedrohung</b> Stufe ${e.raidLevel || 1} (an deine Flotte und Technik angepasst)</div>
-          <div><b>Position</b> Galaxie ${p.galaxyIndex || 1} → ${esc(p.systemName)}</div>
+          <div class="desk-only"><b>Piraten-Bedrohung</b> Stufe ${e.raidLevel || 1} (an deine Flotte und Technik angepasst)</div>
+          <div class="desk-only"><b>Position</b> Galaxie ${p.galaxyIndex || 1} → ${esc(p.systemName)}</div>
           ${
             e.newbieLeft
-              ? `<div class="ok"><b>Anfängerschutz</b> noch ${eta(e.newbieLeft)} — andere Spieler können dich nicht angreifen.</div>`
-              : `<div class="muted"><b>Fair-Play</b> Starke Imperien dürfen nur Spieler mit mindestens 25 % ihrer Punkte angreifen. Max. 5 Angriffe / 24 Std. gegen denselben Commander.</div>`
+              ? `<div class="ok keep"><b>Anfängerschutz</b> noch ${eta(e.newbieLeft)}</div>`
+              : `<div class="muted desk-only"><b>Fair-Play</b> Starke Imperien dürfen nur Spieler mit mindestens 25 % ihrer Punkte angreifen. Max. 5 Angriffe / 24 Std. gegen denselben Commander.</div>`
           }
-          <div><b>Biom</b> ${esc(p.typeName)} ${p.isHub ? "· Nexus-Hub" : ""}</div>
-          <div><b>Direktive</b>
+          <div class="desk-only"><b>Biom</b> ${esc(p.typeName)} ${p.isHub ? "· Nexus-Hub" : ""}</div>
+          <div class="keep"><b>Direktive</b>
             <select id="directive-select" data-planet="${p.id}">
               <option value="">— keine —</option>
               ${Object.values(state.snap.directives || {})
@@ -1230,11 +1230,11 @@ const views = {
                 .join("")}
             </select>
           </div>
-          <div><b>Felder</b> ${builtN} Gebäude · ${e.planetCount}/${e.planetCap} Welten</div>
-          <div><b>Commander</b> Stufe ${e.level || 1} · ${e.score || 0} Punkte · +${Math.round((e.prodBonus || 0) * 100)}% Ertrag${e.streak ? " · Login " + e.streak + " Tage" : ""}</div>
-          <table class="table prod-table" style="margin-top:10px">${prodRows}</table>
+          <div class="desk-only"><b>Felder</b> ${builtN} Gebäude · ${e.planetCount}/${e.planetCap} Welten</div>
+          <div class="keep"><b>Commander</b> Stufe ${e.level || 1} · ${e.score || 0} Punkte</div>
+          <table class="table prod-table desk-only" style="margin-top:10px">${prodRows}</table>
         </div>
-        <div class="og-planets panel">
+        <div class="og-planets panel desk-only">
           <div class="muted" style="margin-bottom:8px">Kolonien</div>
           ${plist}
         </div>
@@ -4308,8 +4308,9 @@ document.querySelectorAll("#auth .tab").forEach((tab) => {
   tab.onclick = () => setAuthTab(tab.dataset.tab);
 });
 
-document.querySelectorAll("[data-gate]").forEach((b) => {
-  b.addEventListener("click", () => openGate(b.dataset.gate));
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-gate]");
+  if (b) openGate(b.dataset.gate);
 });
 $("gate-close")?.addEventListener("click", closeGate);
 $("auth")?.addEventListener("click", (e) => {
@@ -4357,6 +4358,7 @@ function showLanding() {
   hide($("auth"));
   document.body.classList.add("land");
   document.body.classList.remove("gate-open");
+  document.documentElement.classList.remove("play");
   const land = $("landing");
   if (land) {
     land.hidden = false;
@@ -4439,6 +4441,7 @@ async function enterGame() {
   hide($("landing"));
   document.body.classList.remove("land", "gate-open");
   document.body.dataset.mode = "play";
+  document.documentElement.classList.add("play");
   const game = $("game");
   if (game) {
     game.hidden = false;

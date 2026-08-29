@@ -764,8 +764,8 @@ img.og-art-ship[src*="battleship"] {
 .fleet-item.hostile b { color: var(--ember); }
 .report-jumps { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 
-.map-wrap { position: relative; height: 100%; min-height: 0; max-width: none; }
-#starmap { width: 100%; height: 100%; display: block; background: rgba(2, 4, 10, 0.45); cursor: grab; border: 1px solid var(--line); }
+.map-wrap { position: relative; height: 100%; min-height: 0; max-width: none; touch-action: none; }
+#starmap { width: 100%; height: 100%; display: block; background: rgba(2, 4, 10, 0.45); cursor: grab; border: 1px solid var(--line); touch-action: none; }
 #starmap:active { cursor: grabbing; }
 .map-legend { display: none; }
 .map-tools { position: absolute; left: 12px; top: 12px; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px; max-width: min(520px, calc(100% - 24px)); font-size: 11px; }
@@ -1838,14 +1838,28 @@ img.og-art-ship[src*="battleship"] {
 
 @media (display-mode: standalone) {
   .topbar { padding-top: env(safe-area-inset-top); }
+  .land-nav { padding-top: max(16px, env(safe-area-inset-top)); }
+  .gate-close { top: max(12px, env(safe-area-inset-top)); }
 }
 
+.land-playbar { display: none; }
+
 @media (max-width: 860px) {
-  html, body[data-mode="play"], body:not(.land) {
+  html.play, body[data-mode="play"] {
     height: 100%;
     height: 100dvh;
     overflow: hidden;
     overscroll-behavior: none;
+  }
+  html:not(.play) {
+    height: auto;
+    overflow: auto;
+  }
+  body.land {
+    height: auto !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: auto;
   }
   .shell {
     height: 100%;
@@ -2024,6 +2038,84 @@ img.og-art-ship[src*="battleship"] {
   .modal .sheet { width: 100%; max-height: 92dvh; border-radius: 16px 16px 0 0; margin-top: auto; }
   .settings-grid { grid-template-columns: 1fr; }
   .nav { padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
+  .desk-only { display: none !important; }
+  .og-meta { padding: 12px; display: grid; gap: 8px; }
+  .og-meta .keep { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  #starmap, .map-wrap { touch-action: none; }
+  .tabbar {
+    padding: 4px 4px calc(8px + env(safe-area-inset-bottom, 0px));
+    background: rgba(5, 8, 14, 0.98);
+    backdrop-filter: blur(18px);
+  }
+  .panel { border-radius: 14px; }
+
+  .land-nav {
+    padding: max(14px, env(safe-area-inset-top)) 16px 8px;
+  }
+  .land-nav-actions { display: none; }
+  .land-login, .land-cta, .land-stats, .land-beta-notice, .land-scroll { display: none !important; }
+  .land-hero {
+    min-height: 100svh;
+    min-height: 100dvh;
+    grid-template-rows: auto 1fr auto;
+    overflow: hidden;
+  }
+  .land-hero-copy {
+    grid-template-columns: 1fr;
+    align-self: end;
+    padding: 8px 20px 8px;
+    width: 100%;
+  }
+  .land-hero-copy h1 { font-size: clamp(40px, 13vw, 64px); }
+  .land-lead { font-size: 14px; max-width: 34ch; margin: 0 0 8px; }
+  .land-playbar {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    position: relative;
+    z-index: 5;
+    width: 100%;
+    padding: 8px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(180deg, transparent, rgba(3, 5, 10, 0.94) 36%);
+  }
+  .land-playbar .btn {
+    width: 100%;
+    min-height: 52px;
+    font-size: 15px;
+    border-radius: 14px;
+    letter-spacing: 0.06em;
+  }
+  .gate {
+    z-index: 50;
+    place-items: end center;
+    padding: 0;
+    align-items: end;
+  }
+  .gate .auth-card {
+    width: 100%;
+    max-width: none;
+    max-height: min(92dvh, 920px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 22px 22px 0 0;
+    padding: 22px 18px calc(22px + env(safe-area-inset-bottom, 0px));
+    text-align: left;
+  }
+  .gate .auth-card h1, .gate .auth-card .tag, .gate .auth-card .emblem {
+    text-align: center;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .gate-close {
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top));
+    right: 12px;
+    z-index: 51;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+  }
+  .species-pick { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 430px) {
@@ -2303,7 +2395,7 @@ button.linkish {
 .land-race:nth-child(6) { animation-delay: 0.4s; }
 
 .gate {
-  position: fixed; inset: 0; z-index: 12;
+  position: fixed; inset: 0; z-index: 40;
   display: grid; place-items: center;
   padding: 24px 12px;
   overflow: auto;
@@ -2328,12 +2420,12 @@ button.linkish {
   .land-hero-copy { grid-template-columns: 1fr; padding-top: 2vh; }
 }
 @media (max-width: 720px) {
-  .land-nav { padding: 14px 16px; }
-  .land-hero-copy { padding: 6vh 16px 28px; }
+  .land-nav { padding: max(14px, env(safe-area-inset-top)) 16px 8px; }
+  .land-hero-copy { padding: 8px 16px; }
   .land-pillars, .land-species { grid-template-columns: 1fr; }
   .land-race { grid-template-columns: 96px 1fr; }
   .land-race img, .land-race video { width: 96px; min-height: 140px; }
-  .land-nav-actions .ghost[href] { display: none; }
+  .land-nav-actions { display: none; }
   .land-block { padding: 48px 16px; }
   .land-orbit, .land-orbit-2 { opacity: 0.4; }
 }

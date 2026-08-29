@@ -44,11 +44,16 @@ export function createMap(canvas, onSelect) {
     return true;
   }
 
+  canvas.style.touchAction = "none";
+  let pinch = null;
+
   canvas.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "touch") e.preventDefault();
     canvas.setPointerCapture(e.pointerId);
     drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: false };
-  });
+  }, { passive: false });
   canvas.addEventListener("pointermove", (e) => {
+    if (pinch) return;
     if (drag) {
       const dx = (e.clientX - drag.x) / cam.scale;
       const dy = (e.clientY - drag.y) / cam.scale;
@@ -74,6 +79,30 @@ export function createMap(canvas, onSelect) {
     cam.x += before.x - after.x;
     cam.y += before.y - after.y;
   }, { passive: false });
+  canvas.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const d = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      pinch = { d: Math.max(1, d), scale: cam.scale };
+      drag = null;
+    }
+  }, { passive: false });
+  canvas.addEventListener("touchmove", (e) => {
+    if (e.touches.length === 2 && pinch) {
+      e.preventDefault();
+      const d = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      cam.scale = Math.min(4.2, Math.max(0.16, pinch.scale * (d / pinch.d)));
+    }
+  }, { passive: false });
+  canvas.addEventListener("touchend", () => {
+    pinch = null;
+  });
 
   function resize() {
     const r = canvas.getBoundingClientRect();
