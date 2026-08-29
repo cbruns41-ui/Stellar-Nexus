@@ -673,36 +673,12 @@ function watchEvents(snap) {
 function renderAlerts() {
   const el = $("alert-strip");
   if (!el) return;
-  const hits = state.snap?.incoming || [];
-  const shell = $("game");
-  if (!hits.length) {
-    el.hidden = true;
-    el.classList.add("hidden");
-    el.innerHTML = "";
-    el.onclick = null;
-    el.onkeydown = null;
-    if (shell) shell.classList.remove("has-alert");
-    return;
-  }
-  if (shell) shell.classList.add("has-alert");
-  const soon = hits[0];
-  el.hidden = false;
-  el.classList.remove("hidden");
-  el.setAttribute("role", "button");
-  el.tabIndex = 0;
-  el.title = "Zur Galaxie";
-  el.innerHTML = `<b>ALARM</b>
-    <span>${esc(soon.from)} → ${esc(soon.planet)} · ${esc(soon.kind === "spy" ? "Spionage" : soon.kind === "raid" ? "Raid" : "Angriff")}</span>
-    <span class="muted">${eta(soon.arrivesAt - Date.now())}</span>
-    <span class="muted">${hits.length > 1 ? hits.length + " Signale" : shipList(soon.ships, state.catalog)}</span>
-    <span class="alert-go">Zur Galaxie →</span>`;
-  el.onclick = () => jumpTo("galaxy", soon.planetId);
-  el.onkeydown = (ev) => {
-    if (ev.key === "Enter" || ev.key === " ") {
-      ev.preventDefault();
-      jumpTo("galaxy", soon.planetId);
-    }
-  };
+  el.hidden = true;
+  el.classList.add("hidden");
+  el.innerHTML = "";
+  el.onclick = null;
+  el.onkeydown = null;
+  $("game")?.classList.remove("has-alert");
 }
 
 function renderView({ preserveForm = true } = {}) {
