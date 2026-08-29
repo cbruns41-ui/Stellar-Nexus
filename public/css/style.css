@@ -2646,3 +2646,255 @@ button.linkish {
     z-index: 5;
   }
 }
+
+/* Age of Origins colony home */
+.shell.view-home .view {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.shell.view-home.has-alert .view { padding-top: 0; }
+.shell.view-home .build-rail { display: none; }
+.shell.view-home .resources {
+  flex-wrap: nowrap !important;
+  overflow-x: auto;
+  justify-content: flex-start;
+}
+.shell.view-home .res { flex: 0 0 auto; }
+
+.city-view {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  background: #03050a;
+}
+.city-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+}
+.city-map {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(640px, 132%);
+  transform: translate(-50%, -50%);
+  will-change: transform;
+}
+.city-map img {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+  user-select: none;
+}
+.city-plot {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  min-width: 72px;
+  padding: 5px 8px 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(62, 232, 196, 0.4);
+  background: rgba(4, 10, 16, 0.84);
+  color: var(--text);
+  text-align: center;
+  z-index: 3;
+  box-shadow: 0 8px 18px rgba(0,0,0,0.45);
+}
+.city-plot b {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.city-plot span {
+  display: block;
+  font-size: 9px;
+  color: var(--muted);
+}
+.city-plot.rec {
+  border-color: #5ee8a0;
+  box-shadow: 0 0 16px rgba(94, 232, 160, 0.45);
+}
+.city-plot.rec b { color: #5ee8a0; }
+.city-plot.locked {
+  border-color: rgba(125, 139, 156, 0.35);
+  opacity: 0.82;
+}
+.city-plot.busy { border-color: var(--amber); }
+.city-arrow {
+  position: absolute;
+  left: 50%;
+  top: -18px;
+  width: 24px;
+  height: 24px;
+  margin-left: -12px;
+  border-radius: 50%;
+  background: #5ee8a0;
+  color: #03140f;
+  font-style: normal;
+  font-size: 14px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  animation: city-bob 1.15s ease-in-out infinite;
+  box-shadow: 0 0 12px rgba(94, 232, 160, 0.7);
+}
+@keyframes city-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
+.city-side {
+  position: absolute;
+  left: 8px;
+  top: 10px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.city-side button {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(8, 14, 24, 0.88);
+  color: var(--cyan);
+  font-family: var(--display);
+  font-size: 16px;
+  font-weight: 700;
+}
+.city-quest {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 12px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: linear-gradient(90deg, rgba(8,18,28,0.94), rgba(8,14,24,0.9));
+  color: inherit;
+  text-align: left;
+  box-shadow: 0 12px 28px rgba(0,0,0,0.45);
+}
+.city-quest img {
+  width: 46px;
+  height: 46px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+.city-quest .k {
+  font-family: var(--display);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--cyan);
+}
+.city-quest.hostile .k { color: var(--ember); }
+.city-quest h3 { margin: 2px 0 0; font-size: 13px; }
+.city-quest p { margin: 2px 0 0; font-size: 11px; color: var(--muted); }
+.city-quest .go {
+  margin-left: auto;
+  background: var(--cyan);
+  color: #03140f;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  padding: 10px 12px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+.city-quest.hostile .go { background: var(--ember); color: #fff; }
+.mini-bar {
+  display: inline-block;
+  width: 72px;
+  height: 4px;
+  margin-right: 6px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.12);
+  vertical-align: middle;
+  overflow: hidden;
+}
+.mini-bar b { display: block; height: 100%; background: var(--cyan); }
+.city-nux {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 72px 16px 0;
+  pointer-events: none;
+}
+.city-nux-card {
+  pointer-events: auto;
+  max-width: 320px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--cyan);
+  background: rgba(6, 12, 18, 0.94);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+}
+.city-nux-card em {
+  font-style: normal;
+  font-family: var(--display);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--cyan);
+}
+.city-nux-card p { margin: 8px 0 12px; font-size: 14px; line-height: 1.4; }
+.city-nux-card .btn { width: 100%; }
+.city-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9;
+  max-height: 72%;
+  overflow: auto;
+  padding: 12px 12px calc(16px + env(safe-area-inset-bottom, 0px));
+  border-radius: 18px 18px 0 0;
+  border-top: 1px solid var(--line);
+  background: rgba(6, 10, 16, 0.96);
+}
+.city-sheet-sm { max-height: 48%; }
+.city-sheet-close {
+  display: block;
+  margin: 0 0 10px auto;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+.og-row.focus-row {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 1px rgba(62, 232, 196, 0.35), 0 10px 28px rgba(62, 232, 196, 0.12);
+}
+.section-title .btn { margin-left: 8px; }
+
+@media (max-width: 860px) {
+  .top-actions #logout { display: none; }
+  .build-rail {
+    margin-bottom: 8px;
+    padding: 8px 4px 10px;
+    background: linear-gradient(180deg, rgba(3,5,10,0.96), rgba(3,5,10,0.7));
+  }
+  .og-row {
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .og-art { height: 110px; }
+  .hint { font-size: 12px; line-height: 1.4; }
+}

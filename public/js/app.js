@@ -16,7 +16,20 @@ const state = {
   mailPeer: null,
   newsTab: "reports",
   openReports: new Set(),
+  highlightBuilding: null,
+  citySheet: null,
 };
+
+const CITY_PLOTS = [
+  { id: "command", x: 50, y: 36, view: "infra", building: "command", short: "Nexus" },
+  { id: "matter_mine", x: 28, y: 52, view: "infra", building: "matter_mine", short: "Mine" },
+  { id: "energy_array", x: 46, y: 61, view: "infra", building: "energy_array", short: "Array" },
+  { id: "helium_well", x: 62, y: 66, view: "infra", building: "helium_well", short: "Helium" },
+  { id: "shipyard", x: 82, y: 56, view: "yard", building: "shipyard", short: "Werft" },
+  { id: "archive", x: 78, y: 40, view: "research", building: "archive", short: "Labor" },
+  { id: "shield", x: 70, y: 28, view: "defense", building: "shield", short: "Schild" },
+  { id: "lock-titan", x: 24, y: 30, lockedNeed: "Kommando Stufe 2", building: "titan_extractor", view: "infra", short: "Titan" },
+];
 
 try {
   starfield($("stars"));
@@ -373,6 +386,7 @@ function setView(name) {
     shell.classList.toggle("view-galaxy", state.view === "galaxy");
     shell.classList.toggle("view-home", state.view === "command");
   }
+  if (name !== "command") state.citySheet = null;
   closeNavSheet();
   renderView({ preserveForm: false });
 }
@@ -1144,120 +1158,196 @@ function allianceResearchHtml() {
 }
 
 function buildRailHtml() {
-  if (!["infra", "research", "tree", "galaxy", "yard", "defense"].includes(state.view)) return "";
+  if (!["infra", "research", "tree", "yard", "defense"].includes(state.view)) return "";
   const item = (id, label) =>
     `<button type="button" class="${state.view === id ? "on" : ""}" data-view-jump="${id}">${label}</button>`;
-  return `<nav class="build-rail" aria-label="Schnellzugriff">${item("infra", "Gebäude")}${item("research", "Forschung")}${item("tree", "Tech-Tree")}${item("galaxy", "Galaxie")}${item("yard", "Werft")}${item("defense", "Orbit")}</nav>`;
+  return `<nav class="build-rail" aria-label="Bau">${item("infra", "Gebäude")}${item("yard", "Werft")}${item("research", "Labor")}${item("defense", "Orbit")}${item("tree", "Tech-Tree")}</nav>`;
 }
 
-function homeStatusCards() {
+function nuxSeen() {
+  try {
+    return localStorage.getItem("sn-nux-city") === "1";
+  } catch {
+    return false;
+  }
+}
+function markNuxSeen() {
+  try {
+    localStorage.setItem("sn-nux-city", "1");
+  } catch {
+    /* ignore */
+  }
+}
+
+function recommendedPlotId() {
+  const next = state.snap?.nextAction;
+  const blob = `${next?.title || ""} ${next?.text || ""} ${next?.view || ""}`;
+  if (/Werft|Jäger|Schiff|Schwarm|Trockendock/i.test(blob) || next?.view === "yard") return "shipyard";
+  if (/Labor|Archiv|Forschung/i.test(blob) || next?.view === "research") return "archive";
+  if (/Schild|Orbit|Batterie|Verteidigung/i.test(blob) || next?.view === "defense") return "shield";
+  if (/Helium|Treibstoff/i.test(blob)) return "helium_well";
+  if (/Energie-Array|Array/i.test(blob)) return "energy_array";
+  if (/Kommando/i.test(blob)) return "command";
+  if (next?.view && next.view !== "infra") return null;
+  return "matter_mine";
+}
+
+function cityQuestCard() {
   const t = Date.now();
-  const q = (state.snap.queue || [])[0];
   const hit = (state.snap.incoming || [])[0];
-  const qHtml = q
-    ? `<button type="button" class="home-card panel" data-view-jump="${queueViewOf(q.kind)}" data-jump-planet="${q.planetId || ""}">
-        <em>Bau-Queue</em>
-        <h3>${esc(q.name)}${q.qty > 1 ? " ×" + q.qty : ""}${q.levelTo ? " → " + q.levelTo : ""}</h3>
-        <div class="bar"><i style="width:${clamp(((t - q.startedAt) / Math.max(1, q.completesAt - q.startedAt)) * 100, 0, 100)}%"></i></div>
-        <span>${eta(q.completesAt - t)}</span>
-      </button>`
-    : `<div class="home-card panel empty"><em>Bau-Queue</em><h3>Leer</h3><span class="muted">Werft und Gebäude still</span></div>`;
-  const hHtml = hit
-    ? `<button type="button" class="home-card panel hostile" data-view-jump="galaxy" data-jump-planet="${hit.planetId || ""}">
-        <em>Eingehend</em>
-        <h3>${esc(hit.from)} → ${esc(hit.planet)}</h3>
-        <div class="bar"><i style="width:${clamp(((t - (hit.departedAt || hit.arrivesAt - 90000)) / Math.max(1, hit.arrivesAt - (hit.departedAt || hit.arrivesAt - 90000))) * 100, 0, 100)}%"></i></div>
-        <span>${eta(hit.arrivesAt - t)}</span>
-      </button>`
-    : `<div class="home-card panel empty"><em>Eingehend</em><h3>Kein Alarm</h3><span class="muted">Orbit ruhig</span></div>`;
-  return `<div class="home-status">${qHtml}${hHtml}</div>
-    <div class="home-quick">
-      <button type="button" class="btn" data-view-jump="infra">Gebäude</button>
-      <button type="button" class="btn" data-view-jump="yard">Werft</button>
-      <button type="button" class="btn" data-view-jump="galaxy">Galaxie</button>
-      <button type="button" class="btn" data-view-jump="activity">Einsatz</button>
-    </div>`;
+  if (hit) {
+    return `<button type="button" class="city-quest hostile" data-view-jump="galaxy" data-jump-planet="${hit.planetId || ""}">
+      <img src="/assets/buildings/shield.jpg" alt="" />
+      <div>
+        <div class="k">ALARM</div>
+        <h3>${esc(hit.from)} greift an</h3>
+        <p>${eta(hit.arrivesAt - t)} · zur Galaxie</p>
+      </div>
+      <span class="go">ÖFFNEN</span>
+    </button>`;
+  }
+  const q = (state.snap.queue || [])[0];
+  if (q) {
+    const pct = clamp(((t - q.startedAt) / Math.max(1, q.completesAt - q.startedAt)) * 100, 0, 100);
+    return `<button type="button" class="city-quest" data-view-jump="${queueViewOf(q.kind)}" data-jump-planet="${q.planetId || ""}">
+      <img src="/assets/buildings/${esc(q.itemId || "command")}.jpg" alt="" />
+      <div>
+        <div class="k">IM BAU</div>
+        <h3>${esc(q.name)}${q.levelTo ? " → " + q.levelTo : ""}</h3>
+        <p><i class="mini-bar"><b style="width:${pct}%"></b></i> ${eta(q.completesAt - t)}</p>
+      </div>
+      <span class="go">ANSEHEN</span>
+    </button>`;
+  }
+  const readyOp = (state.snap.ops || []).find((o) => o.complete && !o.claimed);
+  if (readyOp) {
+    return `<button type="button" class="city-quest" data-op="${readyOp.id}">
+      <img src="/assets/buildings/command.jpg" alt="" />
+      <div>
+        <div class="k">TAGESORDER FERTIG</div>
+        <h3>${esc(readyOp.title)}</h3>
+        <p>Belohnung abholen</p>
+      </div>
+      <span class="go">ABHOLEN</span>
+    </button>`;
+  }
+  const readyQuest = (state.snap.contracts || []).find((c) => c.complete && !c.claimed);
+  if (readyQuest) {
+    return `<button type="button" class="city-quest" data-claim="${readyQuest.id}">
+      <img src="/assets/buildings/matter_mine.jpg" alt="" />
+      <div>
+        <div class="k">KAMPAGNE</div>
+        <h3>${esc(readyQuest.title)}</h3>
+        <p>Auftrag abholen</p>
+      </div>
+      <span class="go">ABHOLEN</span>
+    </button>`;
+  }
+  const next = state.snap.nextAction;
+  const rec = CITY_PLOTS.find((p) => p.id === recommendedPlotId());
+  const thumb = rec?.building ? `/assets/buildings/${rec.building}.jpg` : "/assets/buildings/matter_mine.jpg";
+  const jumpView = next?.view || rec?.view || "infra";
+  const jumpBldg = rec?.building || "matter_mine";
+  return `<button type="button" class="city-quest" data-view-jump="${esc(jumpView)}" data-open-infra="${esc(jumpBldg)}">
+    <img src="${thumb}" alt="" />
+    <div>
+      <div class="k">NÄCHSTE AKTION</div>
+      <h3>${esc(next?.title || "Kolonie ausbauen")}</h3>
+      <p>${esc(next?.text || "Tippe das Gebäude mit dem grünen Pfeil.")}</p>
+    </div>
+    <span class="go">LOS</span>
+  </button>`;
+}
+
+function colonyCityHtml() {
+  const p = state.snap.planet;
+  const e = state.snap.empire;
+  const buildings = p.buildings || {};
+  const prev = Object.fromEntries((state.preview?.buildings || []).map((b) => [b.id, b]));
+  const recId = recommendedPlotId();
+  const mineLvl = buildings.matter_mine || 0;
+  const isNewbie = (e.level || 1) <= 1 && (e.score || 0) < 80;
+  const showNux = !nuxSeen() && isNewbie && mineLvl < 2;
+  const plots = CITY_PLOTS.map((plot) => {
+    const info = plot.building ? prev[plot.building] : null;
+    const lvl = plot.building ? buildings[plot.building] || 0 : 0;
+    const unlocked = plot.lockedNeed ? (buildings.command || 0) >= 2 && (info ? info.unlocked : true) : info ? info.unlocked : true;
+    const q = (state.snap.queue || []).find((item) => item.kind === "building" && item.itemId === plot.building && item.planetId === p.id);
+    const rec = plot.id === recId && unlocked;
+    const cls = [
+      "city-plot",
+      !unlocked ? "locked" : "",
+      lvl > 0 ? "built" : "",
+      rec ? "rec" : "",
+      q ? "busy" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    const sub = !unlocked
+      ? plot.lockedNeed || "Gesperrt"
+      : q
+        ? `Im Bau · ${eta(q.completesAt - Date.now())}`
+        : lvl
+          ? `Stufe ${lvl}`
+          : "Bauen";
+    const action = !unlocked
+      ? `data-city-lock="${esc(plot.lockedNeed || "Noch gesperrt")}"`
+      : `data-view-jump="${plot.view}" data-open-infra="${plot.building || ""}"`;
+    return `<button type="button" class="${cls}" style="left:${plot.x}%;top:${plot.y}%" ${action}>
+        ${rec ? `<i class="city-arrow">↑</i>` : ""}
+        <b>${esc(plot.short)}</b>
+        <span>${esc(sub)}</span>
+      </button>`;
+  }).join("");
+  const nux = showNux
+    ? `<div class="city-nux">
+        <div class="city-nux-card">
+          <em>START 1 / 3</em>
+          <p>Tippe die <b>Mine</b> auf der Kolonie. Der grüne Pfeil zeigt immer, was als Nächstes zählt.</p>
+          <button type="button" class="btn primary" data-nux-ok="1">Verstanden</button>
+        </div>
+      </div>`
+    : "";
+  const sheet =
+    state.citySheet === "quests"
+      ? `<div class="city-sheet"><button type="button" class="city-sheet-close" data-city-sheet="">Schließen</button>${contractsPanel()}</div>`
+      : state.citySheet === "planet"
+        ? `<div class="city-sheet city-sheet-sm">
+            <button type="button" class="city-sheet-close" data-city-sheet="">Schließen</button>
+            <div class="section-title"><h2>${esc(p.name)}</h2><span class="muted">${esc(p.systemName)}</span></div>
+            <p class="hint">${esc(p.typeName)} · Größe ${p.size}${p.isHub ? " · Nexus-Hub" : ""}${e.newbieLeft ? ` · Anfängerschutz ${eta(e.newbieLeft)}` : ""}</p>
+            <p><b>Commander</b> Stufe ${e.level || 1} · ${e.score || 0} Punkte</p>
+            <label class="keep"><b>Direktive</b>
+              <select id="directive-select" data-planet="${p.id}">
+                <option value="">— keine —</option>
+                ${Object.values(state.snap.directives || {})
+                  .map((d) => `<option value="${d.id}" ${p.directive === d.id ? "selected" : ""}>${esc(d.name)}</option>`)
+                  .join("")}
+              </select>
+            </label>
+          </div>`
+        : "";
+  return `<section class="city-view">
+    <div class="city-stage" id="city-stage">
+      <div class="city-map" id="city-map">
+        <img src="/assets/colony/city.jpg" alt="" />
+        ${plots}
+      </div>
+    </div>
+    <div class="city-side">
+      <button type="button" data-city-sheet="quests" title="Aufträge">!</button>
+      <button type="button" data-city-sheet="planet" title="Planet">i</button>
+    </div>
+    ${cityQuestCard()}
+    ${nux}
+    ${sheet}
+  </section>`;
 }
 
 const views = {
   command() {
-    const p = state.snap.planet;
-    if (!p) return `<p>Kein Planet.</p>`;
-    const e = state.snap.empire;
-    const builtN = Object.values(p.buildings || {}).filter((n) => n > 0).length;
-    const prodRows = resourceIds()
-      .map((k) => {
-        const def = state.catalog.resources[k];
-        const cap = p.storage[k] || p.storage;
-        return `<tr>
-          <td>${resourceIcon(k)} ${esc(def.name)}</td>
-          <td style="color:${def.color}"><b>${fmt(liveRes(k))}</b></td>
-          <td class="muted">/ ${fmt(cap)}</td>
-          <td style="color:${def.color}">+${fmt(p.production[k] || 0)}/h</td>
-        </tr>`;
-      })
-      .join("");
-    const plist = (state.snap.planets || [])
-      .map(
-        (pl) =>
-          `<button type="button" class="${pl.id === p.id ? "on" : ""}" data-focus="${pl.id}">
-            <img class="planet-thumb" src="${planetGlobeUrl(pl.type)}" alt="" />
-            <span>${pl.isAlliance ? `[${esc(state.snap.alliance?.tag || "ALLY")}] ` : ""}${esc(pl.name)}<div class="muted">${esc(pl.typeName || "")}${pl.isAlliance ? " · Allianz" : ""}</div></span>
-          </button>`
-      )
-      .join("");
-    return `
-      <section class="colony-hero panel home-hero">
-        ${mediaTag(planetColonyUrl(p.type), "colony-vista")}
-        <div class="hero-veil"></div>
-        <div class="hero-copy">
-          <h2>${p.isAlliance ? `<span class="chip ok">Allianz ${esc(p.allianceTag || state.snap.alliance?.tag || "")}</span> ` : ""}${esc(p.name)}</h2>
-          <div>${esc(p.systemName)} · ${esc(p.typeName)} · Größe ${p.size}${p.isHub ? " · Nexus-Hub" : ""}</div>
-        </div>
-      </section>
-      ${homeStatusCards()}
-      <div class="og-overview">
-        <div class="og-planet-box panel">
-          <div class="planet-orb" data-type="${p.type}" style="background:${planetCss(p.type)}">${mediaTag(planetGlobeUrl(p.type), "planet-orb-media")}</div>
-          <h3>${esc(p.name)}</h3>
-          <div class="muted">${esc(p.systemName)} · ${esc(p.typeName)} · Größe ${p.size}</div>
-        </div>
-        <div class="og-meta panel">
-          <div class="desk-only"><b>Commander</b> ${esc(state.snap.user.username)} · ${esc(e.name)}</div>
-          <div class="desk-only"><b>Spezies</b> ${esc(state.snap.species?.glyph || "")} ${esc(state.snap.species?.name || "Terraner")}
-            · ${esc(state.snap.species?.perk || "")}</div>
-          <div class="desk-only"><b>Piraten-Bedrohung</b> Stufe ${e.raidLevel || 1} (an deine Flotte und Technik angepasst)</div>
-          <div class="desk-only"><b>Position</b> Galaxie ${p.galaxyIndex || 1} → ${esc(p.systemName)}</div>
-          ${
-            e.newbieLeft
-              ? `<div class="ok keep"><b>Anfängerschutz</b> noch ${eta(e.newbieLeft)}</div>`
-              : `<div class="muted desk-only"><b>Fair-Play</b> Starke Imperien dürfen nur Spieler mit mindestens 25 % ihrer Punkte angreifen. Max. 5 Angriffe / 24 Std. gegen denselben Commander.</div>`
-          }
-          <div class="desk-only"><b>Biom</b> ${esc(p.typeName)} ${p.isHub ? "· Nexus-Hub" : ""}</div>
-          <div class="keep"><b>Direktive</b>
-            <select id="directive-select" data-planet="${p.id}">
-              <option value="">— keine —</option>
-              ${Object.values(state.snap.directives || {})
-                .map((d) => `<option value="${d.id}" ${p.directive === d.id ? "selected" : ""}>${esc(d.name)}</option>`)
-                .join("")}
-            </select>
-          </div>
-          <div class="desk-only"><b>Felder</b> ${builtN} Gebäude · ${e.planetCount}/${e.planetCap} Welten</div>
-          <div class="keep"><b>Commander</b> Stufe ${e.level || 1} · ${e.score || 0} Punkte</div>
-          <table class="table prod-table desk-only" style="margin-top:10px">${prodRows}</table>
-        </div>
-        <div class="og-planets panel desk-only">
-          <div class="muted" style="margin-bottom:8px">Kolonien</div>
-          ${plist}
-        </div>
-      </div>
-      ${state.snap.rift ? `<p class="hint">Nexus-Riss über <b>${esc(state.snap.rift.name)}</b> · Expeditionen dort lohnen extra · ${eta(state.snap.rift.until - Date.now())}</p>` : ""}
-      ${(state.snap.queue || []).some((q) => q.completesAt - Date.now() > 180000)
-        ? `<p class="hint">Lange Bauten? Die <button class="btn ghost small" data-view-jump="activity">Einsatzzentrale</button> hält dich beschäftigt: Patrouille, Trümmer-Scan, Funknetz, Simulator.</p>`
-        : ""}
-      ${actionBoard()}
-      ${contractsPanel()}
-      ${colonyOverview(p)}`;
+    if (!state.snap.planet) return `<p>Kein Planet.</p>`;
+    return colonyCityHtml();
   },
 
   infra() {
@@ -1273,7 +1363,8 @@ const views = {
         else
           action = `<button class="btn primary" data-build="${b.id}" ${busy ? "disabled" : ""}>Ausbau auf Stufe ${(info.level || 0) + 1}</button>
             <div class="muted">${info.nextTime ? eta(info.nextTime * 1000) : ""}</div>`;
-        return `<article class="og-row panel">
+        const focus = state.highlightBuilding === b.id;
+        return `<article class="og-row panel${focus ? " focus-row" : ""}" id="bldg-${b.id}">
           <img class="og-art" src="/assets/buildings/${b.id}.jpg" alt="" />
           <div class="og-body">
             <h3>${esc(b.name)} <span class="lvl">Stufe ${info.level || 0}</span></h3>
@@ -1286,7 +1377,7 @@ const views = {
         </article>`;
       })
       .join("");
-    return `<div class="section-title"><h2>Gebäude</h2><span class="muted">${p.isAlliance ? "Allianz-Planet · " : ""}${esc(p.name)}</span></div>${p.isAlliance ? `<p class="hint">Bauten hier nutzen Allianz-Ressourcen und helfen der ganzen Allianz.</p>` : ""}<div class="og-list">${rows}</div>`;
+    return `<div class="section-title"><h2>Gebäude</h2><span class="muted">${p.isAlliance ? "Allianz-Planet · " : ""}${esc(p.name)} · <button type="button" class="btn ghost small" data-view-jump="command">Kolonie</button></span></div>${p.isAlliance ? `<p class="hint">Bauten hier nutzen Allianz-Ressourcen und helfen der ganzen Allianz.</p>` : `<p class="hint">Tippe Ausbauen. Der Rest der Kolonie erreichst du über die Pins auf der Karte.</p>`}<div class="og-list">${rows}</div>`;
   },
 
   yard() {
@@ -1316,7 +1407,7 @@ const views = {
         </article>`;
       })
       .join("");
-    return `<div class="section-title"><h2>Schiffswerft</h2><span class="muted">${p.isAlliance ? "Allianz-Planet · " : ""}${esc(p.name)}</span></div>
+    return `<div class="section-title"><h2>Schiffswerft</h2><span class="muted">${p.isAlliance ? "Allianz-Planet · " : ""}${esc(p.name)} · <button type="button" class="btn ghost small" data-view-jump="command">Kolonie</button></span></div>
       <p class="hint">Tempo = Reisegeschwindigkeit. Eine gemischte Flotte fliegt so schnell wie das langsamste Schiff. Weite Systeme brauchen länger.</p>
       <p class="hint">Schiffslimit: ${p.shipCount || 0} / ${p.shipCap || 0}${state.snap.empire?.shipCapBonus ? " · Werft-Turbine +" + state.snap.empire.shipCapBonus : ""}${(state.snap.empire?.shipCapBoostUntil && state.snap.empire.shipCapBoostUntil > Date.now()) ? " · +20 % bis " + new Date(state.snap.empire.shipCapBoostUntil).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : ""}</p>
       <div class="og-list">${rows}</div>`;
@@ -1349,7 +1440,7 @@ const views = {
         </article>`;
       })
       .join("");
-    return `<div class="section-title"><h2>Verteidigung</h2><span class="muted">${p.isAlliance ? "Allianz-Planet · " : ""}${esc(p.name)} · Gegen-Typen im Orbit</span></div>
+    return `<div class="section-title"><h2>Orbit</h2><span class="muted">${p.isAlliance ? "Allianz-Planet · " : ""}${esc(p.name)} · <button type="button" class="btn ghost small" data-view-jump="command">Kolonie</button></span></div>
       <p class="hint">Flak frisst Jäger, Raketen Fregatten, Ionen Kreuzer, Gauss Zerstörer. Schildkuppeln puffern alles, schießen aber nicht. Baue gegen die Flotte, die dich wirklich bedroht.</p>
       <div class="og-list">${rows}</div>`;
   },
@@ -1383,7 +1474,7 @@ const views = {
         </article>`;
       })
       .join("");
-    return `<div class="section-title"><h2>Forschung</h2><span class="muted">empireweit · Voraussetzungen im Tech-Tree</span></div><div class="og-list">${rows}</div>`;
+    return `<div class="section-title"><h2>Labor</h2><span class="muted">empireweit · <button type="button" class="btn ghost small" data-view-jump="command">Kolonie</button></span></div><div class="og-list">${rows}</div>`;
   },
 
   tree() {
@@ -1419,7 +1510,7 @@ const views = {
       })
       .join("");
     return `<div class="section-title"><h2>Technologie-Tree</h2>
-        <span class="muted">was du wofür brauchst</span></div>
+        <span class="muted">was du wofür brauchst · <button type="button" class="btn ghost small" data-view-jump="command">Kolonie</button></span></div>
       <div class="tree-legend">
         <span class="lg ready">verfügbar</span>
         <span class="lg owned">im Besitz</span>
@@ -2136,6 +2227,70 @@ function bindSim(root) {
   });
 }
 
+function bindCity(root) {
+  root.querySelectorAll("[data-nux-ok]").forEach((b) =>
+    b.addEventListener("click", () => {
+      markNuxSeen();
+      const nux = root.querySelector(".city-nux");
+      if (nux) nux.remove();
+    })
+  );
+  root.querySelectorAll(".city-plot:not(.locked)").forEach((b) =>
+    b.addEventListener("click", () => markNuxSeen())
+  );
+  root.querySelectorAll("[data-city-lock]").forEach((b) =>
+    b.addEventListener("click", () => toast(b.dataset.cityLock || "Noch gesperrt.", true))
+  );
+  root.querySelectorAll("[data-city-sheet]").forEach((b) =>
+    b.addEventListener("click", () => {
+      const next = b.dataset.citySheet || "";
+      state.citySheet = next && state.citySheet !== next ? next : null;
+      renderView({ preserveForm: false });
+    })
+  );
+  const stage = root.querySelector("#city-stage");
+  const map = root.querySelector("#city-map");
+  if (!stage || !map) return;
+  let x = 0;
+  let y = 0;
+  let dragging = false;
+  let sx = 0;
+  let sy = 0;
+  let ox = 0;
+  let oy = 0;
+  const apply = () => {
+    map.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+  };
+  stage.addEventListener("pointerdown", (e) => {
+    if (e.target.closest("button, .city-quest, .city-side, .city-nux, .city-sheet")) return;
+    dragging = true;
+    sx = e.clientX;
+    sy = e.clientY;
+    ox = x;
+    oy = y;
+    try {
+      stage.setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+  });
+  stage.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    x = ox + (e.clientX - sx);
+    y = oy + (e.clientY - sy);
+    const maxX = stage.clientWidth * 0.28;
+    const maxY = stage.clientHeight * 0.28;
+    x = Math.max(-maxX, Math.min(maxX, x));
+    y = Math.max(-maxY, Math.min(maxY, y));
+    apply();
+  });
+  const end = () => {
+    dragging = false;
+  };
+  stage.addEventListener("pointerup", end);
+  stage.addEventListener("pointercancel", end);
+}
+
 function bindView(root) {
   root.querySelectorAll("[data-build]").forEach((b) =>
     b.addEventListener("click", () => act(() => api("/build", { method: "POST", body: { id: b.dataset.build, planetId: state.snap.planet.id } })))
@@ -2201,7 +2356,10 @@ function bindView(root) {
     b.addEventListener("click", () => act(() => api("/focus", { method: "POST", body: { planetId: Number(b.dataset.focus) } })))
   );
   root.querySelectorAll("[data-open-infra]").forEach((b) =>
-    b.addEventListener("click", () => setView("infra"))
+    b.addEventListener("click", () => {
+      if (b.dataset.openInfra) state.highlightBuilding = b.dataset.openInfra;
+      if (!b.dataset.viewJump) setView("infra");
+    })
   );
   root.querySelectorAll("[data-claim]").forEach((b) =>
     b.addEventListener("click", () => act(() => api("/quest/claim", { method: "POST", body: { id: b.dataset.claim } })))
@@ -2251,6 +2409,11 @@ function bindView(root) {
       );
   }
   bindJumps(root);
+  if (state.view === "command") bindCity(root);
+  if (state.highlightBuilding) {
+    const row = root.querySelector(`#bldg-${state.highlightBuilding}`);
+    if (row) setTimeout(() => row.scrollIntoView({ block: "center", behavior: "smooth" }), 80);
+  }
   if (state.view === "galaxy" && state.map) {
     const applyMapFilter = () => {
       const filters = { query: root.querySelector("#map-search")?.value || "" };
