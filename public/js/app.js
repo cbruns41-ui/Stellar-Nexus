@@ -691,8 +691,7 @@ function renderView({ preserveForm = true } = {}) {
       state.map = null;
     }
     const fn = views[state.view] || views.command;
-    const rail = buildRailHtml();
-    v.innerHTML = rail + fn();
+    v.innerHTML = fn();
     const shell = $("game");
     if (shell) {
       shell.classList.toggle("view-galaxy", state.view === "galaxy");
@@ -1185,10 +1184,7 @@ function allianceResearchHtml() {
 }
 
 function buildRailHtml() {
-  if (!["infra", "research", "tree", "yard", "defense"].includes(state.view)) return "";
-  const item = (id, label) =>
-    `<button type="button" class="${state.view === id ? "on" : ""}" data-view-jump="${id}">${label}</button>`;
-  return `<nav class="build-rail" aria-label="Bau">${item("infra", "Gebäude")}${item("yard", "Werft")}${item("research", "Labor")}${item("defense", "Orbit")}${item("tree", "Tech-Tree")}</nav>`;
+  return "";
 }
 
 function tutorialSaved() {
