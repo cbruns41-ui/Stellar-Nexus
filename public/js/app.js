@@ -1,6 +1,6 @@
 import { api, getState, getCatalog, getPreview, getGalaxy, getSystem, getReports, getRanks, getEmpire, combatPreview, combatSim, getAlliances, getAlliance, getAllianceActivity } from "./api.js";
 import { esc, fmt, eta, when, costHtml, planetCss, planetGlobeUrl, planetColonyUrl, mediaTag, bindMediaFallbacks, toast, showModal, hideModal, shipList, starfield, resourceIcon, icon, beep, notify, tickEta, ticksOf, tickMsFrom } from "./ui.js";
-import { createMap, systemHtml } from "./map.js?v=46";
+import { createMap, systemHtml } from "./map.js?v=47";
 import { battleReplayHtml, bindBattleReplays } from "./battle.js";
 
 const $ = (id) => document.getElementById(id);
@@ -3824,7 +3824,13 @@ async function bootMap() {
       box.innerHTML = "";
       return;
     }
-    const detail = await getSystem(sys.id);
+    let detail;
+    try {
+      detail = await getSystem(sys.id);
+    } catch (err) {
+      toast(err.message || "System nicht geladen.", true);
+      return;
+    }
     const highlightPlanetId = Number(opts?.planetId || (state.mapFocus?.systemId === sys.id ? state.mapFocus.planetId : 0));
     if (!opts?.planetId && state.mapFocus && state.mapFocus.systemId !== sys.id) state.mapFocus = null;
     box.innerHTML = systemHtml(detail, state.catalog, state.snap.planet?.ships, { highlightPlanetId });

@@ -15,13 +15,21 @@ export function createMap(canvas, onSelect) {
     return { x, y };
   }
 
-  function hit(p) {
+  function hit(ev) {
     if (!data) return null;
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) return null;
+    const sx = ev.clientX - rect.left;
+    const sy = ev.clientY - rect.top;
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
     let best = null;
-    let bd = 18 / cam.scale;
+    let bd = 42;
     for (const s of data.systems) {
       if (!visible(s)) continue;
-      const d = Math.hypot(s.x - p.x, s.y - p.y);
+      const cx = ((s.x - cam.x) * cam.scale + canvas.width / 2) / scaleX;
+      const cy = ((s.y - cam.y) * cam.scale + canvas.height / 2) / scaleY;
+      const d = Math.hypot(cx - sx, cy - sy);
       if (d < bd) {
         bd = d;
         best = s;
@@ -48,28 +56,46 @@ export function createMap(canvas, onSelect) {
   let pinch = null;
 
   canvas.addEventListener("pointerdown", (e) => {
-    if (e.pointerType === "touch") e.preventDefault();
-    canvas.setPointerCapture(e.pointerId);
-    drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: false };
-  }, { passive: false });
+    if (e.pointerType === "mouse") {
+      try {
+        canvas.setPointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+    }
+    drag = {
+      x: e.clientX,
+      y: e.clientY,
+      cx: cam.x,
+      cy: cam.y,
+      moved: false,
+      slop: e.pointerType === "touch" ? 18 : 5,
+    };
+  });
   canvas.addEventListener("pointermove", (e) => {
     if (pinch) return;
     if (drag) {
-      const dx = (e.clientX - drag.x) / cam.scale;
-      const dy = (e.clientY - drag.y) / cam.scale;
-      if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 4) drag.moved = true;
-      cam.x = drag.cx - dx * (canvas.width / canvas.getBoundingClientRect().width);
-      cam.y = drag.cy - dy * (canvas.height / canvas.getBoundingClientRect().height);
+      const dist = Math.hypot(e.clientX - drag.x, e.clientY - drag.y);
+      if (dist > drag.slop) drag.moved = true;
+      if (drag.moved) {
+        const dx = (e.clientX - drag.x) / cam.scale;
+        const dy = (e.clientY - drag.y) / cam.scale;
+        cam.x = drag.cx - dx * (canvas.width / canvas.getBoundingClientRect().width);
+        cam.y = drag.cy - dy * (canvas.height / canvas.getBoundingClientRect().height);
+      }
     }
-    hover = hit(world(e));
+    hover = hit(e);
     canvas.style.cursor = hover ? "pointer" : drag ? "grabbing" : "grab";
   });
-  canvas.addEventListener("pointerup", (e) => {
-    if (drag && !drag.moved) {
-      const s = hit(world(e));
-      if (s) onSelect(s);
-      else if (typeof onSelect === "function") onSelect(null);
+  function endPointer(e) {
+    if (drag && !drag.moved && typeof onSelect === "function") {
+      const s = hit(e);
+      onSelect(s || null);
     }
+    drag = null;
+  }
+  canvas.addEventListener("pointerup", endPointer);
+  canvas.addEventListener("pointercancel", () => {
     drag = null;
   });
   canvas.addEventListener("wheel", (e) => {
