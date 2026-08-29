@@ -108,10 +108,15 @@ export function createMap(canvas, onSelect) {
   function resize() {
     const r = canvas.getBoundingClientRect();
     const dpr = Math.min(2, devicePixelRatio || 1);
-    canvas.width = Math.max(1, Math.floor(r.width * dpr));
-    canvas.height = Math.max(1, Math.floor(r.height * dpr));
+    const w = Math.max(1, Math.floor(r.width * dpr));
+    const h = Math.max(1, Math.floor(r.height * dpr));
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
   }
   new ResizeObserver(resize).observe(canvas);
+  resize();
 
   function draw(now) {
     const ctx = canvas.getContext("2d");
@@ -326,6 +331,7 @@ export function createMap(canvas, onSelect) {
     setHighlight(systemId) {
       highlightSystemId = systemId;
     },
+    resize,
     destroy() {
       cancelAnimationFrame(raf);
     },

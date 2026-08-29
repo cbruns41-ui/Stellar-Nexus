@@ -1,6 +1,6 @@
 import { api, getState, getCatalog, getPreview, getGalaxy, getSystem, getReports, getRanks, getEmpire, combatPreview, combatSim, getAlliances, getAlliance, getAllianceActivity } from "./api.js";
 import { esc, fmt, eta, when, costHtml, planetCss, planetGlobeUrl, planetColonyUrl, mediaTag, bindMediaFallbacks, toast, showModal, hideModal, shipList, starfield, resourceIcon, icon, beep, notify, tickEta, ticksOf, tickMsFrom } from "./ui.js";
-import { createMap, systemHtml } from "./map.js?v=45";
+import { createMap, systemHtml } from "./map.js?v=46";
 import { battleReplayHtml, bindBattleReplays } from "./battle.js";
 
 const $ = (id) => document.getElementById(id);
@@ -111,7 +111,7 @@ function renderDock() {
     .map((hit) => {
       const pct = clamp(((t - (hit.departedAt || hit.arrivesAt - 90000)) / Math.max(1, hit.arrivesAt - (hit.departedAt || hit.arrivesAt - 90000))) * 100, 0, 100);
       const kind = hit.kind === "spy" ? "SCAN" : hit.kind === "raid" ? "RAID" : "ANGRIFF";
-      return `<div class="fleet-item panel dock-jump hostile" role="button" tabindex="0" data-dock-view="galaxy" data-dock-planet="${hit.planetId || ""}" title="Zur Karte">
+      return `<div class="fleet-item panel dock-jump hostile" role="button" tabindex="0" data-dock-view="galaxy" data-dock-planet="${hit.planetId || ""}" title="Zur Galaxie">
           <b>${kind}</b>
           <span>${esc(hit.from)} → ${esc(hit.planet)}</span>
           <div class="bar"><i style="width:${pct}%"></i></div>
@@ -269,7 +269,7 @@ function reportJumps(r) {
   const blob = `${r.title || ""} ${b.text || ""}`;
   switch (r.kind) {
     case "alert":
-      add("galaxy", "Zur Karte");
+      add("galaxy", "Zur Galaxie");
       add("defense", "Orbit verstärken");
       add("fleets", "Zur Flotte");
       break;
@@ -285,18 +285,18 @@ function reportJumps(r) {
       break;
     case "fleet":
       add("fleets", "Zur Flotte");
-      add("galaxy", "Zur Karte");
+      add("galaxy", "Zur Galaxie");
       break;
     case "combat":
       add("fleets", "Zur Flotte");
-      add("galaxy", "Zur Karte");
+      add("galaxy", "Zur Galaxie");
       break;
     case "spy":
-      if (!b.planetId) add("galaxy", "Zur Karte");
+      if (!b.planetId) add("galaxy", "Zur Galaxie");
       break;
     case "expedition":
     case "salvage":
-      add("galaxy", "Zur Karte");
+      add("galaxy", "Zur Galaxie");
       add("activity", "Einsatzzentrale");
       break;
     case "event":
@@ -440,7 +440,7 @@ function allianceActivityTableHtml(rows) {
   }
   const tbody = rows
     .map(
-      (r) => `<tr class="ally-act-row" role="button" tabindex="0" data-goto-planet="${r.targetId}" data-system-id="${r.systemId}" title="Auf der Karte zeigen">
+      (r) => `<tr class="ally-act-row" role="button" tabindex="0" data-goto-planet="${r.targetId}" data-system-id="${r.systemId}" title="In der Galaxie zeigen">
         <td>${r.dir === "attack" ? "Angriff" : "Verteidigen"}</td>
         <td>${esc(r.actor || r.attacker || r.defender || "—")}</td>
         <td>${esc(r.target)}</td>
@@ -450,7 +450,7 @@ function allianceActivityTableHtml(rows) {
     )
     .join("");
   return `<h3 style="font-size:13px;margin:0 0 8px">Allianz-Aktivität <i class="page-badge">${rows.length > 9 ? "9+" : rows.length}</i></h3>
-    <p class="hint">Nur Aktionen von Verbündeten. Klick öffnet den Planeten auf der Karte.</p>
+    <p class="hint">Nur Aktionen von Verbündeten. Klick öffnet den Planeten in der Galaxie.</p>
     <div class="table-wrap"><table class="table">
       <thead><tr><th>Art</th><th>Verbündeter</th><th>Planet</th><th>Ankunft</th><th>Schiffe</th></tr></thead>
       <tbody>${tbody}</tbody>
@@ -625,12 +625,12 @@ function renderAlerts() {
   el.classList.remove("hidden");
   el.setAttribute("role", "button");
   el.tabIndex = 0;
-  el.title = "Zur Karte";
+  el.title = "Zur Galaxie";
   el.innerHTML = `<b>ALARM</b>
     <span>${esc(soon.from)} → ${esc(soon.planet)} · ${esc(soon.kind === "spy" ? "Spionage" : soon.kind === "raid" ? "Raid" : "Angriff")}</span>
     <span class="muted">${eta(soon.arrivesAt - Date.now())}</span>
     <span class="muted">${hits.length > 1 ? hits.length + " Signale" : shipList(soon.ships, state.catalog)}</span>
-    <span class="alert-go">Zur Karte →</span>`;
+    <span class="alert-go">Zur Galaxie →</span>`;
   el.onclick = () => jumpTo("galaxy", soon.planetId);
   el.onkeydown = (ev) => {
     if (ev.key === "Enter" || ev.key === " ") {
@@ -1174,7 +1174,7 @@ function homeStatusCards() {
     <div class="home-quick">
       <button type="button" class="btn" data-view-jump="infra">Gebäude</button>
       <button type="button" class="btn" data-view-jump="yard">Werft</button>
-      <button type="button" class="btn" data-view-jump="galaxy">Karte</button>
+      <button type="button" class="btn" data-view-jump="galaxy">Galaxie</button>
       <button type="button" class="btn" data-view-jump="activity">Einsatz</button>
     </div>`;
 }
@@ -1542,7 +1542,7 @@ const views = {
       <div class="nex-shop">${packs}</div>` : ""}
       <p class="legal-note">${esc(legal.age || "")} ${esc(legal.withdrawal || "")} ${esc(legal.sub || "")} <a href="/legal.html">AGB, Widerruf, Impressum</a></p>
       <div class="section-title" style="margin-top:18px"><h2>Relikte</h2></div>
-      <p class="hint">Relikte findest du auf Expeditionen und bei Warlords (goldener Ring auf der Karte). Maximal 3 ausgerüstet.</p>
+      <p class="hint">Relikte findest du auf Expeditionen und bei Warlords (goldener Ring in der Galaxie). Maximal 3 ausgerüstet.</p>
       <div class="relic-grid">${cards || `<div class="muted">Noch keine Relikte. Starte eine Expedition.</div>`}</div>
       <div class="section-title" style="margin-top:18px"><h2>Schwarzmarkt</h2><span class="muted">wechselt alle 12 Minuten</span></div>
       ${offers}
@@ -3801,11 +3801,23 @@ async function loadReports(filter = "all") {
   });
 }
 
+let mapBootId = 0;
+
 async function bootMap() {
   const canvas = $("starmap");
   if (!canvas) return;
-  state.galaxy = await getGalaxy();
+  const bootId = ++mapBootId;
+  const stillHere = () => bootId === mapBootId && state.view === "galaxy" && $("starmap") === canvas;
+  if (state.map) {
+    try {
+      state.map.destroy();
+    } catch {
+      /* ignore */
+    }
+    state.map = null;
+  }
   state.map = createMap(canvas, async (sys, opts) => {
+    if (!stillHere()) return;
     const box = $("sysbox");
     if (!box) return;
     if (!sys) {
@@ -3840,9 +3852,36 @@ async function bootMap() {
       })
     );
   });
-  state.map.setData(state.galaxy);
-  if (state.mapFocus?.planetId || state.mapFocus?.systemId) applyMapFocus();
-  else state.map.focusHome(false);
+  const kick = () => {
+    if (!stillHere() || !state.map) return;
+    state.map.resize();
+  };
+  kick();
+  requestAnimationFrame(() => {
+    requestAnimationFrame(kick);
+    setTimeout(kick, 80);
+    setTimeout(kick, 280);
+  });
+  let focused = false;
+  const paintGalaxy = (galaxy) => {
+    if (!stillHere() || !state.map || !galaxy) return;
+    state.galaxy = galaxy;
+    state.map.setData(galaxy);
+    if (!focused) {
+      if (state.mapFocus?.planetId || state.mapFocus?.systemId) applyMapFocus();
+      else state.map.focusHome(false);
+      focused = true;
+    }
+    kick();
+  };
+  if (state.galaxy?.systems) paintGalaxy(state.galaxy);
+  try {
+    const galaxy = await getGalaxy();
+    paintGalaxy(galaxy);
+  } catch (err) {
+    if (stillHere()) toast(err.message || "Galaxie nicht geladen.", true);
+  }
+  if (!stillHere()) return;
   const root = $("view");
   const applyMapFilter = () => {
     const filters = { query: root.querySelector("#map-search")?.value || "" };

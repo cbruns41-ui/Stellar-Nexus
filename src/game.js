@@ -1862,7 +1862,7 @@ function sendFleet(db, empire, origin, target, mission, shipsWanted, cargo, opts
     text: `${shipLabel} · Treibstoff ${fuelNeeded} Helium-3 · Ankunft ${new Date(eta).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`,
     jumps: [
       { view: "fleets", label: "Zur Flotte" },
-      { view: "galaxy", label: "Zur Karte" },
+      { view: "galaxy", label: "Zur Galaxie" },
     ],
   });
   const info = db
@@ -2589,7 +2589,7 @@ function spawnRaid(db) {
     arrivesAt: arrives,
     threat: raidLv,
     jumps: [
-      { view: "galaxy", label: "Zur Karte", planetId: target.id },
+      { view: "galaxy", label: "Zur Galaxie", planetId: target.id },
       { view: "defense", label: "Orbit verstärken", planetId: target.id },
       { view: "fleets", label: "Zur Flotte", planetId: target.id },
     ],
