@@ -18,17 +18,31 @@ const state = {
   openReports: new Set(),
   highlightBuilding: null,
   citySheet: null,
+  cityCam: { x: 0, y: 0, scale: 1.15, ready: false },
 };
 
 const CITY_PLOTS = [
-  { id: "command", x: 50, y: 36, view: "infra", building: "command", short: "Nexus" },
-  { id: "matter_mine", x: 28, y: 52, view: "infra", building: "matter_mine", short: "Mine" },
-  { id: "energy_array", x: 46, y: 61, view: "infra", building: "energy_array", short: "Array" },
-  { id: "helium_well", x: 62, y: 66, view: "infra", building: "helium_well", short: "Helium" },
-  { id: "shipyard", x: 82, y: 56, view: "yard", building: "shipyard", short: "Werft" },
-  { id: "archive", x: 78, y: 40, view: "research", building: "archive", short: "Labor" },
-  { id: "shield", x: 70, y: 28, view: "defense", building: "shield", short: "Schild" },
-  { id: "lock-titan", x: 24, y: 30, lockedNeed: "Kommando Stufe 2", building: "titan_extractor", view: "infra", short: "Titan" },
+  { id: "command", x: 30, y: 34, view: "infra", building: "command", short: "Nexus" },
+  { id: "matter_mine", x: 38, y: 44, view: "infra", building: "matter_mine", short: "Mine" },
+  { id: "energy_array", x: 20, y: 26, view: "infra", building: "energy_array", short: "Array" },
+  { id: "helium_well", x: 22, y: 68, view: "infra", building: "helium_well", short: "Helium" },
+  { id: "titan_extractor", x: 48, y: 27, view: "infra", building: "titan_extractor", short: "Titan" },
+  { id: "uplink", x: 72, y: 38, view: "infra", building: "uplink", short: "Kristall" },
+  { id: "diamond_forge", x: 40, y: 58, view: "infra", building: "diamond_forge", short: "Diamant" },
+  { id: "silo", x: 52, y: 52, view: "infra", building: "silo", short: "Lager" },
+  { id: "shipyard", x: 68, y: 70, view: "yard", building: "shipyard", short: "Werft" },
+  { id: "archive", x: 84, y: 62, view: "research", building: "archive", short: "Labor" },
+  { id: "spy_center", x: 80, y: 22, view: "infra", building: "spy_center", short: "Spionage" },
+  { id: "shield", x: 48, y: 86, view: "defense", building: "shield", short: "Schild" },
+  { id: "beacon", x: 58, y: 20, view: "infra", building: "beacon", short: "Bake" },
+  { id: "colony_dock", x: 78, y: 82, view: "infra", building: "colony_dock", short: "Dock" },
+  { id: "robotics", x: 62, y: 46, view: "infra", building: "robotics", short: "Robotik" },
+  { id: "fusion", x: 12, y: 52, view: "infra", building: "fusion", short: "Fusion" },
+  { id: "habitat", x: 8, y: 30, view: "infra", building: "habitat", short: "Habitat" },
+  { id: "nanite", x: 60, y: 78, view: "yard", building: "nanite", short: "Naniten" },
+  { id: "quantum_lab", x: 92, y: 54, view: "research", building: "quantum_lab", short: "Labor+" },
+  { id: "jumpgate", x: 50, y: 14, view: "infra", building: "jumpgate", short: "Sprungtor" },
+  { id: "citadel", x: 90, y: 36, view: "defense", building: "citadel", short: "Zitadelle" },
 ];
 
 try {
@@ -357,8 +371,8 @@ function openNavSheet() {
 
 function tabIdFor(view) {
   if (view === "command") return "home";
-  if (view === "infra" || view === "yard" || view === "defense" || view === "research" || view === "tree") return "build";
   if (view === "galaxy") return "map";
+  if (view === "alliance") return "ally";
   if (view === "fleets") return "fleet";
   return "more";
 }
@@ -548,10 +562,9 @@ function paintChrome() {
     sel.value = cur;
   }
   const hints = s.hints || {};
-  const moreKeys = ["economy", "nexus", "activity", "reports", "chat", "alliance"];
-  const buildN = (Number(hints.infra) || 0) + (Number(hints.yard) || 0) + (Number(hints.defense) || 0) + (Number(hints.research) || 0);
+  const moreKeys = ["economy", "nexus", "activity", "reports", "chat", "infra", "yard", "defense", "research"];
   const moreN = moreKeys.reduce((n, k) => n + (Number(hints[k]) || 0), 0);
-  const badgeMap = { ...hints, more: moreN, infra: buildN || hints.infra || 0, reports: hints.reports || s.unread || 0, chat: hints.chat || s.unreadChat || 0 };
+  const badgeMap = { ...hints, more: moreN, reports: hints.reports || s.unread || 0, chat: hints.chat || s.unreadChat || 0 };
   for (const el of document.querySelectorAll("[data-badge]")) {
     if (el.dataset.badge === "alliance") continue;
     const n = Number(badgeMap[el.dataset.badge] || 0);
@@ -1179,6 +1192,16 @@ function markNuxSeen() {
   }
 }
 
+function plotNeedText(buildingId, buildings) {
+  const spec = state.catalog?.buildings?.[buildingId];
+  const req = spec?.requires?.buildings || {};
+  for (const [id, n] of Object.entries(req)) {
+    if ((buildings[id] || 0) < n) return `${state.catalog.buildings[id]?.name || id} ${n}`;
+  }
+  if (spec?.requires?.techs && Object.keys(spec.requires.techs).length) return "Forschung fehlt";
+  return "Gesperrt";
+}
+
 function recommendedPlotId() {
   const next = state.snap?.nextAction;
   const blob = `${next?.title || ""} ${next?.text || ""} ${next?.view || ""}`;
@@ -1271,7 +1294,7 @@ function colonyCityHtml() {
   const plots = CITY_PLOTS.map((plot) => {
     const info = plot.building ? prev[plot.building] : null;
     const lvl = plot.building ? buildings[plot.building] || 0 : 0;
-    const unlocked = plot.lockedNeed ? (buildings.command || 0) >= 2 && (info ? info.unlocked : true) : info ? info.unlocked : true;
+    const unlocked = info ? !!info.unlocked : true;
     const q = (state.snap.queue || []).find((item) => item.kind === "building" && item.itemId === plot.building && item.planetId === p.id);
     const rec = plot.id === recId && unlocked;
     const cls = [
@@ -1283,15 +1306,16 @@ function colonyCityHtml() {
     ]
       .filter(Boolean)
       .join(" ");
+    const need = !unlocked ? plotNeedText(plot.building, buildings) : "";
     const sub = !unlocked
-      ? plot.lockedNeed || "Gesperrt"
+      ? need
       : q
         ? `Im Bau · ${eta(q.completesAt - Date.now())}`
         : lvl
           ? `Stufe ${lvl}`
           : "Bauen";
     const action = !unlocked
-      ? `data-city-lock="${esc(plot.lockedNeed || "Noch gesperrt")}"`
+      ? `data-city-lock="${esc(need || "Noch gesperrt")}"`
       : `data-view-jump="${plot.view}" data-open-infra="${plot.building || ""}"`;
     return `<button type="button" class="${cls}" style="left:${plot.x}%;top:${plot.y}%" ${action}>
         ${rec ? `<i class="city-arrow">↑</i>` : ""}
@@ -1303,7 +1327,7 @@ function colonyCityHtml() {
     ? `<div class="city-nux">
         <div class="city-nux-card">
           <em>START 1 / 3</em>
-          <p>Tippe die <b>Mine</b> auf der Kolonie. Der grüne Pfeil zeigt immer, was als Nächstes zählt.</p>
+          <p>Schiebe die Stadt mit dem Finger. Tippe die <b>Mine</b> — der grüne Pfeil zeigt, was als Nächstes zählt.</p>
           <button type="button" class="btn primary" data-nux-ok="1">Verstanden</button>
         </div>
       </div>`
@@ -1330,7 +1354,7 @@ function colonyCityHtml() {
   return `<section class="city-view">
     <div class="city-stage" id="city-stage">
       <div class="city-map" id="city-map">
-        <img src="/assets/colony/city.jpg" alt="" />
+        <img src="/assets/colony/city-wide.jpg" alt="" draggable="false" />
         ${plots}
       </div>
     </div>
@@ -2251,44 +2275,132 @@ function bindCity(root) {
   const stage = root.querySelector("#city-stage");
   const map = root.querySelector("#city-map");
   if (!stage || !map) return;
-  let x = 0;
-  let y = 0;
+  const cam = state.cityCam;
+  const pts = new Map();
   let dragging = false;
-  let sx = 0;
-  let sy = 0;
-  let ox = 0;
-  let oy = 0;
-  const apply = () => {
-    map.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+  let moved = false;
+  let lastDist = 0;
+  const mapSize = () => {
+    const w = map.offsetWidth || 1860;
+    const h = map.offsetHeight || w;
+    return { w, h };
   };
+  const clampCam = () => {
+    const sw = stage.clientWidth || 390;
+    const sh = stage.clientHeight || 640;
+    const { w, h } = mapSize();
+    const mw = w * cam.scale;
+    const mh = h * cam.scale;
+    const minX = Math.min(sw - mw - 40, 40);
+    const maxX = 40;
+    const minY = Math.min(sh - mh - 40, 40);
+    const maxY = 40;
+    cam.x = Math.min(maxX, Math.max(minX, cam.x));
+    cam.y = Math.min(maxY, Math.max(minY, cam.y));
+  };
+  const apply = () => {
+    map.style.transform = `translate(${cam.x}px, ${cam.y}px) scale(${cam.scale})`;
+  };
+  const centerOn = (px, py) => {
+    const { w, h } = mapSize();
+    const sw = stage.clientWidth || 390;
+    const sh = stage.clientHeight || 640;
+    cam.x = sw / 2 - (px / 100) * w * cam.scale;
+    cam.y = sh / 2 - (py / 100) * h * cam.scale;
+    clampCam();
+    apply();
+  };
+  const bootCam = () => {
+    if (cam.ready) {
+      apply();
+      return;
+    }
+    const rec = CITY_PLOTS.find((p) => p.id === "command") || CITY_PLOTS[0];
+    cam.scale = 1.05;
+    centerOn(rec.x, rec.y);
+    cam.ready = true;
+  };
+  const img = map.querySelector("img");
+  if (img && !img.complete) img.addEventListener("load", bootCam, { once: true });
+  else bootCam();
+  requestAnimationFrame(bootCam);
   stage.addEventListener("pointerdown", (e) => {
-    if (e.target.closest("button, .city-quest, .city-side, .city-nux, .city-sheet")) return;
-    dragging = true;
-    sx = e.clientX;
-    sy = e.clientY;
-    ox = x;
-    oy = y;
-    try {
-      stage.setPointerCapture(e.pointerId);
-    } catch {
-      /* ignore */
+    if (e.target.closest(".city-quest, .city-side, .city-nux, .city-sheet")) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    dragging = pts.size === 1;
+    moved = false;
+    if (pts.size === 2) {
+      const [a, b] = [...pts.values()];
+      lastDist = Math.hypot(a.x - b.x, a.y - b.y);
+      dragging = false;
     }
   });
   stage.addEventListener("pointermove", (e) => {
+    if (!pts.has(e.pointerId)) return;
+    const prev = pts.get(e.pointerId);
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 2) {
+      const [a, b] = [...pts.values()];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      if (lastDist > 0) {
+        const rect = stage.getBoundingClientRect();
+        const midX = (a.x + b.x) / 2 - rect.left;
+        const midY = (a.y + b.y) / 2 - rect.top;
+        const next = Math.min(2.2, Math.max(0.7, cam.scale * (dist / lastDist)));
+        const k = next / cam.scale;
+        cam.x = midX - (midX - cam.x) * k;
+        cam.y = midY - (midY - cam.y) * k;
+        cam.scale = next;
+        clampCam();
+        apply();
+      }
+      lastDist = dist;
+      moved = true;
+      return;
+    }
     if (!dragging) return;
-    x = ox + (e.clientX - sx);
-    y = oy + (e.clientY - sy);
-    const maxX = stage.clientWidth * 0.28;
-    const maxY = stage.clientHeight * 0.28;
-    x = Math.max(-maxX, Math.min(maxX, x));
-    y = Math.max(-maxY, Math.min(maxY, y));
+    const dx = e.clientX - prev.x;
+    const dy = e.clientY - prev.y;
+    if (Math.abs(dx) + Math.abs(dy) > 2) moved = true;
+    cam.x += dx;
+    cam.y += dy;
+    clampCam();
     apply();
   });
-  const end = () => {
-    dragging = false;
+  const endPtr = (e) => {
+    pts.delete(e.pointerId);
+    if (pts.size < 2) lastDist = 0;
+    if (pts.size === 0) dragging = false;
   };
-  stage.addEventListener("pointerup", end);
-  stage.addEventListener("pointercancel", end);
+  stage.addEventListener("pointerup", endPtr);
+  stage.addEventListener("pointercancel", endPtr);
+  stage.addEventListener(
+    "click",
+    (e) => {
+      if (moved && e.target.closest(".city-plot")) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    },
+    true
+  );
+  stage.addEventListener(
+    "wheel",
+    (e) => {
+      e.preventDefault();
+      const rect = stage.getBoundingClientRect();
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+      const next = Math.min(2.2, Math.max(0.7, cam.scale * (e.deltaY < 0 ? 1.1 : 0.9)));
+      const k = next / cam.scale;
+      cam.x = cx - (cx - cam.x) * k;
+      cam.y = cy - (cy - cam.y) * k;
+      cam.scale = next;
+      clampCam();
+      apply();
+    },
+    { passive: false }
+  );
 }
 
 function bindView(root) {
@@ -4512,7 +4624,10 @@ const planetSel = $("planet-select");
 if (planetSel) {
   planetSel.onchange = () => {
     const id = Number(planetSel.value);
-    if (id) act(() => api("/focus", { method: "POST", body: { planetId: id } }));
+    if (id) {
+      state.cityCam.ready = false;
+      act(() => api("/focus", { method: "POST", body: { planetId: id } }));
+    }
   };
 }
 $("brand-profile")?.addEventListener("click", () => {

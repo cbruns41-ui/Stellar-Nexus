@@ -2678,12 +2678,13 @@ button.linkish {
   touch-action: none;
   cursor: grab;
 }
+.city-stage:active { cursor: grabbing; }
 .city-map {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  width: min(640px, 132%);
-  transform: translate(-50%, -50%);
+  left: 0;
+  top: 0;
+  width: 1860px;
+  transform-origin: 0 0;
   will-change: transform;
 }
 .city-map img {
@@ -2692,19 +2693,21 @@ button.linkish {
   height: auto;
   pointer-events: none;
   user-select: none;
+  -webkit-user-drag: none;
 }
 .city-plot {
   position: absolute;
   transform: translate(-50%, -100%);
-  min-width: 72px;
-  padding: 5px 8px 6px;
+  min-width: 64px;
+  padding: 4px 7px 5px;
   border-radius: 10px;
   border: 1px solid rgba(62, 232, 196, 0.4);
-  background: rgba(4, 10, 16, 0.84);
+  background: rgba(4, 10, 16, 0.86);
   color: var(--text);
   text-align: center;
   z-index: 3;
   box-shadow: 0 8px 18px rgba(0,0,0,0.45);
+  pointer-events: auto;
 }
 .city-plot b {
   display: block;
@@ -2897,4 +2900,33 @@ button.linkish {
   }
   .og-art { height: 110px; }
   .hint { font-size: 12px; line-height: 1.4; }
+}
+
+.nav-sheet-handle {
+  width: 42px;
+  height: 4px;
+  border-radius: 4px;
+  background: rgba(62, 232, 196, 0.35);
+  margin: 2px auto 12px;
+}
+.nav-section {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.nav button,
+.nav-help {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+.nav button.on { box-shadow: inset 0 -3px 0 var(--cyan); }
+.nav-help { grid-column: auto; }
+@media (max-width: 860px) {
+  .nav-section { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .city-map { width: 1760px; }
+  .tabbar button { min-width: 0; overflow: hidden; }
 }

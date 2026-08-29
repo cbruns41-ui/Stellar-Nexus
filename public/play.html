@@ -15,7 +15,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Sora:wght@400;500;600;700&family=Tektur:wght@500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/css/style.css?v=50" />
+    <link rel="stylesheet" href="/css/style.css?v=52" />
   </head>
   <body data-mode="play">
     <canvas id="stars" aria-hidden="true"></canvas>
@@ -42,34 +42,31 @@
       </header>
 
       <nav class="nav" id="nav">
+        <div class="nav-sheet-handle" aria-hidden="true"></div>
         <div class="nav-section">
-          <span class="nav-group">Planet</span>
-          <button data-view="command" class="on">Kolonie <i data-badge="command" hidden></i></button>
-          <button data-view="economy">Rohstoffe <i data-badge="economy" hidden></i></button>
+          <span class="nav-group">Bauen</span>
           <button data-view="infra">Gebäude <i data-badge="infra" hidden></i></button>
-          <button data-view="yard">Schiffswerft <i data-badge="yard" hidden></i></button>
-          <button data-view="defense">Verteidigung <i data-badge="defense" hidden></i></button>
-          <button data-view="research">Forschung <i data-badge="research" hidden></i></button>
+          <button data-view="yard">Werft <i data-badge="yard" hidden></i></button>
+          <button data-view="research">Labor <i data-badge="research" hidden></i></button>
+          <button data-view="defense">Orbit <i data-badge="defense" hidden></i></button>
           <button data-view="tree">Tech-Tree</button>
-          <button data-view="nexus">Nexus <i data-badge="nexus" hidden></i></button>
+          <button data-view="economy">Rohstoffe <i data-badge="economy" hidden></i></button>
         </div>
         <div class="nav-section">
-          <span class="nav-group">Universum</span>
-          <button data-view="galaxy">Galaxie <i data-badge="galaxy" hidden></i></button>
-          <button data-view="fleets">Flotte <i data-badge="fleets" hidden></i></button>
-          <button data-view="sim">Simulator</button>
-          <button data-view="activity">Einsatz <i data-badge="activity" hidden></i></button>
-          <button data-view="reports">Nachrichten <i data-badge="reports" hidden></i></button>
+          <span class="nav-group">Kommando</span>
+          <button data-view="reports">Funk <i data-badge="reports" hidden></i></button>
           <button data-view="chat">Chat <i data-badge="chat" hidden></i></button>
+          <button data-view="activity">Einsatz <i data-badge="activity" hidden></i></button>
+          <button data-view="nexus">Nexus <i data-badge="nexus" hidden></i></button>
+          <button data-view="sim">Simulator</button>
+          <button data-view="progress">Orden</button>
         </div>
         <div class="nav-section">
           <span class="nav-group">Reich</span>
           <button data-view="empire">Imperium</button>
           <button data-view="ranks">Rangliste</button>
-           <button data-view="alliance">Allianz <i data-badge="alliance" hidden></i></button>
-          <button data-view="settings">Einstellungen</button>
-          <button data-view="progress">Fortschritt</button>
-          <a class="nav-help" href="/help.html">Hilfe &amp; Regeln</a>
+          <button data-view="settings">Optionen</button>
+          <a class="nav-help" href="/help.html">Hilfe</a>
         </div>
         <div class="nav-section" id="nav-staff" hidden>
           <span class="nav-group">Leitung</span>
@@ -86,20 +83,20 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/></svg>
           Kolonie <i data-badge="command" hidden></i>
         </button>
-        <button type="button" data-view="infra" data-tab="build">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 7l3 3-8 8H6v-3z"/><path d="M16 5l3 3"/></svg>
-          Bau <i data-badge="infra" hidden></i>
-        </button>
         <button type="button" data-view="galaxy" data-tab="map">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 5v2M12 17v2M5 12h2M17 12h2"/></svg>
           Galaxie <i data-badge="galaxy" hidden></i>
+        </button>
+        <button type="button" data-view="alliance" data-tab="ally">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="10" r="2.4"/><circle cx="16" cy="10" r="2.4"/><path d="M4 18c.6-2.4 2.4-3.6 4-3.6s3.4 1.2 4 3.6M12 18c.6-2.4 2.4-3.6 4-3.6s3.4 1.2 4 3.6"/></svg>
+          Allianz <i data-badge="alliance" hidden></i>
         </button>
         <button type="button" data-view="fleets" data-tab="fleet">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 16l8-10 8 10H4z"/></svg>
           Flotte <i data-badge="fleets" hidden></i>
         </button>
         <button type="button" data-more="1" data-tab="more">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14"/></svg>
           Mehr <i data-badge="more" hidden></i>
         </button>
       </nav>
@@ -110,6 +107,6 @@
 
     <script src="/js/play-boot.js?v=21"></script>
     <script src="/js/pwa.js?v=1"></script>
-    <script type="module" src="/js/app.js?v=51"></script>
+    <script type="module" src="/js/app.js?v=55"></script>
   </body>
 </html>
