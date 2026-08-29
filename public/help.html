@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#03050a" />
+    <meta name="description" content="Stellar Nexus Hilfe und Spielregeln: Ressourcen, Forschung, Flugzeiten, Kämpfe, Verbundschläge und Allianzen." />
+    <title>Stellar Nexus — Hilfe &amp; Regeln</title>
+    <link rel="icon" href="/assets/emblem.jpg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Sora:wght@400;500;600;700&family=Tektur:wght@500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/css/style.css?v=32" />
+  </head>
+  <body class="help-page">
+    <canvas id="stars" aria-hidden="true"></canvas>
+    <div id="scan" aria-hidden="true"></div>
+    <header class="help-topbar">
+      <a class="help-brand" href="/"><img src="/assets/emblem.jpg" alt="" /><span>STELLAR NEXUS</span></a>
+      <a class="btn primary" href="/">Zum Nexus</a>
+    </header>
+    <main class="help-layout">
+      <aside class="help-index panel">
+        <p class="land-kicker"><span></span> Kommando-Handbuch</p>
+        <h1>Hilfe &amp; Regeln</h1>
+        <p class="help-lead">Alles Wichtige für dein Imperium, vom ersten Bau bis zum koordinierten Angriff.</p>
+        <nav aria-label="Hilfe-Navigation">
+          <a href="#start">Schnellstart</a>
+          <a href="#ressourcen">Ressourcen</a>
+          <a href="#bauen">Bauen &amp; forschen</a>
+          <a href="#fliegen">Flugzeiten</a>
+          <a href="#kampf">Kampf</a>
+          <a href="#verbund">Gruppenangriffe</a>
+          <a href="#expandieren">Kolonien &amp; Piraten</a>
+          <a href="#reich">Allianz &amp; Kommunikation</a>
+          <a href="#nexus">Nex, Pass &amp; Relikte</a>
+          <a href="/legal.html">Rechtliches</a>
+        </nav>
+      </aside>
+      <div class="help-content">
+        <section class="help-hero panel" id="start">
+          <p class="land-kicker"><span></span> Dein erster Zyklus</p>
+          <h2>Baue. Erforsche. Fliege.</h2>
+          <p>Stellar Nexus läuft in einer persistenten Galaxie. Ressourcen wachsen auch offline, Aufträge laufen weiter und Ankünfte werden im Universum-Tick verarbeitet.</p>
+          <div class="help-facts"><div><b>5 min</b><span>1 Welt-Tick</span></div><div><b>5 Tage</b><span>Anfängerschutz</span></div><div><b>8</b><span>Flotten im Verbund</span></div></div>
+        </section>
+
+        <section class="help-section" id="ressourcen">
+          <div class="help-heading"><span>01</span><div><h2>Ressourcen &amp; Wirtschaft</h2><p>Jede Welt produziert selbstständig bis zu ihrer Lagergrenze.</p></div></div>
+          <div class="help-grid help-grid-3">
+            <article class="help-card"><h3>Metall</h3><p>Grundstoff für Gebäude, Werften und viele Verteidigungen.</p></article>
+            <article class="help-card"><h3>Helium-3</h3><p>Treibstoff für Flotten und Warp. Ohne Helium bleibt die Reichweite Theorie.</p></article>
+            <article class="help-card"><h3>Titan</h3><p>Schwere Panzerung und Kapital-Schiffe benötigen Titan.</p></article>
+            <article class="help-card"><h3>Energie</h3><p>Versorgt Reaktoren, Schilde und orbitale Systeme.</p></article>
+            <article class="help-card"><h3>Kristalle</h3><p>Wichtig für Forschung, Sensorik und fortgeschrittene Technik.</p></article>
+            <article class="help-card"><h3>Diamanten</h3><p>Selten. Für Kolonien, Nexus-Angebote und den Chrono-Riss.</p></article>
+          </div>
+          <div class="help-note">Der Lagerstand wird bis zur Kapazität aufgefüllt. Ein Speichervault erhöht das Lager; die Wirtschaft zeigt Bestände, Produktion pro Stunde und die stärkste Quelle je Ressource. Der Biom-Bonus gilt ab Extraktor-Stufe 2 auf die Fokus-Ressource und beträgt +14%.</div>
+        </section>
+
+        <section class="help-section" id="bauen">
+          <div class="help-heading"><span>02</span><div><h2>Bauen, Werft &amp; Forschung</h2><p>Voraussetzungen stehen direkt am jeweiligen Eintrag und im Tech-Tree.</p></div></div>
+          <div class="help-grid help-grid-2">
+            <article class="help-card"><h3>Gebäude</h3><p>Baue Minen, Lager, Werft, Archiv, Schildgenerator, Warp-Bake und Kolonialdock aus. Pro Planet läuft jeweils nur ein Bauauftrag. Frühe Stufen dauern Sekunden bis Minuten; spätere Stufen ziehen sich über Stunden und Tage, damit das Reich über Jahre wächst.</p></article>
+            <article class="help-card"><h3>Schiffswerft</h3><p>Produziere Sonden, Jäger, Abfangjäger, Bomber, Fregatten und Kapital-Schiffe. Auch in der Werft ist nur eine Produktionsschleife gleichzeitig aktiv.</p></article>
+            <article class="help-card"><h3>Forschung</h3><p>Forschung ist empireweit. Warp und Hyperspace vergrößern die Reichweite beziehungsweise verkürzen Reisen; Waffen, Panzerung, Schilde und Spezialtechnik verbessern den Kampf.</p></article>
+            <article class="help-card"><h3>Tech-Tree</h3><p>Grün bedeutet erfüllt, Rot bedeutet gesperrt. „Gibt frei“ zeigt, welche Stufen, Schiffe oder Batterien hinter einem Knoten liegen.</p></article>
+          </div>
+        </section>
+
+        <section class="help-section" id="fliegen">
+          <div class="help-heading"><span>03</span><div><h2>Flugzeiten und Welt-Ticks</h2><p>Die Vorschau zeigt den vom Server festgelegten Ankunfts-Tick.</p></div></div>
+          <div class="help-note">Zuerst wird aus Distanz, Tempo und Boni eine Rohzeit berechnet und in Reise-Ticks aufgerundet. Der Server legt danach den gemeinsamen Ankunfts-Tick fest. Deshalb können schnelle und langsame Flotten auf kurzen Strecken im selben Tick landen – das ermöglicht Verbundschläge.</div>
+          <div class="help-rule panel"><code>Rohzeit → nächster gemeinsamer Welt-Tick (alle 5 Minuten)</code><p>Die Berechnung berücksichtigt Distanz, System-Sprünge, Warp-/Hyperspace-Forschung, Warp-Bake am Startplaneten und Spezies-/Reliktboni.</p></div>
+          <ul class="help-list"><li><b>Ein Tick dauert 5 Minuten.</b> Ankünfte werden auf den nächsten ganzen Tick aufgerundet.</li><li><b>Die langsamste Einheit bestimmt das Tempo.</b> Eine gemischte Flotte wartet auf ihr langsamstes Schiff. Schnelle Verbände getrennt senden.</li><li><b>Gleiches System ist nicht kostenlos.</b> Auch dort fällt eine Mindestdistanz an; entfernte Systeme benötigen zusätzliche Sprünge.</li><li><b>Expeditionen</b> dauern einen Tick. Der Reisebonus deiner Spezies wirkt auf normale Reisen.</li></ul>
+        </section>
+
+        <section class="help-section" id="kampf">
+          <div class="help-heading"><span>04</span><div><h2>Kampf &amp; Verteidigung</h2><p>Die Kampfmatrix belohnt passende Konter statt einer einzigen Lieblingsflotte.</p></div></div>
+          <div class="help-grid help-grid-2"><article class="help-card"><h3>Angriff planen</h3><p>Spioniere zuerst mit einer Sonde. Die Vorschau zeigt Feuerkraft, erwartete Verluste und die Typen-Multiplikatoren. Ein Kampfbericht dokumentiert danach jede Einheit, Verluste und Beute.</p></article><article class="help-card"><h3>Orbit sichern</h3><p>Flak kontert Jäger und Sonden, Raketen Fregatten, Ionen Kreuzer und Gauss schwere Zerstörer. Schildgenerator und Zitadelle liefern zusätzliche Plattform-HP.</p></article><article class="help-card"><h3>Simulator</h3><p>Im Simulator kannst du Angreifer, Verteidiger und Batterien frei setzen. Eigene Forschung und Plattform-HP lassen sich ein- oder ausschalten. Es entstehen keine echten Verluste.</p></article><article class="help-card"><h3>Schutz</h3><p>Neue Imperien sind 5 Tage geschützt. Danach gilt Fair-Play: du darfst nur Spieler angreifen, die mindestens 25&nbsp;% deiner Punkte haben — Veteranen können Anfänger nicht farmen. Gegen denselben Commander sind höchstens 5 Angriffe in 24 Stunden erlaubt. Schwächere dürfen Stärkere weiterhin angreifen. Spionage bleibt möglich.</p></article></div>
+        </section>
+
+        <section class="help-section" id="verbund">
+          <div class="help-heading"><span>05</span><div><h2>Gruppenangriffe / Verbundschläge</h2><p>Koordiniere mehrere Flotten auf dasselbe Ziel und schlage im gleichen Tick zu.</p></div></div>
+          <ol class="help-steps"><li><b>Allianz bilden.</b> Ein Verbundschlag ist nur mit eigenen Flotten oder Mitgliedern derselben Allianz möglich.</li><li><b>Ziel wählen.</b> Auf der Galaxiekarte ein Ziel öffnen, Angriff wählen und die Schiffe zusammenstellen.</li><li><b>Bestehenden Schlag auswählen.</b> Das Missionsfenster zeigt passende laufende Angriffe. „Beitreten“ synchronisiert deine Ankunft.</li><li><b>Halt in Ticks setzen.</b> Eine angreifende Flotte kann bis zu 144 Ticks warten. Missionen außerhalb des Angriffs ignorieren den Halt.</li><li><b>Limit beachten.</b> Pro Angriffswelle sind maximal 8 Flotten erlaubt. Alle Flotten im selben Tick werden als gemeinsame Angreifer gerechnet.</li></ol>
+          <div class="help-note">Kommt deine Flotte erst im nächsten Tick an, kann sie der bestehenden Welle nicht mehr beitreten. Nutze schnellere Schiffe, mehr Warp, eine Warp-Bake oder einen näheren Startplaneten.</div>
+        </section>
+
+        <section class="help-section" id="expandieren">
+          <div class="help-heading"><span>06</span><div><h2>Kolonien, Expeditionen &amp; Piraten</h2><p>Die Galaxie ist nicht leer und bleibt nicht still.</p></div></div>
+          <div class="help-grid help-grid-3"><article class="help-card"><h3>Kolonisieren</h3><p>Erforsche Kolonisation, baue das Kolonialdock, dann das Kolonialschiff. Der Start geht nur von einem Planeten mit Dock. Die erste Extra-Kolonie ist machbar, jede weitere wird deutlich teurer. Sonden brauchen ein Spionagezentrum; die Erfolgschance hängt von dessen Stufe, deiner Rasse und der gegnerischen Abwehr ab.</p></article><article class="help-card"><h3>Expedition</h3><p>Expeditionen bringen Beute, XP, Diamanten und gelegentlich geborgene Schiffe oder Relikte. Maximal 3 Expeditionen laufen gleichzeitig.</p></article><article class="help-card"><h3>Piraten</h3><p>Orangene Ringe markieren Piratenhorste. Ihr Schwierigkeitsgrad steigt bis Stufe 16 und wächst mit der Galaxie; Siege bringen Ressourcen, Schiffe, Batterien und XP.</p></article><article class="help-card"><h3>Einsätze</h3><p>In der Einsatzzentrale wählst du Kurz, Mittel oder Lang. Kurze Einsätze sind schnell und bringen wenig Beute, lange dauern und zahlen deutlich mehr Erz, Kristalle und XP.</p></article></div>
+        </section>
+
+        <section class="help-section" id="reich">
+          <div class="help-heading"><span>07</span><div><h2>Allianz &amp; Kommunikation</h2><p>Information ist ein Teil deiner Flottenstärke.</p></div></div>
+          <div class="help-grid help-grid-2"><article class="help-card"><h3>Allianz</h3><p>Gründe ein Bündnis oder bewirb dich. Startlimit 15 Mitglieder, mit Nex jeweils +5, absolut maximal 30. Anführer und Co-Leader können einen freien Planeten als Allianz-Welt kolonisieren. Dort bauen Führung und gewählte Mitglieder Gebäude, Werft, Verteidigung und Allianzforschung. Die Forschungen geben Boni auf Produktion, Bau, Forschung, Reise und Hülle für alle Mitglieder.</p></article><article class="help-card"><h3>Funk &amp; Postfach</h3><p>Globaler und Allianz-Chat halten dich auf dem Laufenden. Private Nachrichten können automatisch in deine eingestellte Sprache übersetzt werden.</p></article><article class="help-card"><h3>Nachrichten</h3><p>Kampf-, Spionage-, Expeditions- und Salvage-Berichte bleiben im Postfach. Große Berichte lassen sich aufklappen; ungelesene Meldungen erscheinen als Alarm.</p></article><article class="help-card"><h3>Rangliste</h3><p>Punkte entstehen aus Welten, Gebäuden, Flotten, Verteidigung und Forschung. Der Commander-Level wächst mit XP und verbessert unter anderem den Ertrag.</p></article></div>
+        </section>
+
+        <section class="help-section" id="nexus">
+          <div class="help-heading"><span>08</span><div><h2>Nex, Relikte &amp; Komfort</h2><p>Bezahlen kauft Zeit und Optik, nicht den Krieg.</p></div></div>
+          <div class="help-grid help-grid-3"><article class="help-card"><h3>Nex</h3><p>Starter und Tagesbonus. Nex kauft Komfort, Cosmetics und optionale Pakete mit festem Inhalt: Erz-Konvoi, seltene Fracht, Staffel, Aeon-Korvette, Helix-Kampfdrohne. Kein Zufall, jeder Preis steht in Euro. Chrono teilt sich die 8-Minuten-Pause mit dem Diamant-Riss.</p></article><article class="help-card"><h3>Nexus-Pass</h3><p>Abo 4,99&nbsp;€ / 30 Tage oder 12,99&nbsp;€ / 90 Tage. Vorteile: Abzeichen, 16 statt 10 Tages-Nex, mehr Lesezeichen und Archiv, kürzerer Spezies-Cooldown, ein kostenloser Rückruf alle 12 Stunden. Kein Pay-to-Win.</p></article><article class="help-card"><h3>Spezieswechsel</h3><p>Ein Wechsel kostet 80 Nex und hat 48 Stunden Abklingzeit (24 Stunden mit Pass). Wähle deine Spezies nach Spielstil: Wirtschaft, Reisen, Forschung oder Kampf.</p></article><article class="help-card"><h3>Relikte</h3><p>Relikte kommen aus Expeditionen und Warlords. Maximal 3 dürfen gleichzeitig ausgerüstet sein.</p></article><article class="help-card"><h3>Chrono-Riss</h3><p>6 Diamanten schließen einen laufenden Bau-, Werft- oder Forschungsauftrag sofort ab. Danach gilt eine Abklingzeit von 8 Minuten.</p></article><article class="help-card"><h3>Tages- und Wochenorder</h3><p>Drei Tagesaufgaben skalieren mit deinem Fortschritt und wechseln um Mitternacht. Zusätzlich gibt es eine größere Wochenorder. Rote Badges im Menü und auf der Übersicht markieren, was du jetzt tun kannst. Die Kampagne hat fünf Kapitel bis ins Endgame.</p></article><article class="help-card"><h3>Einstellungen</h3><p>Avatar, Imperiumsname, Farbe, Sprache, Übersetzung, Sound und Desktop-Hinweise lassen sich dort anpassen.</p></article></div>
+        </section>
+        <footer class="help-footer"><a href="/">STELLAR NEXUS</a><a href="/legal.html">Impressum · AGB · Widerruf</a><a href="#start">Nach oben</a></footer>
+      </div>
+    </main>
+    <script type="module">
+      import { starfield } from "/js/ui.js";
+      starfield(document.getElementById("stars"));
+    </script>
+  </body>
+</html>

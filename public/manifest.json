@@ -1,0 +1,13 @@
+{
+  "name": "Stellar Nexus",
+  "short_name": "Nexus",
+  "description": "Persistentes Weltraum-4X im Browser.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#05060c",
+  "theme_color": "#05060c",
+  "lang": "de",
+  "icons": [
+    { "src": "/assets/emblem.jpg", "sizes": "512x512", "type": "image/jpeg", "purpose": "any maskable" }
+  ]
+}

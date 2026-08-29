@@ -1,0 +1,10 @@
+const DatabaseSync = require('node:sqlite').DatabaseSync;
+const db = new DatabaseSync('data/stellar-nexus.db');
+const rows = db.prepare('SELECT id, name FROM empires LIMIT 5').all();
+console.log('Empires:', JSON.stringify(rows, null, 2));
+const alliances = db.prepare('SELECT id, tag, name FROM alliances LIMIT 5').all();
+console.log('Alliances:', JSON.stringify(alliances, null, 2));
+const members = db.prepare('SELECT alliance_id, empire_id FROM alliance_members LIMIT 10').all();
+console.log('Members:', JSON.stringify(members, null, 2));
+const fleets = db.prepare("SELECT id, empire_id, target_planet_id, mission, is_return, arrives_at FROM fleets WHERE mission = 'attack' AND is_return = 0 LIMIT 10").all();
+console.log('Fleets:', JSON.stringify(fleets, null, 2));

@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#03050a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="description" content="Stellar Nexus — persistentes Weltraum-4X im Browser. Baue Planeten, befehlige Flotten, wähle deine Spezies." />
+    <title>Stellar Nexus</title>
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" href="/assets/emblem.jpg" />
+    <link rel="apple-touch-icon" href="/assets/emblem.jpg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Sora:wght@400;500;600;700&family=Tektur:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/css/style.css?v=38" />
+  </head>
+  <body class="land">
+    <canvas id="stars" aria-hidden="true"></canvas>
+    <div id="scan" aria-hidden="true"></div>
+
+    <div id="boot" class="boot">
+      <div class="boot-ring"></div>
+      <p>NEXUS LINK</p>
+    </div>
+
+    <section id="landing" class="landing">
+      <div class="land-hero">
+        <video class="land-vid" id="land-vid" autoplay muted loop playsinline poster="/assets/landing/hero.jpg" src="/assets/landing/hero.mp4"></video>
+        <div class="land-hero-img" aria-hidden="true"></div>
+        <div class="land-veil"></div>
+        <div class="land-grid" aria-hidden="true"></div>
+        <i class="land-orbit" aria-hidden="true"></i>
+        <i class="land-orbit land-orbit-2" aria-hidden="true"></i>
+        <header class="land-nav">
+          <div class="land-brand">
+            <img src="/assets/emblem.jpg" alt="" />
+            <span>STELLAR NEXUS</span>
+          </div>
+          <div class="land-nav-actions">
+            <a class="btn ghost" href="#spezies">Spezies</a>
+            <a class="btn ghost" href="/help.html">Hilfe</a>
+            <button class="btn ghost" type="button" data-gate="login">Anmelden</button>
+            <button class="btn primary" type="button" data-gate="register">Imperium gründen</button>
+          </div>
+        </header>
+        <div class="land-hero-copy">
+          <div class="land-hero-text">
+            <p class="land-kicker"><span></span> Persistente Galaxie · 4X im Browser</p>
+            <h1>STELLAR<br />NEXUS</h1>
+            <p class="land-lead">
+              Ein Hauptplanet. Eine Spezies. Ein Reich, das nicht schläft, wenn du offline gehst.
+              Baue, expandiere, kämpfe — asynchron, tickgenau, gegen Spieler und Piraten.
+            </p>
+            <div class="land-beta-notice">
+              <b>Closed Beta:</b> Aktuell sind keine Zahlungen möglich. Das Spiel dient ausschließlich privaten Testzwecken. Es besteht kein Anspruch auf Funktionsfähigkeit, Verfügbarkeit oder einen späteren Release. <a href="/legal.html">Mehr erfahren</a>
+            </div>
+            <div class="land-cta">
+              <button class="btn primary land-cta-main" type="button" data-gate="register">Imperium gründen</button>
+            </div>
+            <div class="land-stats">
+              <div><b>6</b><span>Spezies</span></div>
+              <div><b>10</b><span>Systeme-Ringe</span></div>
+              <div><b>5 min</b><span>pro Tick</span></div>
+              <div><b>∞</b><span>Kampagne</span></div>
+            </div>
+          </div>
+          <form id="hero-login" class="land-login panel" method="post" action="/api/auth/login" autocomplete="on">
+            <h2>Nexus betreten</h2>
+            <label>Commander-ID<input name="username" autocomplete="username" required maxlength="16" /></label>
+            <label>Passwort<input name="password" type="password" autocomplete="current-password" required /></label>
+            <button class="btn primary" type="submit" name="go" value="1">Anmelden</button>
+            <p id="hero-login-error" class="error" hidden></p>
+            <p class="muted" style="margin:10px 0 0;font-size:12px">Neu hier? <button type="button" class="linkish" data-gate="register">Imperium gründen</button></p>
+          </form>
+        </div>
+        <a class="land-scroll" href="#story">Scrollen</a>
+      </div>
+
+      <section id="story" class="land-block">
+        <p class="land-kicker"><span></span> Das Spiel</p>
+        <h2>Ein Reich zwischen den Sternen</h2>
+        <p class="land-intro">
+          Stellar Nexus ist ein persistentes Multiplayer-Weltraum-4X: du startest mit einem Heimatplaneten,
+          errichtest Minen und Werften, erforschst Warp, und schickst Flotten durch eine geteilte Galaxie.
+          Jede Schiffsklasse hat ihre eigene Flugzeit. Jede Spezies biegt Wirtschaft und Krieg.
+        </p>
+        <div class="land-pillars">
+          <article class="land-pillar reveal">
+            <video autoplay muted loop playsinline poster="/assets/planets/terran-colony.jpg" src="/assets/planets/terran-colony.mp4" data-fallback="/assets/planets/terran-colony.jpg"></video>
+            <h3>Bauen</h3>
+            <p>Minen, Werft, Archiv, Schilde, Sprungtor. Jede Stufe dauert länger — und zahlt sich aus.</p>
+          </article>
+          <article class="land-pillar reveal">
+            <video autoplay muted loop playsinline poster="/assets/ships/battleship.jpg" src="/assets/ships/battleship.mp4" data-fallback="/assets/ships/battleship.jpg"></video>
+            <h3>Flotte</h3>
+            <p>Jäger sind schnell, Titanen langsam. Die Flotte fliegt so schnell wie ihr langsamstes Schiff.</p>
+          </article>
+          <article class="land-pillar reveal">
+            <video autoplay muted loop playsinline poster="/assets/planets/lava.jpg" src="/assets/planets/lava.mp4" data-fallback="/assets/planets/lava.jpg"></video>
+            <h3>Expandieren</h3>
+            <p>Kolonisiere Biome, setze Spezialisierungen, handle an der Börse, plündere Piratenhorste.</p>
+          </article>
+          <article class="land-pillar reveal">
+            <video autoplay muted loop playsinline poster="/assets/alliances/b1.jpg" src="/assets/alliances/b1.mp4" data-fallback="/assets/alliances/b1.jpg"></video>
+            <h3>Herrschen</h3>
+            <p>Allianzen, Ränge, Chat mit Übersetzung, Postfach. Die Galaxie ist groß genug für viele Imperien.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="spezies" class="land-block land-species-block">
+        <p class="land-kicker"><span></span> Wahl bei der Gründung</p>
+        <h2>Sechs Spezies. Keine ist fair.</h2>
+        <p class="land-intro">
+          Du wählst bei der Anmeldung. Jede Spezies hat einen klaren Vorteil und einen Preis.
+          Wechsel später gegen Nex — die Premium-Währung für Sprünge, Fracht und seltene Dinge.
+        </p>
+        <div class="land-species" id="land-species">
+          <article class="land-race reveal" style="--c:#7ecbff">
+            <video autoplay muted loop playsinline poster="/assets/species/terran.jpg" src="/assets/species/terran.mp4" data-fallback="/assets/species/terran.jpg"></video>
+            <div>
+              <h3>☉ Terraner</h3>
+              <p>Kolonisten aus dem Kern. Lernfähig, selten extrem.</p>
+              <b class="perk">+8% Forschung, +5% Produktion</b>
+              <small class="flaw">−8% Kampfangriff</small>
+            </div>
+          </article>
+          <article class="land-race reveal" style="--c:#f0a030">
+            <video autoplay muted loop playsinline poster="/assets/species/kryll.jpg" src="/assets/species/kryll.mp4" data-fallback="/assets/species/kryll.jpg"></video>
+            <div>
+              <h3>※ Kryll</h3>
+              <p>Schwarminsektoide. Werften arbeiten wie ein Nest.</p>
+              <b class="perk">+20% Schiffsbau, +8% Angriff</b>
+              <small class="flaw">−12% Lager, −8% Titan</small>
+            </div>
+          </article>
+          <article class="land-race reveal" style="--c:#c084fc">
+            <video autoplay muted loop playsinline poster="/assets/species/veyari.jpg" src="/assets/species/veyari.mp4" data-fallback="/assets/species/veyari.jpg"></video>
+            <div>
+              <h3>△ Veyari</h3>
+              <p>Plasma-Wesen. Reaktoren sind ihr Blut.</p>
+              <b class="perk">+22% Energie, +12% Schilde/Hülle</b>
+              <small class="flaw">−14% Metall</small>
+            </div>
+          </article>
+          <article class="land-race reveal" style="--c:#ff6b5a">
+            <video autoplay muted loop playsinline poster="/assets/species/draxen.jpg" src="/assets/species/draxen.mp4" data-fallback="/assets/species/draxen.jpg"></video>
+            <div>
+              <h3>⚔ Draxen</h3>
+              <p>Kriegskaste. Jeder Rumpf ist eine Waffe.</p>
+              <b class="perk">+16% Angriff, +10% Hülle</b>
+              <small class="flaw">−12% Produktion, −10% Forschung</small>
+            </div>
+          </article>
+          <article class="land-race reveal" style="--c:#ffe08a">
+            <video autoplay muted loop playsinline poster="/assets/species/helion.jpg" src="/assets/species/helion.mp4" data-fallback="/assets/species/helion.jpg"></video>
+            <div>
+              <h3>⬡ Helion</h3>
+              <p>Händler der äußeren Ringstraßen. Treibstoff und Lager.</p>
+              <b class="perk">+14% Lager, +12% Helium, +10% Reisen</b>
+              <small class="flaw">−12% Kampfangriff</small>
+            </div>
+          </article>
+          <article class="land-race reveal" style="--c:#60a5fa">
+            <video autoplay muted loop playsinline poster="/assets/species/nyxian.jpg" src="/assets/species/nyxian.mp4" data-fallback="/assets/species/nyxian.jpg"></video>
+            <div>
+              <h3>◈ Nyxianer</h3>
+              <p>Schattenvolk aus dem Veil. Schnell, still, zerbrechlich.</p>
+              <b class="perk">+18% Reisen, +12% Kristall, +15% Spionage</b>
+              <small class="flaw">−10% Hülle, −8% Gebäudebau</small>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="land-block">
+        <p class="land-kicker"><span></span> Der Loop</p>
+        <h2>Keine Langeweile zwischen den Bauten</h2>
+        <ol class="land-steps">
+          <li class="reveal"><span>01</span><div><h3>Heimat sichern</h3><p>Metall, Helium-3, Energie. Werft und Archiv. Anfängerschutz: 5 Tage.</p></div></li>
+          <li class="reveal"><span>02</span><div><h3>Warp öffnen</h3><p>Forschung schaltet Sprünge frei. Dann siehst du die Karte — und die anderen.</p></div></li>
+          <li class="reveal"><span>03</span><div><h3>Fliegen &amp; kämpfen</h3><p>Sonden zuerst. Dann Jäger. Stein-Schere-Papier gegen Schiffe und Batterien.</p></div></li>
+          <li class="reveal"><span>04</span><div><h3>Reich dehnen</h3><p>Kolonien, Allianz, Expeditionen, Piratenbeute, Relikte, Nex-Shop. Das Ende liegt weit.</p></div></li>
+        </ol>
+      </section>
+
+      <section class="land-end">
+        <video class="land-end-vid" autoplay muted loop playsinline poster="/assets/splash.jpg" src="/assets/splash.mp4" data-fallback="/assets/splash.jpg"></video>
+        <div class="land-end-veil"></div>
+        <h2>Die Galaxie wartet nicht.</h2>
+        <p>Gründe dein Imperium. Wähle deine Spezies. Der erste Tick läuft bereits.</p>
+        <button class="btn primary land-cta-main" type="button" data-gate="register">Jetzt gründen</button>
+        <p class="muted" style="margin-top:18px">
+          <a href="/legal.html">Rechtliches</a> · <a href="/help.html">Hilfe</a>
+          · <span id="beta-counter-wrap">Bisher <b id="beta-count">—</b> Beta-Anmeldungen</span>
+        </p>
+      </section>
+    </section>
+
+    <section id="auth" class="gate hidden" hidden>
+      <button type="button" class="gate-close" id="gate-close" aria-label="Schließen">×</button>
+      <div class="auth-card panel" id="auth-card">
+        <img class="emblem" src="/assets/emblem.jpg" alt="" />
+        <h1>STELLAR NEXUS</h1>
+        <p class="tag">Erobere das Netz der Sterne</p>
+        <div class="tabs">
+          <button class="tab on" data-tab="login" type="button">Anmelden</button>
+          <button class="tab" data-tab="register" type="button">Registrieren</button>
+        </div>
+        <form id="login-form" class="stack" method="post" action="/api/auth/login">
+          <label>Commander-ID<input name="username" autocomplete="username" required maxlength="16" /></label>
+          <label>Passwort<input name="password" type="password" autocomplete="current-password" required /></label>
+          <button class="btn primary" type="submit">Nexus betreten</button>
+        </form>
+        <form id="register-form" class="stack hidden" hidden>
+          <label>Commander-ID<input name="username" autocomplete="username" required maxlength="16" /></label>
+          <label>Imperium<input name="empire" required maxlength="24" placeholder="z. B. Vesper-Dynastie" /></label>
+          <label>Passwort<input name="password" type="password" autocomplete="new-password" required minlength="6" /></label>
+          <div class="species-field">
+            <span>Spezies</span>
+            <input type="hidden" name="species" id="species-input" value="terran" />
+            <div id="species-picker" class="species-pick"></div>
+          </div>
+          <button class="btn primary" type="submit">Imperium gründen</button>
+        </form>
+        <p id="auth-error" class="error" hidden></p>
+      </div>
+    </section>
+
+    <div id="game" class="shell hidden" hidden>
+      <header class="topbar">
+        <div class="brand">
+          <button type="button" id="brand-profile" class="brand-avatar-btn" title="Spielerprofil">
+            <img id="brand-avatar" src="/assets/emblem.jpg" alt="" />
+          </button>
+          <div>
+            <strong id="empire-name">—</strong>
+            <select id="planet-select" class="planet-select" title="Planet wechseln"></select>
+          </div>
+        </div>
+        <div class="resources" id="resources"></div>
+        <div class="top-actions">
+          <span id="clock" class="clock"></span>
+          <button id="logout" class="btn ghost" type="button">Abmelden</button>
+        </div>
+      </header>
+
+      <nav class="nav" id="nav">
+        <div class="nav-section">
+          <span class="nav-group">Planet</span>
+          <button data-view="command" class="on">Übersicht <i data-badge="command" hidden></i></button>
+          <button data-view="economy">Rohstoffe <i data-badge="economy" hidden></i></button>
+          <button data-view="infra">Gebäude <i data-badge="infra" hidden></i></button>
+          <button data-view="yard">Schiffswerft <i data-badge="yard" hidden></i></button>
+          <button data-view="defense">Verteidigung <i data-badge="defense" hidden></i></button>
+          <button data-view="research">Forschung <i data-badge="research" hidden></i></button>
+          <button data-view="tree">Tech-Tree</button>
+          <button data-view="nexus">Nexus <i data-badge="nexus" hidden></i></button>
+        </div>
+        <div class="nav-section">
+          <span class="nav-group">Universum</span>
+          <button data-view="galaxy">Galaxie <i data-badge="galaxy" hidden></i></button>
+          <button data-view="fleets">Flotte <i data-badge="fleets" hidden></i></button>
+          <button data-view="sim">Simulator</button>
+          <button data-view="activity">Einsatz <i data-badge="activity" hidden></i></button>
+          <button data-view="reports">Nachrichten <i data-badge="reports" hidden></i></button>
+          <button data-view="chat">Chat <i data-badge="chat" hidden></i></button>
+        </div>
+        <div class="nav-section">
+          <span class="nav-group">Reich</span>
+          <button data-view="empire">Imperium</button>
+          <button data-view="ranks">Rangliste</button>
+          <button data-view="alliance">Allianz <i data-badge="alliance" hidden></i></button>
+          <button data-view="settings">Einstellungen</button>
+          <button data-view="progress">Fortschritt</button>
+          <a class="nav-help" href="/help.html">Hilfe &amp; Regeln</a>
+        </div>
+        <div class="nav-section" id="nav-staff" hidden>
+          <span class="nav-group">Leitung</span>
+          <button data-view="moderation">Zentrale</button>
+        </div>
+      </nav>
+      <div id="nav-backdrop" class="nav-backdrop hidden" hidden></div>
+
+      <div id="alert-strip" class="alert-strip hidden" hidden></div>
+      <main id="view" class="view"></main>
+
+      <aside class="dock" id="dock"></aside>
+      <nav class="tabbar" id="tabbar">
+        <button type="button" data-view="command" data-tab="home" class="on">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/></svg>
+          Home <i data-badge="command" hidden></i>
+        </button>
+        <button type="button" data-view="infra" data-tab="build">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 7l3 3-8 8H6v-3z"/><path d="M16 5l3 3"/></svg>
+          Bau <i data-badge="infra" hidden></i>
+        </button>
+        <button type="button" data-view="galaxy" data-tab="map">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 5v2M12 17v2M5 12h2M17 12h2"/></svg>
+          Karte <i data-badge="galaxy" hidden></i>
+        </button>
+        <button type="button" data-view="fleets" data-tab="fleet">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 16l8-10 8 10H4z"/></svg>
+          Flotte <i data-badge="fleets" hidden></i>
+        </button>
+        <button type="button" data-more="1" data-tab="more">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>
+          Mehr <i data-badge="more" hidden></i>
+        </button>
+      </nav>
+    </div>
+
+    <div id="toasts" class="toasts"></div>
+    <div id="modal" class="modal hidden" hidden></div>
+
+    <script>
+      setTimeout(function () {
+        var b = document.getElementById("boot");
+        if (!b || b.classList.contains("done")) return;
+        b.classList.add("hidden", "done");
+        b.hidden = true;
+      }, 1600);
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function (rs) {
+          rs.forEach(function (r) { r.unregister(); });
+        });
+      }
+      if (window.caches) {
+        caches.keys().then(function (keys) {
+          keys.forEach(function (k) { caches.delete(k); });
+        });
+      }
+      if (/login=fail/.test(location.search)) {
+        var err = document.getElementById("hero-login-error");
+        if (err) {
+          err.hidden = false;
+          err.textContent = "Ungültige Zugangsdaten.";
+        }
+      }
+      if (/login=need/.test(location.search)) {
+        var err2 = document.getElementById("hero-login-error");
+        if (err2) {
+          err2.hidden = false;
+          err2.textContent = "Bitte zuerst anmelden.";
+        }
+      }
+      fetch("/api/beta/stats")
+        .then((r) => r.ok ? r.json() : Promise.reject())
+        .then((data) => {
+          const el = document.getElementById("beta-count");
+          if (el) el.textContent = String(data.count || 0);
+        })
+        .catch(() => {
+          const el = document.getElementById("beta-count");
+          if (el) el.textContent = "—";
+        });
+    </script>
+    <script type="module" src="/js/app.js?v=41"></script>
+  </body>
+</html>

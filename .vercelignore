@@ -1,0 +1,10 @@
+data
+*.db
+*.db-wal
+*.db-shm
+cookies.txt
+dy
+Unity
+.git
+.vercel
+node_modules
