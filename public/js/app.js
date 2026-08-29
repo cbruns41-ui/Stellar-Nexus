@@ -111,7 +111,7 @@ function renderDock() {
     .map((hit) => {
       const pct = clamp(((t - (hit.departedAt || hit.arrivesAt - 90000)) / Math.max(1, hit.arrivesAt - (hit.departedAt || hit.arrivesAt - 90000))) * 100, 0, 100);
       const kind = hit.kind === "spy" ? "SCAN" : hit.kind === "raid" ? "RAID" : "ANGRIFF";
-      return `<div class="fleet-item panel dock-jump hostile" role="button" tabindex="0" data-dock-view="fleets" data-dock-planet="${hit.planetId || ""}" title="Zur Flotte">
+      return `<div class="fleet-item panel dock-jump hostile" role="button" tabindex="0" data-dock-view="galaxy" data-dock-planet="${hit.planetId || ""}" title="Zur Karte">
           <b>${kind}</b>
           <span>${esc(hit.from)} → ${esc(hit.planet)}</span>
           <div class="bar"><i style="width:${pct}%"></i></div>
@@ -232,6 +232,10 @@ async function jumpTo(view, planetId) {
       /* stay on current planet */
     }
   }
+  if (view === "galaxy" && pid) {
+    const pl = (state.snap?.planets || []).find((p) => p.id === pid) || state.snap?.planet;
+    state.mapFocus = { planetId: pid, systemId: pl?.systemId || pl?.system_id };
+  }
   setView(view);
 }
 
@@ -265,8 +269,9 @@ function reportJumps(r) {
   const blob = `${r.title || ""} ${b.text || ""}`;
   switch (r.kind) {
     case "alert":
-      add("fleets", "Zur Flotte");
+      add("galaxy", "Zur Karte");
       add("defense", "Orbit verstärken");
+      add("fleets", "Zur Flotte");
       break;
     case "build":
       if (/Jäger|Fregatte|Kreuzer|Zerstörer|Sonde|Bomber|Frachter|Träger|Kolonieschiff|Schlachtschiff|Dreadnought|Aeon|Interceptor|Werft/i.test(blob) || b.itemKind === "ship")
@@ -339,7 +344,7 @@ function openNavSheet() {
 
 function tabIdFor(view) {
   if (view === "command") return "home";
-  if (view === "infra" || view === "yard" || view === "defense" || view === "research") return "build";
+  if (view === "infra" || view === "yard" || view === "defense" || view === "research" || view === "tree") return "build";
   if (view === "galaxy") return "map";
   if (view === "fleets") return "fleet";
   return "more";
@@ -482,8 +487,14 @@ function jumpToGalaxyPlanet(planetId, systemId) {
 
 function applyMapFocus() {
   const focus = state.mapFocus;
-  if (!focus?.systemId || !state.map) return;
-  state.map.focusPlanet(focus.planetId, focus.systemId);
+  if (!focus || !state.map) return;
+  let systemId = focus.systemId;
+  if (!systemId && focus.planetId) {
+    const pl = (state.snap?.planets || []).find((p) => p.id === focus.planetId);
+    systemId = pl?.systemId;
+  }
+  if (!systemId) return;
+  state.map.focusPlanet(focus.planetId, systemId);
 }
 
 function paintAllianceActivityFromSnap() {
@@ -613,17 +624,17 @@ function renderAlerts() {
   el.classList.remove("hidden");
   el.setAttribute("role", "button");
   el.tabIndex = 0;
-  el.title = "Zur Flotte";
+  el.title = "Zur Karte";
   el.innerHTML = `<b>ALARM</b>
     <span>${esc(soon.from)} → ${esc(soon.planet)} · ${esc(soon.kind === "spy" ? "Spionage" : soon.kind === "raid" ? "Raid" : "Angriff")}</span>
     <span class="muted">${eta(soon.arrivesAt - Date.now())}</span>
     <span class="muted">${hits.length > 1 ? hits.length + " Signale" : shipList(soon.ships, state.catalog)}</span>
-    <span class="alert-go">Zur Flotte →</span>`;
-  el.onclick = () => jumpTo("fleets", soon.planetId);
+    <span class="alert-go">Zur Karte →</span>`;
+  el.onclick = () => jumpTo("galaxy", soon.planetId);
   el.onkeydown = (ev) => {
     if (ev.key === "Enter" || ev.key === " ") {
       ev.preventDefault();
-      jumpTo("fleets", soon.planetId);
+      jumpTo("galaxy", soon.planetId);
     }
   };
 }
@@ -1132,10 +1143,10 @@ function allianceResearchHtml() {
 }
 
 function buildRailHtml() {
-  if (!["infra", "yard", "defense", "research"].includes(state.view)) return "";
+  if (!["infra", "research", "tree", "galaxy", "yard", "defense"].includes(state.view)) return "";
   const item = (id, label) =>
     `<button type="button" class="${state.view === id ? "on" : ""}" data-view-jump="${id}">${label}</button>`;
-  return `<nav class="build-rail">${item("infra", "Gebäude")}${item("yard", "Werft")}${item("defense", "Orbit")}${item("research", "Labor")}</nav>`;
+  return `<nav class="build-rail" aria-label="Schnellzugriff">${item("infra", "Gebäude")}${item("research", "Forschung")}${item("tree", "Tech-Tree")}${item("galaxy", "Galaxie")}${item("yard", "Werft")}${item("defense", "Orbit")}</nav>`;
 }
 
 function homeStatusCards() {
@@ -1151,7 +1162,7 @@ function homeStatusCards() {
       </button>`
     : `<div class="home-card panel empty"><em>Bau-Queue</em><h3>Leer</h3><span class="muted">Werft und Gebäude still</span></div>`;
   const hHtml = hit
-    ? `<button type="button" class="home-card panel hostile" data-view-jump="fleets" data-jump-planet="${hit.planetId || ""}">
+    ? `<button type="button" class="home-card panel hostile" data-view-jump="galaxy" data-jump-planet="${hit.planetId || ""}">
         <em>Eingehend</em>
         <h3>${esc(hit.from)} → ${esc(hit.planet)}</h3>
         <div class="bar"><i style="width:${clamp(((t - (hit.departedAt || hit.arrivesAt - 90000)) / Math.max(1, hit.arrivesAt - (hit.departedAt || hit.arrivesAt - 90000))) * 100, 0, 100)}%"></i></div>

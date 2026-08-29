@@ -2587,8 +2587,9 @@ function spawnRaid(db) {
     arrivesAt: arrives,
     threat: raidLv,
     jumps: [
-      { view: "fleets", label: "Zur Flotte", planetId: target.id },
+      { view: "galaxy", label: "Zur Karte", planetId: target.id },
       { view: "defense", label: "Orbit verstärken", planetId: target.id },
+      { view: "fleets", label: "Zur Flotte", planetId: target.id },
     ],
   });
 }

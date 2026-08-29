@@ -398,7 +398,13 @@ img.res-ico { width: 16px; height: 16px; object-fit: cover; border-radius: 4px; 
   display: flex;
   flex-direction: column;
 }
-.shell.view-galaxy .map-wrap { flex: 1; height: auto; }
+.shell.view-galaxy .map-wrap { flex: 1; height: auto; min-height: 0; }
+.shell.view-galaxy .build-rail {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 8px 8px 10px;
+  background: linear-gradient(180deg, rgba(3, 5, 10, 0.96), rgba(3, 5, 10, 0.78));
+}
 .shell.has-alert .view { padding-top: 58px; }
 .view > .section-title,
 .view > .colony-hero,
@@ -1559,18 +1565,28 @@ img.og-art-ship[src*="battleship"] {
   font-style: normal; font-size: 10px; text-align: center; line-height: 16px;
 }
 .build-rail {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
   gap: 6px;
   margin: 0 0 12px;
   position: sticky;
   top: 0;
   z-index: 4;
   background: rgba(3, 5, 10, 0.92);
-  padding: 4px 0 8px;
+  padding: 4px 2px 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
 }
+.build-rail::-webkit-scrollbar { display: none; }
 .build-rail button {
+  flex: 0 0 auto;
   min-height: 40px;
+  min-width: max-content;
+  padding: 8px 14px;
+  white-space: nowrap;
   border: 1px solid var(--line);
   background: rgba(8, 14, 24, 0.8);
   color: var(--muted);
@@ -1933,7 +1949,7 @@ img.og-art-ship[src*="battleship"] {
     overscroll-behavior-y: contain;
   }
   .view > * { max-width: 100%; }
-  .shell.view-galaxy .view { padding: 0; overflow: hidden; }
+  .shell.view-galaxy .view { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
 
   .colony-hero,
   .colony-hero.home-hero {
