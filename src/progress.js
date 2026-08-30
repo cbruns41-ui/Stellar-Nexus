@@ -45,6 +45,16 @@ const CONTRACTS = [
     test: (c) => (c.ships.fighter || 0) >= 6,
   },
   {
+    id: "defense_hub1",
+    title: "Verteidigungsstellung",
+    blurb: "Errichte das Verteidigungszentrum am Kamm. Ohne Stellung keine neuen Batterien.",
+    hint: "Kolonie → Abwehr auf dem rechten Kamm, oder Gebäude → Verteidigungszentrum",
+    view: "command",
+    xp: 65,
+    reward: bag({ metal: 240, energy: 140, titan: 30 }),
+    test: (c) => (c.buildings.defense_hub || 0) >= 1,
+  },
+  {
     id: "spy1",
     title: "Auge im Orbit",
     blurb: "Schicke eine Sonde auf Spionage. Kämpfe ohne Bericht sind Blindflug.",
@@ -118,7 +128,7 @@ const CONTRACTS = [
     id: "flak8",
     title: "Orbitale Batterie",
     blurb: "Stelle 8 Flak-Batterien auf. Jäger und Sonden sterben hier.",
-    hint: "Verteidigung → Flak-Batterie bauen",
+    hint: "Kolonie → Abwehr → Flak-Batterie",
     view: "defense",
     xp: 70,
     reward: bag({ metal: 220, energy: 140, titan: 40 }),
@@ -1017,6 +1027,8 @@ function buildDailyPool(ctx) {
   pushB("archive", "Forschungsarchiv", "infra", bag({ crystal: 120, energy: 100 }));
   pushB("titan_extractor", "Titan-Extraktor", "infra", bag({ titan: 80, metal: 140 }));
   if ((ctx.buildings.shield || 0) > 0) pushB("shield", "Schildgenerator", "infra", bag({ metal: 240, energy: 160, titan: 40 }));
+  if ((ctx.buildings.defense_hub || 0) > 0) pushB("defense_hub", "Verteidigungszentrum", "infra", bag({ metal: 200, energy: 120, titan: 24 }));
+  else pushB("defense_hub", "Verteidigungszentrum", "command", bag({ metal: 200, energy: 120, titan: 24 }));
 
   const fighterNeed = (ctx.fighters || 0) + Math.max(4, Math.ceil(Math.max(6, ctx.fighters || 0) * 0.1));
   pool.push({

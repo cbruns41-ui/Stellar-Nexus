@@ -196,6 +196,17 @@ const BUILDINGS = {
     max: 22,
     requires: { buildings: { command: 3 } },
   },
+  defense_hub: {
+    id: "defense_hub",
+    name: "Verteidigungszentrum",
+    blurb: "Stellung am Kamm. Von hier baust du Flak, Kanonen und Kuppeln — und jede Stufe beschleunigt den Batteriebau.",
+    icon: "shield",
+    baseCost: bag({ metal: 140, energy: 110, titan: 20, crystal: 16 }),
+    baseTime: 72,
+    factor: 1.56,
+    max: 24,
+    requires: { buildings: { command: 1 } },
+  },
   beacon: {
     id: "beacon",
     name: "Warp-Bake",
@@ -506,7 +517,7 @@ const TREE = {
     view: "infra",
     tiers: [
       ["command", "matter_mine", "energy_array"],
-      ["helium_well", "silo", "spy_center"],
+      ["helium_well", "silo", "spy_center", "defense_hub"],
       ["titan_extractor", "uplink", "shipyard", "archive"],
       ["shield", "robotics"],
       ["diamond_forge", "beacon", "habitat", "colony_dock"],
@@ -538,7 +549,7 @@ const TREE = {
     ],
   },
   orbit: {
-    title: "Orbit",
+    title: "Abwehr",
     view: "defense",
     tiers: [
       ["flak"],
@@ -778,7 +789,7 @@ const DEFENSES = {
     hull: 18,
     strongVs: "Jäger, Sonden",
     vs: { probe: 1.7, fighter: 1.95, interceptor: 1.8, bomber: 0.7, frigate: 0.75, cargo: 1.15, cruiser: 0.4, colony: 0.85, destroyer: 0.3, battleship: 0.25, carrier: 0.55, dreadnought: 0.2, aeon: 0.9, helix: 1.9 },
-    requires: { buildings: { shipyard: 1 } },
+    requires: { buildings: { shipyard: 1, defense_hub: 1 } },
   },
   missile: {
     id: "missile",
@@ -791,7 +802,7 @@ const DEFENSES = {
     hull: 32,
     strongVs: "Fregatten",
     vs: { probe: 1.1, fighter: 0.7, interceptor: 0.85, bomber: 1.7, frigate: 1.9, cargo: 1.2, cruiser: 0.85, colony: 1.0, destroyer: 0.5, battleship: 0.45, carrier: 0.7, dreadnought: 0.35, aeon: 0.7, helix: 0.85 },
-    requires: { buildings: { shipyard: 2 } },
+    requires: { buildings: { shipyard: 2, defense_hub: 1 } },
   },
   pd: {
     id: "pd",
@@ -804,7 +815,7 @@ const DEFENSES = {
     hull: 24,
     strongVs: "Transporter, Kolonie, Sonden",
     vs: { probe: 2.1, fighter: 1.1, interceptor: 0.9, bomber: 1.85, frigate: 0.8, cargo: 2.2, cruiser: 0.45, colony: 2.0, destroyer: 0.28, battleship: 0.25, carrier: 0.5, dreadnought: 0.2, aeon: 0.8, helix: 1.55 },
-    requires: { buildings: { shipyard: 2 } },
+    requires: { buildings: { shipyard: 2, defense_hub: 1 } },
   },
   ion: {
     id: "ion",
@@ -817,7 +828,7 @@ const DEFENSES = {
     hull: 70,
     strongVs: "Kreuzer",
     vs: { probe: 0.6, fighter: 0.55, interceptor: 0.5, bomber: 0.7, frigate: 1.05, cargo: 0.9, cruiser: 1.95, colony: 1.1, destroyer: 0.8, battleship: 0.7, carrier: 1.7, dreadnought: 0.55, aeon: 0.6, helix: 0.7 },
-    requires: { buildings: { shipyard: 4, shield: 1 } },
+    requires: { buildings: { shipyard: 4, shield: 1, defense_hub: 1 } },
   },
   gauss: {
     id: "gauss",
@@ -830,7 +841,7 @@ const DEFENSES = {
     hull: 110,
     strongVs: "Zerstörer",
     vs: { probe: 0.4, fighter: 0.42, interceptor: 0.38, bomber: 0.6, frigate: 0.9, cargo: 0.8, cruiser: 1.25, colony: 1.15, destroyer: 2.05, battleship: 1.4, carrier: 1.1, dreadnought: 1.75, aeon: 0.5, helix: 0.55 },
-    requires: { buildings: { shipyard: 6 }, techs: { weapons: 3 } },
+    requires: { buildings: { shipyard: 6, defense_hub: 2 }, techs: { weapons: 3 } },
   },
   plasma: {
     id: "plasma",
@@ -843,7 +854,7 @@ const DEFENSES = {
     hull: 140,
     strongVs: "Kreuzer, Zerstörer",
     vs: { probe: 0.5, fighter: 0.65, interceptor: 0.55, bomber: 0.8, frigate: 1.15, cargo: 1.0, cruiser: 1.55, colony: 1.3, destroyer: 1.65, battleship: 1.7, carrier: 1.25, dreadnought: 1.45, aeon: 0.6, helix: 0.65 },
-    requires: { buildings: { shipyard: 7, shield: 2 }, techs: { weapons: 4, plasma_tech: 1 } },
+    requires: { buildings: { shipyard: 7, shield: 2, defense_hub: 3 }, techs: { weapons: 4, plasma_tech: 1 } },
   },
   dome: {
     id: "dome",
@@ -856,7 +867,7 @@ const DEFENSES = {
     hull: 220,
     strongVs: "absorbiert Salven",
     vs: { probe: 0.2, fighter: 0.2, interceptor: 0.2, bomber: 0.2, frigate: 0.2, cargo: 0.2, cruiser: 0.2, colony: 0.2, destroyer: 0.2, battleship: 0.2, carrier: 0.2, dreadnought: 0.2, aeon: 0.2, helix: 0.2 },
-    requires: { buildings: { shield: 1 } },
+    requires: { buildings: { shield: 1, defense_hub: 1 } },
   },
   laser: {
     id: "laser",
@@ -869,7 +880,7 @@ const DEFENSES = {
     hull: 28,
     strongVs: "Abfangjäger, Jäger",
     vs: { probe: 1.5, fighter: 1.7, interceptor: 2.0, bomber: 0.85, frigate: 0.9, cargo: 1.1, cruiser: 0.5, colony: 0.9, destroyer: 0.35, battleship: 0.3, carrier: 0.55, dreadnought: 0.22, aeon: 1.1, helix: 1.85 },
-    requires: { buildings: { shipyard: 3 }, techs: { laser_tech: 1 } },
+    requires: { buildings: { shipyard: 3, defense_hub: 1 }, techs: { laser_tech: 1 } },
   },
   mines: {
     id: "mines",
@@ -882,7 +893,7 @@ const DEFENSES = {
     hull: 16,
     strongVs: "Transporter, Kolonie, Fregatte",
     vs: { probe: 0.8, fighter: 0.6, interceptor: 0.55, bomber: 0.9, frigate: 1.8, cargo: 2.3, cruiser: 0.7, colony: 2.1, destroyer: 0.45, battleship: 0.35, carrier: 0.8, dreadnought: 0.25, aeon: 0.5, helix: 0.7 },
-    requires: { buildings: { shipyard: 4 } },
+    requires: { buildings: { shipyard: 4, defense_hub: 1 } },
   },
   disruptor: {
     id: "disruptor",
@@ -895,7 +906,7 @@ const DEFENSES = {
     hull: 120,
     strongVs: "Schlachtschiff, Dreadnought, Kreuzer",
     vs: { probe: 0.45, fighter: 0.5, interceptor: 0.42, bomber: 0.65, frigate: 0.85, cargo: 0.8, cruiser: 1.45, colony: 1.05, destroyer: 1.15, battleship: 2.0, carrier: 1.35, dreadnought: 1.9, aeon: 0.5, helix: 0.6 },
-    requires: { buildings: { shipyard: 8, shield: 3 }, techs: { plasma_tech: 1 } },
+    requires: { buildings: { shipyard: 8, shield: 3, defense_hub: 4 }, techs: { plasma_tech: 1 } },
   },
   orbital: {
     id: "orbital",
@@ -908,7 +919,7 @@ const DEFENSES = {
     hull: 220,
     strongVs: "Dreadnought, Schlachtschiff, Träger",
     vs: { probe: 0.3, fighter: 0.35, interceptor: 0.3, bomber: 0.55, frigate: 0.7, cargo: 0.75, cruiser: 1.2, colony: 1.1, destroyer: 1.5, battleship: 1.85, carrier: 1.7, dreadnought: 2.15, aeon: 0.45, helix: 0.5 },
-    requires: { buildings: { shipyard: 12, citadel: 1 }, techs: { graviton: 1 } },
+    requires: { buildings: { shipyard: 12, citadel: 1, defense_hub: 6 }, techs: { graviton: 1 } },
   },
 };
 

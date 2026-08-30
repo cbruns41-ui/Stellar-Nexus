@@ -57,27 +57,28 @@ const TUTORIAL = [
 ];
 
 const CITY_PLOTS = [
-  { id: "command", x: 30, y: 34, view: "infra", building: "command", short: "Nexus" },
-  { id: "matter_mine", x: 38, y: 44, view: "infra", building: "matter_mine", short: "Mine" },
-  { id: "energy_array", x: 20, y: 26, view: "infra", building: "energy_array", short: "Array" },
-  { id: "helium_well", x: 22, y: 68, view: "infra", building: "helium_well", short: "Helium" },
-  { id: "titan_extractor", x: 48, y: 27, view: "infra", building: "titan_extractor", short: "Titan" },
-  { id: "uplink", x: 72, y: 38, view: "infra", building: "uplink", short: "Kristall" },
-  { id: "diamond_forge", x: 40, y: 58, view: "infra", building: "diamond_forge", short: "Diamant" },
-  { id: "silo", x: 52, y: 52, view: "infra", building: "silo", short: "Lager" },
-  { id: "shipyard", x: 68, y: 70, view: "yard", building: "shipyard", short: "Werft" },
-  { id: "archive", x: 84, y: 62, view: "research", building: "archive", short: "Labor" },
-  { id: "spy_center", x: 80, y: 22, view: "infra", building: "spy_center", short: "Spionage" },
-  { id: "shield", x: 48, y: 86, view: "defense", building: "shield", short: "Schild" },
-  { id: "beacon", x: 58, y: 20, view: "infra", building: "beacon", short: "Bake" },
-  { id: "colony_dock", x: 78, y: 82, view: "infra", building: "colony_dock", short: "Dock" },
-  { id: "robotics", x: 62, y: 46, view: "infra", building: "robotics", short: "Robotik" },
-  { id: "fusion", x: 12, y: 52, view: "infra", building: "fusion", short: "Fusion" },
-  { id: "habitat", x: 8, y: 30, view: "infra", building: "habitat", short: "Habitat" },
-  { id: "nanite", x: 60, y: 78, view: "yard", building: "nanite", short: "Naniten" },
-  { id: "quantum_lab", x: 92, y: 54, view: "research", building: "quantum_lab", short: "Labor+" },
-  { id: "jumpgate", x: 50, y: 14, view: "infra", building: "jumpgate", short: "Sprungtor" },
-  { id: "citadel", x: 90, y: 36, view: "defense", building: "citadel", short: "Zitadelle" },
+  { id: "command", x: 42, y: 45, view: "infra", building: "command", short: "Nexus" },
+  { id: "matter_mine", x: 46, y: 43, view: "infra", building: "matter_mine", short: "Mine" },
+  { id: "energy_array", x: 37, y: 42, view: "infra", building: "energy_array", short: "Array" },
+  { id: "helium_well", x: 40, y: 61, view: "infra", building: "helium_well", short: "Helium" },
+  { id: "titan_extractor", x: 35, y: 54, view: "infra", building: "titan_extractor", short: "Titan" },
+  { id: "uplink", x: 41, y: 57, view: "infra", building: "uplink", short: "Kristall" },
+  { id: "diamond_forge", x: 49, y: 48, view: "infra", building: "diamond_forge", short: "Diamant" },
+  { id: "silo", x: 48, y: 53, view: "infra", building: "silo", short: "Lager" },
+  { id: "shipyard", x: 51, y: 63, view: "yard", building: "shipyard", short: "Werft" },
+  { id: "archive", x: 56, y: 58, view: "research", building: "archive", short: "Labor" },
+  { id: "spy_center", x: 56, y: 44, view: "infra", building: "spy_center", short: "Spionage" },
+  { id: "shield", x: 44, y: 69, view: "infra", building: "shield", short: "Schild" },
+  { id: "beacon", x: 47, y: 38, view: "infra", building: "beacon", short: "Bake" },
+  { id: "colony_dock", x: 20, y: 76, view: "infra", building: "colony_dock", short: "Dock" },
+  { id: "robotics", x: 52, y: 50, view: "infra", building: "robotics", short: "Robotik" },
+  { id: "fusion", x: 33, y: 50, view: "infra", building: "fusion", short: "Fusion" },
+  { id: "habitat", x: 33, y: 46, view: "infra", building: "habitat", short: "Habitat" },
+  { id: "nanite", x: 54, y: 64, view: "yard", building: "nanite", short: "Naniten" },
+  { id: "quantum_lab", x: 58, y: 52, view: "research", building: "quantum_lab", short: "Labor+" },
+  { id: "jumpgate", x: 47, y: 34, view: "infra", building: "jumpgate", short: "Sprungtor" },
+  { id: "defense_hub", x: 74, y: 38, view: "defense", building: "defense_hub", short: "Abwehr", zone: "def" },
+  { id: "citadel", x: 84, y: 70, view: "infra", building: "citadel", short: "Zitadelle", zone: "def" },
 ];
 
 try {
@@ -185,7 +186,7 @@ function renderDock() {
     .map((item) => {
       const pct = clamp(((t - item.startedAt) / Math.max(1, item.completesAt - item.startedAt)) * 100, 0, 100);
       const kind =
-        item.kind === "building" ? "BAU" : item.kind === "ship" ? "WERFT" : item.kind === "defense" ? "ORBIT" : "FORSCHUNG";
+        item.kind === "building" ? "BAU" : item.kind === "ship" ? "WERFT" : item.kind === "defense" ? "ABWEHR" : "FORSCHUNG";
       const view = queueViewOf(item.kind);
       return `<div class="queue-item panel dock-jump" role="button" tabindex="0" data-dock-view="${view}" data-dock-planet="${item.planetId || ""}" title="${esc(kind)} öffnen">
           <b>${kind}</b>
@@ -332,7 +333,7 @@ function reportJumps(r) {
   switch (r.kind) {
     case "alert":
       add("galaxy", "Zur Galaxie");
-      add("defense", "Orbit verstärken");
+      add("defense", "Abwehr verstärken");
       add("fleets", "Zur Flotte");
       break;
     case "build":
@@ -754,7 +755,7 @@ function actionBoard() {
   if (h.infra) push("infra", "Bauschleife frei", "Ein Ausbau ist bezahlbar", 1);
   if (h.research) push("research", "Labor frei", "Forschung kann starten", 1);
   if (h.yard) push("yard", "Werft frei", "Ein Schiff ist finanzierbar", 1);
-  if (h.defense) push("defense", "Orbit frei", "Batterien können gebaut werden", 1);
+  if (h.defense) push("defense", "Stellung frei", "Batterien können gebaut werden", 1);
   if (h.economy) push("economy", "Lager fast voll", "Rohstoffe ausgeben oder handeln", h.economy);
   if (h.reports) push("reports", "Nachrichten", "Ungelesene Berichte", h.reports);
   if (h.chat) push("chat", "Funk", "Ungelesene Nachrichten", h.chat);
@@ -1243,7 +1244,7 @@ function recommendedPlotId() {
   const blob = `${next?.title || ""} ${next?.text || ""} ${next?.view || ""}`;
   if (/Werft|Jäger|Schiff|Schwarm|Trockendock/i.test(blob) || next?.view === "yard") return "shipyard";
   if (/Labor|Archiv|Forschung/i.test(blob) || next?.view === "research") return "archive";
-  if (/Schild|Orbit|Batterie|Verteidigung/i.test(blob) || next?.view === "defense") return "shield";
+  if (/Schild|Orbit|Batterie|Verteidigung|Abwehr|Flak|Stellung/i.test(blob) || next?.view === "defense") return "defense_hub";
   if (/Helium|Treibstoff/i.test(blob)) return "helium_well";
   if (/Energie-Array|Array/i.test(blob)) return "energy_array";
   if (/Kommando/i.test(blob)) return "command";
@@ -1338,17 +1339,24 @@ function colonyCityHtml() {
       lvl > 0 ? "built" : "",
       rec ? "rec" : "",
       q ? "busy" : "",
+      plot.zone === "def" ? "def" : "",
+      plot.id === "defense_hub" ? "hub" : "",
     ]
       .filter(Boolean)
       .join(" ");
     const need = !unlocked ? plotNeedText(plot.building, buildings) : "";
+    const defCount = Object.values(p.defenses || {}).reduce((s, n) => s + (Number(n) || 0), 0);
     const sub = !unlocked
       ? need
       : q
         ? `Im Bau · ${eta(q.completesAt - Date.now())}`
-        : lvl
-          ? `Stufe ${lvl}`
-          : "Bauen";
+        : plot.id === "defense_hub" && lvl
+          ? `S${lvl} · ${defCount} Batterien`
+          : lvl
+            ? `Stufe ${lvl}`
+            : plot.id === "defense_hub"
+              ? "Stellung bauen"
+              : "Bauen";
     const action = !unlocked
       ? `data-city-lock="${esc(need || "Noch gesperrt")}"`
       : `data-view-jump="${plot.view}" data-open-infra="${plot.building || ""}"`;
@@ -1388,10 +1396,17 @@ function colonyCityHtml() {
             </label>
           </div>`
         : "";
+  const reduceMotion = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const vista = reduceMotion
+    ? `<img src="/assets/colony/city-wide.jpg?v=2" alt="" draggable="false" />`
+    : `<video autoplay muted loop playsinline poster="/assets/colony/city-wide.jpg?v=2" src="/assets/colony/city-wide.mp4" data-fallback="/assets/colony/city-wide.jpg?v=2" draggable="false"></video>`;
   return `<section class="city-view">
     <div class="city-stage" id="city-stage">
       <div class="city-map" id="city-map">
-        <img src="/assets/colony/city-wide.jpg" alt="" draggable="false" />
+        ${vista}
+        <div class="city-zone" style="left:46%;top:24%">Kolonie</div>
+        <div class="city-zone def" style="left:78%;top:26%">Stellung</div>
+        <div class="city-zone" style="left:18%;top:66%">Landeplatz</div>
         ${plots}
       </div>
     </div>
@@ -1503,9 +1518,35 @@ const views = {
         </article>`;
       })
       .join("");
-    return `<div class="section-title"><h2>Orbit</h2><span class="muted">${p.isAlliance ? "Allianz-Planet · " : ""}${esc(p.name)} · <button type="button" class="btn ghost small" data-view-jump="command">Kolonie</button></span></div>
-      <p class="hint">Flak frisst Jäger, Raketen Fregatten, Ionen Kreuzer, Gauss Zerstörer. Schildkuppeln puffern alles, schießen aber nicht. Baue gegen die Flotte, die dich wirklich bedroht.</p>
-      <div class="og-list">${rows}</div>`;
+    const hubLvl = p.buildings?.defense_hub || 0;
+    const defCount = Object.values(p.defenses || {}).reduce((s, n) => s + (Number(n) || 0), 0);
+    const hubBusy = state.snap.queue.some((q) => q.kind === "building" && q.planetId === p.id);
+    const hubInfo = (state.preview?.buildings || []).find((b) => b.id === "defense_hub");
+    const hubCta = hubLvl
+      ? ""
+      : `<article class="og-row panel focus-row">
+          <img class="og-art" src="/assets/buildings/defense_hub.jpg" alt="" />
+          <div class="og-body">
+            <h3>Verteidigungszentrum <span class="lvl">fehlt</span></h3>
+            <p>Die Stellung am Kamm muss stehen, bevor neue Batterien gebaut werden können.</p>
+            ${hubInfo?.nextCost ? costHtml(hubInfo.nextCost, have(), state.catalog) : ""}
+          </div>
+          <div class="og-act">
+            <button class="btn primary" data-build="defense_hub" ${hubBusy ? "disabled" : ""}>Errichten</button>
+            <button class="btn ghost" data-view-jump="command">Auf der Karte</button>
+          </div>
+        </article>`;
+    return `<div class="def-hero">
+        <img src="/assets/buildings/defense_hub.jpg" alt="" />
+        <div>
+          <em>STELLUNG</em>
+          <h2>Verteidigungszentrum</h2>
+          <p>${esc(p.name)} · ${hubLvl ? `Stufe ${hubLvl}` : "nicht errichtet"} · ${defCount} Batterien</p>
+        </div>
+        <button type="button" class="btn ghost small" data-view-jump="command">Kolonie</button>
+      </div>
+      <p class="hint">Flak frisst Jäger, Raketen Fregatten, Ionen Kreuzer, Gauss Zerstörer. Schildkuppeln puffern alles, schießen aber nicht. Höhere Stufen des Verteidigungszentrums beschleunigen den Bau.</p>
+      <div class="og-list">${hubCta}${rows}</div>`;
   },
 
   research() {
@@ -2334,7 +2375,7 @@ function bindCity(root) {
   let moved = false;
   let lastDist = 0;
   const mapSize = () => {
-    const w = map.offsetWidth || 1860;
+    const w = map.offsetWidth || 2640;
     const h = map.offsetHeight || w;
     return { w, h };
   };
@@ -2344,7 +2385,7 @@ function bindCity(root) {
     const { sw, sh } = viewSize();
     return Math.min(sw / w, sh / h) * 0.96;
   };
-  const clampScale = (s) => Math.min(2.8, Math.max(minScale(), s));
+  const clampScale = (s) => Math.min(3.6, Math.max(minScale(), s));
   const clampCam = () => {
     const { sw, sh } = viewSize();
     const { w, h } = mapSize();
@@ -2384,12 +2425,15 @@ function bindCity(root) {
     }
     const focusId = TUTORIAL[tutorialIndex()]?.plot || "command";
     const rec = CITY_PLOTS.find((p) => p.id === focusId) || CITY_PLOTS[0];
-    cam.scale = clampScale(Math.max(minScale() * 2.05, 0.72));
+    cam.scale = clampScale(Math.max(minScale() * 3.15, 1.05));
     centerOn(rec.x, rec.y);
     cam.ready = true;
   };
-  const img = map.querySelector("img");
-  if (img && !img.complete) img.addEventListener("load", bootCam, { once: true });
+  const media = map.querySelector("video, img");
+  if (media && media.tagName === "VIDEO") {
+    if (media.readyState >= 1) bootCam();
+    else media.addEventListener("loadedmetadata", bootCam, { once: true });
+  } else if (media && !media.complete) media.addEventListener("load", bootCam, { once: true });
   else bootCam();
   requestAnimationFrame(bootCam);
   root.querySelectorAll("[data-city-zoom]").forEach((b) =>

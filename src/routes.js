@@ -1001,6 +1001,11 @@ function attachRoutes(app, db) {
     const techs = game.techsMap(db, empire.id);
     const bSpeed = 0.1 * (buildings.command || 0);
     const sSpeed = 0.14 * (buildings.shipyard || 0);
+    const dSpeed =
+      0.14 * (buildings.defense_hub || 0) +
+      0.08 * (buildings.citadel || 0) +
+      0.05 * (buildings.nanite || 0) +
+      0.04 * (buildings.shipyard || 0);
     const rSpeed = 0.12 * (buildings.archive || 0);
     res.json({
       buildings: Object.values(BUILDINGS).map((b) => {
@@ -1024,7 +1029,7 @@ function attachRoutes(app, db) {
         id: d.id,
         unlocked: meetsReq(d.requires, buildings, techs),
         cost: d.cost,
-        time: Math.max(8, Math.floor(d.time / (1 + sSpeed * 0.5))),
+        time: Math.max(8, Math.floor(d.time / (1 + dSpeed))),
         have: game.defensesMap(db, planet.id)[d.id] || 0,
       })),
       techs: Object.values(TECHS).map((t) => {

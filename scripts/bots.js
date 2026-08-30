@@ -95,11 +95,14 @@ function pickBuilding(planet, personality) {
   if ((b.energy_array || 0) < 3) return 'energy_array';
   if ((b.helium_well || 0) < 3) return 'helium_well';
   
+  if ((b.defense_hub || 0) < 1) return 'defense_hub';
+
   if (personality === 'defensive') {
     // Defensiv-Bot priorisiert Verteidigung und Ressourcen
+    if ((b.defense_hub || 0) < 4) return 'defense_hub';
     if (!b.fusion || b.fusion < 2) return 'fusion';
     if (!b.shipyard || b.shipyard < 4) return 'shipyard';
-    if (!b.shield_generator || b.shield_generator < 2) return 'shield_generator';
+    if (!b.shield || b.shield < 2) return 'shield';
   } else if (personality === 'expansive') {
     // Expansiv-Bot priorisiert Kolonisierung
     if (!b.colony_dock || b.colony_dock < 2) return 'colony_dock';

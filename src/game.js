@@ -346,6 +346,18 @@ function shipSpeed(buildings, spec, ally) {
   return (0.14 * (buildings.shipyard || 0) + 0.1 * (buildings.nanite || 0) + 0.05 * (buildings.robotics || 0)) * (1 + (s.shipBuild || 0) + (a.build || 0));
 }
 
+function defenseSpeed(buildings, spec, ally) {
+  const s = spec || {};
+  const a = ally || {};
+  return (
+    (0.14 * (buildings.defense_hub || 0) +
+      0.08 * (buildings.citadel || 0) +
+      0.05 * (buildings.nanite || 0) +
+      0.04 * (buildings.shipyard || 0)) *
+    (1 + (s.shipBuild || 0) + (a.build || 0))
+  );
+}
+
 function techsWithSpecies(techs, spec, ally) {
   const s = spec || {};
   const a = ally || {};
@@ -623,7 +635,7 @@ function enqueueDefense(db, empire, planet, defenseId, qty) {
   const buildings = buildingsMap(db, planet.id);
   const techs = techsMap(db, empire.id);
   if (!meetsReq(spec.requires, buildings, techs)) throw new Error("Voraussetzungen nicht erfüllt.");
-  if (queueBusy(db, "defense", empire.id, planet.id)) throw new Error("Orbital-Werft belegt.");
+  if (queueBusy(db, "defense", empire.id, planet.id)) throw new Error("Verteidigungszentrum belegt.");
   const cost = scaleBag(spec.cost, qty);
   planet = accruePlanet(db, planet);
   if (!canAfford(planet, cost)) throw new Error("Nicht genug Ressourcen.");
@@ -634,7 +646,7 @@ function enqueueDefense(db, empire, planet, defenseId, qty) {
     8,
     Math.floor(
       (spec.time * qty) /
-        (1 + Math.min(TIME_SPEED_CAP, shipSpeed(buildings, species.bonuses(empire.species), social.allianceBonuses(db, empire.id)) * 0.5 + fortress))
+        (1 + Math.min(TIME_SPEED_CAP, defenseSpeed(buildings, species.bonuses(empire.species), social.allianceBonuses(db, empire.id)) + fortress))
     )
   );
   db.prepare(
