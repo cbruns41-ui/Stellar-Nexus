@@ -77,7 +77,7 @@ const CITY_PLOTS = [
   { id: "nanite", x: 54, y: 64, view: "yard", building: "nanite", short: "Naniten" },
   { id: "quantum_lab", x: 58, y: 52, view: "research", building: "quantum_lab", short: "Labor+" },
   { id: "jumpgate", x: 47, y: 34, view: "infra", building: "jumpgate", short: "Sprungtor" },
-  { id: "defense_hub", x: 74, y: 38, view: "defense", building: "defense_hub", short: "Abwehr", zone: "def" },
+  { id: "defense_hub", x: 74, y: 38, view: "defense", building: "defense_hub", short: "Verteid.", zone: "def" },
   { id: "citadel", x: 84, y: 70, view: "infra", building: "citadel", short: "Zitadelle", zone: "def" },
 ];
 
@@ -299,7 +299,7 @@ async function jumpTo(view, planetId) {
     const pl = (state.snap?.planets || []).find((p) => p.id === pid) || state.snap?.planet;
     state.mapFocus = { planetId: pid, systemId: pl?.systemId || pl?.system_id };
   }
-  setView(view);
+  setView(view, { routed: true });
 }
 
 function bindJumps(root) {
@@ -333,7 +333,7 @@ function reportJumps(r) {
   switch (r.kind) {
     case "alert":
       add("galaxy", "Zur Galaxie");
-      add("defense", "Abwehr verstärken");
+      add("defense", "Verteidigung verstärken");
       add("fleets", "Zur Flotte");
       break;
     case "build":
@@ -413,11 +413,18 @@ function tabIdFor(view) {
   return "more";
 }
 
-function setView(name) {
+function setView(name, opts = {}) {
   if (name === "galaxy" && tutorialActive() && TUTORIAL[tutorialIndex()]?.id === "galaxy") {
     setTutorialIndex(TUTORIAL.length);
   }
-  state.view = name || "command";
+  const next = name || "command";
+  const prev = state.view;
+  const routed = !!opts.routed;
+  if (!routed) {
+    state.highlightBuilding = null;
+    if (next === "command" && prev !== "command") state.cityCam.ready = false;
+  }
+  state.view = next;
   try {
     localStorage.setItem("sn-view", state.view);
   } catch {
@@ -693,6 +700,10 @@ function renderView({ preserveForm = true } = {}) {
     }
     const fn = views[state.view] || views.command;
     v.innerHTML = fn();
+    if (!preserveForm) {
+      v.scrollTop = 0;
+      v.scrollLeft = 0;
+    }
     const shell = $("game");
     if (shell) {
       shell.classList.toggle("view-galaxy", state.view === "galaxy");
@@ -1397,9 +1408,12 @@ function colonyCityHtml() {
           </div>`
         : "";
   const reduceMotion = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const biome = /^(terran|ocean|desert|ice|lava|gas|ruin)$/.test(p.type) ? p.type : "terran";
+  const cityArt = `/assets/colony/${biome}.jpg?v=5`;
+  const cityVid = `/assets/colony/${biome}.mp4?v=5`;
   const vista = reduceMotion
-    ? `<img class="city-vista" src="/assets/colony/city-wide.jpg?v=4" alt="" draggable="false" />`
-    : `<video class="city-vista" autoplay muted loop playsinline poster="/assets/colony/city-wide.jpg?v=4" src="/assets/colony/city-wide.mp4?v=4" data-fallback="/assets/colony/city-wide.jpg?v=4" draggable="false"></video>`;
+    ? `<img class="city-vista" src="${cityArt}" alt="" draggable="false" />`
+    : `<video class="city-vista" autoplay muted loop playsinline poster="${cityArt}" src="${cityVid}" data-fallback="${cityArt}" draggable="false"></video>`;
   return `<section class="city-view">
     <div class="city-stage" id="city-stage">
       <div class="city-map" id="city-map">
@@ -2595,7 +2609,7 @@ function bindView(root) {
   root.querySelectorAll("[data-open-infra]").forEach((b) =>
     b.addEventListener("click", () => {
       if (b.dataset.openInfra) state.highlightBuilding = b.dataset.openInfra;
-      if (!b.dataset.viewJump) setView("infra");
+      if (!b.dataset.viewJump) setView("infra", { routed: true });
     })
   );
   root.querySelectorAll("[data-claim]").forEach((b) =>
@@ -2649,6 +2663,7 @@ function bindView(root) {
   if (state.view === "command") bindCity(root);
   if (state.highlightBuilding) {
     const row = root.querySelector(`#bldg-${state.highlightBuilding}`);
+    state.highlightBuilding = null;
     if (row) setTimeout(() => row.scrollIntoView({ block: "center", behavior: "smooth" }), 80);
   }
   if (state.view === "galaxy" && state.map) {

@@ -549,7 +549,7 @@ const TREE = {
     ],
   },
   orbit: {
-    title: "Abwehr",
+    title: "Verteidigung",
     view: "defense",
     tiers: [
       ["flak"],
