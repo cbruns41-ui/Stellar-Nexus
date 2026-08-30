@@ -2256,10 +2256,14 @@ body.gate-open { overflow: hidden; height: 100%; }
   z-index: 0;
 }
 .land-hero-img {
-  background: url("/assets/landing/hero.jpg?v=2") center/cover no-repeat;
+  background: url("/assets/landing/hero.jpg?v=3") center/cover no-repeat;
   animation: ken 28s ease-in-out infinite alternate;
 }
-.land-vid { z-index: 1; }
+.land-vid {
+  z-index: 1;
+  transition: opacity 0.55s linear;
+}
+.land-vid.land-vid-fade { opacity: 0.12; }
 @keyframes ken {
   from { transform: scale(1); }
   to { transform: scale(1.08) translate3d(-1.5%, -1%, 0); }
@@ -2690,7 +2694,8 @@ button.linkish {
   will-change: transform;
 }
 .city-map > img,
-.city-map > video {
+.city-map > video,
+.city-vista {
   display: block;
   width: 100%;
   height: auto;

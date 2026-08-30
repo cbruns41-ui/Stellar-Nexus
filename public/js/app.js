@@ -1398,8 +1398,8 @@ function colonyCityHtml() {
         : "";
   const reduceMotion = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
   const vista = reduceMotion
-    ? `<img src="/assets/colony/city-wide.jpg?v=2" alt="" draggable="false" />`
-    : `<video autoplay muted loop playsinline poster="/assets/colony/city-wide.jpg?v=2" src="/assets/colony/city-wide.mp4" data-fallback="/assets/colony/city-wide.jpg?v=2" draggable="false"></video>`;
+    ? `<img class="city-vista" src="/assets/colony/city-wide.jpg?v=4" alt="" draggable="false" />`
+    : `<video class="city-vista" autoplay muted loop playsinline poster="/assets/colony/city-wide.jpg?v=4" src="/assets/colony/city-wide.mp4?v=4" data-fallback="/assets/colony/city-wide.jpg?v=4" draggable="false"></video>`;
   return `<section class="city-view">
     <div class="city-stage" id="city-stage">
       <div class="city-map" id="city-map">
@@ -2429,7 +2429,7 @@ function bindCity(root) {
     centerOn(rec.x, rec.y);
     cam.ready = true;
   };
-  const media = map.querySelector("video, img");
+  const media = map.querySelector(".city-vista, video, img");
   if (media && media.tagName === "VIDEO") {
     if (media.readyState >= 1) bootCam();
     else media.addEventListener("loadedmetadata", bootCam, { once: true });
@@ -4843,6 +4843,14 @@ function bootHeroVideo() {
   const v = $("land-vid");
   if (!v) return;
   v.play?.().catch(() => {});
+  if (v.dataset.softLoop) return;
+  v.dataset.softLoop = "1";
+  v.addEventListener("timeupdate", () => {
+    const d = v.duration;
+    if (!d || d < 2) return;
+    if (d - v.currentTime < 0.8) v.classList.add("land-vid-fade");
+    else v.classList.remove("land-vid-fade");
+  });
 }
 
 function fillSpeciesPicker() {
