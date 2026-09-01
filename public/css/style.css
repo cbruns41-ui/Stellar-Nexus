@@ -447,6 +447,7 @@ img.res-ico { width: 16px; height: 16px; object-fit: cover; border-radius: 4px; 
   display: flex;
   gap: 10px;
   align-items: center;
+  justify-content: space-between;
   padding: 8px 16px;
   background: linear-gradient(90deg, rgba(255, 90, 60, 0.22), rgba(12, 8, 10, 0.92));
   border-bottom: 1px solid rgba(255, 90, 60, 0.45);
@@ -456,7 +457,30 @@ img.res-ico { width: 16px; height: 16px; object-fit: cover; border-radius: 4px; 
   animation: pulse-alert 1.6s ease-in-out infinite;
 }
 .alert-strip:hover { filter: brightness(1.08); }
-.alert-strip b { font-family: var(--display); letter-spacing: 0.08em; color: var(--ember); }
+.alert-copy {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+}
+.alert-copy b { font-family: var(--display); letter-spacing: 0.08em; color: var(--ember); }
+.alert-copy span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.alert-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.alert-actions .btn {
+  padding: 6px 10px;
+  min-height: 28px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
 .alert-go {
   margin-left: auto;
   font-family: var(--display);

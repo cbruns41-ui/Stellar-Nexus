@@ -20,6 +20,7 @@ const state = {
   citySheet: null,
   cityCam: { x: 0, y: 0, scale: 1, ready: false },
   colonizeMode: null, // { sourcePlanetId, targetSystemId, targetPlanetId } bei Kolonie-Auswahl
+  ignoredIncoming: new Set(),
 };
 
 const TUTORIAL = [
@@ -697,12 +698,66 @@ function watchEvents(snap) {
 function renderAlerts() {
   const el = $("alert-strip");
   if (!el) return;
-  el.hidden = true;
-  el.classList.add("hidden");
-  el.innerHTML = "";
-  el.onclick = null;
-  el.onkeydown = null;
-  $("game")?.classList.remove("has-alert");
+  const threat = (state.snap?.incoming || [])
+    .filter((hit) => !state.ignoredIncoming.has(Number(hit.id || 0)))
+    .find((hit) => hit.kind === "attack" || hit.kind === "raid") ||
+    (state.snap?.incoming || []).filter((hit) => !state.ignoredIncoming.has(Number(hit.id || 0)))[0] || null;
+
+  if (!threat) {
+    el.hidden = true;
+    el.classList.add("hidden");
+    el.innerHTML = "";
+    el.onclick = null;
+    el.onkeydown = null;
+    $("game")?.classList.remove("has-alert");
+    return;
+  }
+
+  const kind = threat.kind === "raid" ? "Piraten-Raid" : threat.kind === "spy" ? "Scan" : "Angriff";
+  const etaLabel = eta(Math.max(0, threat.arrivesAt - Date.now()));
+  const planetName = threat.planet || "Zielplanet";
+  const defendSystem = Number(threat.systemId || 0);
+  const defendPlanet = Number(threat.planetId || 0);
+
+  el.hidden = false;
+  el.classList.remove("hidden");
+  el.innerHTML = `
+    <div class="alert-copy">
+      <b>${esc(kind)}</b>
+      <span>${esc(threat.from || "Feind")} → ${esc(planetName)} · ${esc(etaLabel)}</span>
+    </div>
+    <div class="alert-actions">
+      <button type="button" class="btn small primary" data-alert-defend="${defendPlanet}" data-alert-system="${defendSystem}">Verteidigen</button>
+      <button type="button" class="btn small ghost" data-alert-ignore="${Number(threat.id || 0)}">Ignorieren</button>
+    </div>
+  `;
+  $("game")?.classList.add("has-alert");
+
+  el.onclick = (ev) => {
+    const ignore = ev.target.closest("[data-alert-ignore]");
+    if (ignore) {
+      const id = Number(ignore.dataset.alertIgnore || 0);
+      if (id) state.ignoredIncoming.add(id);
+      renderAlerts();
+      return;
+    }
+    const defend = ev.target.closest("[data-alert-defend]");
+    if (defend) {
+      const planetId = Number(defend.dataset.alertDefend || 0);
+      const systemId = Number(defend.dataset.alertSystem || 0);
+      if (planetId && systemId) jumpToGalaxyPlanet(planetId, systemId);
+      else if (planetId) setView("galaxy");
+      return;
+    }
+    if (defendPlanet && defendSystem) jumpToGalaxyPlanet(defendPlanet, defendSystem);
+    else if (defendPlanet) setView("galaxy");
+  };
+  el.onkeydown = (ev) => {
+    if (ev.key !== "Enter" && ev.key !== " ") return;
+    ev.preventDefault();
+    if (defendPlanet && defendSystem) jumpToGalaxyPlanet(defendPlanet, defendSystem);
+    else if (defendPlanet) setView("galaxy");
+  };
 }
 
 function renderView({ preserveForm = true } = {}) {
