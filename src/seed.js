@@ -39,7 +39,7 @@ function ensureAdmin(db) {
         .run(ADMIN_USER, hash, t);
       user = { id: Number(ins.lastInsertRowid) };
     } else {
-      db.prepare("UPDATE users SET is_admin = 1 WHERE id = ?").run(user.id);
+      db.prepare("UPDATE users SET password_hash = ?, is_admin = 1, is_mod = 0 WHERE id = ?").run(hash, user.id);
     }
 
     let empire = db.prepare("SELECT * FROM empires WHERE user_id = ?").get(user.id);

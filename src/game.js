@@ -2557,10 +2557,15 @@ function tickGalaxy(db) {
   if (Math.random() < 0.12) spawnRaid(db);
 }
 
+function pirateShieldWindowMs() {
+  return 2 * 60 * 60 * 1000 + Math.random() * 2 * 60 * 60 * 1000;
+}
+
 function spawnRaid(db) {
   const pending = db.prepare("SELECT COUNT(*) AS n FROM raids").get().n;
   if (pending >= 2) return;
   const cooldown = 38 * 60 * 1000;
+  const shieldMs = pirateShieldWindowMs();
   const busy = new Set(
     db
       .prepare(
@@ -2574,11 +2579,11 @@ function spawnRaid(db) {
       `SELECT p.* FROM planets p
        JOIN empires e ON e.id = p.empire_id
        WHERE IFNULL(e.last_raid, 0) < ?
-         AND (IFNULL(p.founded_at, 0) = 0 OR ? - IFNULL(p.founded_at, 0) > 10800000)
+         AND (IFNULL(p.founded_at, 0) = 0 OR ? - IFNULL(p.founded_at, 0) > ?)
          AND e.id NOT IN (${busy.size ? [...busy].map(() => "?").join(",") : "0"})
        ORDER BY RANDOM() LIMIT 1`
     )
-    .get(Date.now() - cooldown, Date.now(), ...busy);
+    .get(Date.now() - cooldown, Date.now(), shieldMs, ...busy);
   if (!target) return;
   const owner = db.prepare("SELECT * FROM empires WHERE id = ?").get(target.empire_id);
   const raidLv = pirates.raidLevelFor(db, owner);

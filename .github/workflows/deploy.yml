@@ -20,7 +20,12 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            set -e
             cd ${{ secrets.SERVER_PATH }}
-            git pull origin main
+            git pull --ff-only origin main
             npm ci
-            pm2 restart stellar-nexus
+            if pm2 show stellar-nexus >/dev/null 2>&1; then
+              pm2 restart stellar-nexus
+            else
+              pm2 start server.js --name stellar-nexus
+            fi

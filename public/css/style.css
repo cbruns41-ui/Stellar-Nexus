@@ -213,38 +213,20 @@ input:focus, select:focus, textarea:focus { border-color: var(--cyan); box-shado
 }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 200px; }
 .brand-avatar-btn {
-  position: relative;
-  z-index: 1;
-  padding: 0;
-  margin-right: 10px;
-  border: 0;
-  background: none;
-  border-radius: 10px;
-  line-height: 0;
-  cursor: pointer;
-}
-.brand-avatar-btn:hover img,
-.brand-avatar-btn:focus-visible img {
-  border-color: var(--cyan);
-  box-shadow: 0 0 18px rgba(62, 232, 196, 0.45);
-}
-.brand img,
-.brand-avatar-btn img {
-  width: 42px; height: 42px; border-radius: 10px; object-fit: cover;
-  border: 1px solid var(--line2);
-  box-shadow: 0 0 16px rgba(62, 232, 196, 0.2);
+  display: none;
 }
 .brand strong { display: block; font-size: 11px; color: var(--cyan); }
 .planet-select {
   position: relative;
   z-index: 2;
   margin-top: 4px;
-  background: #070b14;
+  background: rgba(7, 11, 20, 0.84);
   border: 1px solid var(--line);
   color: var(--text);
-  padding: 4px 8px;
+  padding: 6px 10px;
   min-width: 160px;
   font-size: 12px;
+  border-radius: 999px;
 }
 .resources { display: flex; gap: 8px; flex: 1; justify-content: center; flex-wrap: wrap; }
 .res {
@@ -253,10 +235,11 @@ input:focus, select:focus, textarea:focus { border-color: var(--cyan); box-shado
   grid-template-columns: 28px 1fr;
   column-gap: 6px;
   align-items: center;
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid rgba(62, 232, 196, 0.18);
   padding: 5px 10px 6px 5px;
   min-width: 108px;
-  background: linear-gradient(180deg, rgba(14, 22, 34, 0.9), rgba(6, 10, 18, 0.92));
+  background: linear-gradient(180deg, rgba(18, 27, 38, 0.82), rgba(7, 10, 17, 0.92));
+  border-radius: 999px;
   overflow: hidden;
   border-radius: 12px;
 }
@@ -1627,22 +1610,22 @@ img.og-art-ship[src*="battleship"] {
 .tabbar {
   display: grid;
   grid-area: tabs;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 2px;
-  padding: 6px 6px calc(8px + env(safe-area-inset-bottom, 0px));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px 12px calc(10px + env(safe-area-inset-bottom, 0px));
   background: rgba(5, 8, 14, 0.96);
   border-top: 1px solid var(--line);
   z-index: 12;
 }
 .tabbar button {
   position: relative;
-  min-height: 52px;
-  padding: 6px 4px 8px;
-  border: 0;
-  background: transparent;
+  min-height: 54px;
+  padding: 8px 8px 10px;
+  border: 1px solid rgba(62, 232, 196, 0.12);
+  background: rgba(12, 18, 27, 0.72);
   color: var(--muted);
   font-size: 10px;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   font-family: var(--display);
   display: flex;
@@ -1650,15 +1633,11 @@ img.og-art-ship[src*="battleship"] {
   align-items: center;
   justify-content: center;
   gap: 3px;
+  border-radius: 14px;
 }
 .tabbar button svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; }
-.tabbar button.on, .tabbar button:hover { color: var(--cyan); }
-.tabbar button i {
-  position: absolute; right: 18%; top: 4px;
-  min-width: 16px; height: 16px; padding: 0 4px;
-  border-radius: 8px; background: var(--ember); color: white;
-  font-style: normal; font-size: 10px; text-align: center; line-height: 16px;
-}
+.tabbar button.on, .tabbar button:hover { color: var(--cyan); border-color: rgba(62, 232, 196, 0.36); box-shadow: 0 0 14px rgba(62, 232, 196, 0.12); }
+.tabbar button i { display: none; }
 .build-rail {
   display: flex;
   gap: 6px;

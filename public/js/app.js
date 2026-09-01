@@ -21,6 +21,8 @@ const state = {
   cityCam: { x: 0, y: 0, scale: 1, ready: false },
   colonizeMode: null, // { sourcePlanetId, targetSystemId, targetPlanetId } bei Kolonie-Auswahl
   ignoredIncoming: new Set(),
+  lastInteractionAt: 0,
+  lastBusyToastAt: 0,
 };
 
 const TUTORIAL = [
@@ -425,9 +427,7 @@ function openNavSheet() {
 function tabIdFor(view) {
   if (view === "command") return "home";
   if (view === "galaxy") return "map";
-  if (view === "alliance") return "ally";
-  if (view === "fleets") return "fleet";
-  return "more";
+  return "cmd";
 }
 
 function setView(name, opts = {}) {
@@ -502,9 +502,17 @@ async function refresh(planetId, { rerender = true } = {}) {
   }
 }
 
+function markUserInteraction() {
+  state.lastInteractionAt = Date.now();
+}
+
+document.addEventListener("pointerdown", markUserInteraction, { passive: true });
+document.addEventListener("keydown", markUserInteraction, { passive: true });
+
 function liveRerender() {
   if (isViewEditing()) return false;
-  const skip = new Set(["galaxy", "chat", "reports", "sim", "alliance", "settings", "moderation"]);
+  if (Date.now() - state.lastInteractionAt < 750) return false;
+  const skip = new Set(["galaxy", "chat", "reports", "sim", "alliance", "settings", "moderation", "command", "infra", "yard", "defense", "research"]);
   return !skip.has(state.view);
 }
 
@@ -715,6 +723,7 @@ function renderAlerts() {
 
   const kind = threat.kind === "raid" ? "Piraten-Raid" : threat.kind === "spy" ? "Scan" : "Angriff";
   const etaLabel = eta(Math.max(0, threat.arrivesAt - Date.now()));
+  const whenLabel = new Date(threat.arrivesAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
   const planetName = threat.planet || "Zielplanet";
   const defendSystem = Number(threat.systemId || 0);
   const defendPlanet = Number(threat.planetId || 0);
@@ -724,7 +733,7 @@ function renderAlerts() {
   el.innerHTML = `
     <div class="alert-copy">
       <b>${esc(kind)}</b>
-      <span>${esc(threat.from || "Feind")} → ${esc(planetName)} · ${esc(etaLabel)}</span>
+      <span>${esc(threat.from || "Feind")} → ${esc(planetName)} · ${esc(etaLabel)} · ${esc(whenLabel)}</span>
     </div>
     <div class="alert-actions">
       <button type="button" class="btn small primary" data-alert-defend="${defendPlanet}" data-alert-system="${defendSystem}">Verteidigen</button>
@@ -2157,32 +2166,39 @@ const views = {
       .map((a) => {
         const ready = a.ready;
         const running = a.running;
+        const chosen = a.duration || "short";
         const durs = (a.durations || [])
           .map(
-            (d) => `<button type="button" class="duration-btn" data-activity="${a.id}" data-duration="${d.id}" ${ready ? "" : "disabled"}>
+            (d) => `<button type="button" class="duration-btn ${d.id === chosen ? "on" : ""}" data-activity="${a.id}" data-duration="${d.id}" ${running || ready ? "disabled" : ""}>
               <b>${esc(d.name)}</b>
               <span>${eta(d.ms)} · ${esc(d.blurb)}${d.energy ? ` · ${d.energy} E` : ""}</span>
             </button>`
           )
           .join("");
-        const statusText = running ? eta(a.wait) : ready ? "LOOT" : eta(a.wait);
+        const statusText = running ? eta(a.wait) : ready ? "BEREIT" : eta(a.wait);
         const statusClass = running ? "running" : ready ? "ready" : "waiting";
+        const startButton = running
+          ? `<button type="button" class="btn ghost" disabled>Aktiv · ${esc(a.durationName || "Einsatz")}</button>`
+          : ready
+            ? `<button type="button" class="btn primary" data-activity="${a.id}" data-duration="${chosen}">BEREIT</button>`
+            : `<button type="button" class="btn primary" data-activity="${a.id}" data-duration="${chosen}">Start</button>`;
         return `<article class="force-card panel ${statusClass}">
           <div class="force-art">
             ${mediaTag(a.art)}
-            <span class="force-count" title="${running ? "Rückkehr in" : ready ? "Loot abholen" : "Fertig in"}">${statusText}</span>
+            <span class="force-count" title="${running ? "Rückkehr in" : ready ? "Bereit" : "Fertig in"}">${statusText}</span>
           </div>
           <div class="force-body">
             <h3>${esc(a.name)}</h3>
             <p>${esc(a.blurb)}</p>
-            ${running ? `<div class="muted">Unterwegs (${esc(a.durationName || "Einsatz")}) · Beute bei Rückkehr</div>` : `<div class="duration-row">${durs}</div>`}
+            <div class="duration-row">${durs}</div>
+            ${running ? `<div class="muted">Unterwegs (${esc(a.durationName || "Einsatz")}) · Beute bei Rückkehr</div>` : `<div class="activity-start-row">${startButton}</div>`}
           </div>
         </article>`;
       })
       .join("");
     return `<div class="section-title"><h2>Einsatzzentrale</h2>
-        <span class="muted">Kurz wenig Beute · lang reiche Beute</span></div>
-      <p class="hint">Wähle die Dauer. Kurze Einsätze sind in Minuten vorbei, lange bringen deutlich mehr Erz, Kristalle und XP. Jeder Typ läuft getrennt.</p>
+        <span class="muted">Kurz wenig Beute · mittel solide Beute · lang reiche Beute</span></div>
+      <p class="hint">Wähle die Dauer, dann starte den Einsatz. Kurz/Mittel/Lang bestimmen nur die Laufzeit, nicht die Art des Einsatzes.</p>
       <div class="force-grid">${cards}</div>`;
   },
 
@@ -2644,16 +2660,15 @@ function bindView(root) {
   if (state.view === "chat") bootChat();
   if (state.view === "reports") bindNews(root);
   if (state.view === "sim") bindSim(root);
-  root.querySelectorAll("[data-activity]").forEach((b) =>
-    b.addEventListener("click", () =>
-      act(() =>
-        api("/activity", {
-          method: "POST",
-          body: { kind: b.dataset.activity, duration: b.dataset.duration || "short", planetId: state.snap.planet.id },
-        })
-      )
-    )
-  );
+  root.querySelectorAll("[data-activity]").forEach((b) => {
+    if (b.disabled) return;
+    b.addEventListener("click", () => {
+      const kind = b.dataset.activity;
+      const duration = b.dataset.duration || "short";
+      if (!kind) return;
+      act(() => api("/activity", { method: "POST", body: { kind, duration, planetId: state.snap.planet.id } }));
+    });
+  });
   root.querySelectorAll("[data-ally-tech]").forEach((b) =>
     b.addEventListener("click", () =>
       act(() => api("/alliances/research", { method: "POST", body: { id: b.dataset.allyTech, planetId: state.snap.planet.id } }))
@@ -2699,8 +2714,6 @@ function bindView(root) {
       setView(view, { routed: true });
     });
   });
-    })
-  );
   root.querySelectorAll("[data-claim]").forEach((b) =>
     b.addEventListener("click", () => act(() => api("/quest/claim", { method: "POST", body: { id: b.dataset.claim } })))
   );
@@ -4974,7 +4987,17 @@ async function act(fn) {
       renderView();
     } else await refresh();
   } catch (err) {
-    toast(err.message, true);
+    const msg = String(err?.message || "");
+    const spam = /läuft bereits|already running|already in progress/i.test(msg);
+    if (spam) {
+      const now = Date.now();
+      if (now - state.lastBusyToastAt > 6000) {
+        state.lastBusyToastAt = now;
+        toast(msg, true);
+      }
+      return;
+    }
+    toast(msg, true);
   }
 }
 
@@ -4983,8 +5006,8 @@ $("nav")?.addEventListener("click", (e) => {
   if (b) setView(b.dataset.view);
 });
 $("tabbar")?.addEventListener("click", (e) => {
-  const more = e.target.closest("[data-tab='more'], [data-more]");
-  if (more) {
+  const openCmd = e.target.closest("[data-open-nav]");
+  if (openCmd) {
     const shell = $("game");
     if (shell?.classList.contains("nav-open")) closeNavSheet();
     else openNavSheet();
