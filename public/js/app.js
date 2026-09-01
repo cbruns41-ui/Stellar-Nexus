@@ -2,6 +2,7 @@ import { api, getState, getCatalog, getPreview, getGalaxy, getSystem, getReports
 import { esc, fmt, eta, when, costHtml, planetCss, planetGlobeUrl, planetColonyUrl, mediaTag, bindMediaFallbacks, toast, showModal, hideModal, shipList, starfield, resourceIcon, icon, beep, notify, tickEta, ticksOf, tickMsFrom } from "./ui.js";
 import { createMap, systemHtml } from "./map.js?v=49";
 import { battleReplayHtml, bindBattleReplays } from "./battle.js";
+import { CITY_PLOTS, buildingLevelBand } from "./city.mjs?v=1";
 
 const $ = (id) => document.getElementById(id);
 
@@ -30,7 +31,7 @@ const TUTORIAL = [
   {
     id: "move",
     title: "Schau dir deine Kolonie an",
-    text: "Zieh die Stadt mit dem Finger (am Computer mit der Maus). − und + zoomen, das Haus zeigt alles.",
+    text: "Zieh die Stadt mit dem Finger oder der Maus. Zoome per Zwei-Finger-Geste oder Mausrad.",
   },
   {
     id: "mine",
@@ -59,33 +60,6 @@ const TUTORIAL = [
     text: "Unten in der Leiste: Galaxie. Dort fliegst du, spionierst und holst Trümmer. Die Kolonie bleibt dein Zuhause.",
     tab: "map",
   },
-];
-
-// Shared by all biome base images: capital in the centre, major structures on
-// large pads and compact resource buildings on the small satellite pads.
-const CITY_PLOTS = [
-  { id: "command", x: 50, y: 54, view: "infra", building: "command", short: "Nexus", size: "capital", art: "command" },
-  { id: "citadel", x: 22, y: 31.5, view: "infra", building: "citadel", short: "Zitadelle", size: "medium", art: "defense", zone: "def" },
-  { id: "archive", x: 74, y: 30.5, view: "research", building: "archive", short: "Labor", size: "medium", art: "science" },
-  { id: "defense_hub", x: 21, y: 72, view: "defense", building: "defense_hub", short: "Verteid.", size: "medium", art: "defense", zone: "def" },
-  { id: "shipyard", x: 75, y: 66, view: "yard", building: "shipyard", short: "Schiffsbau", size: "medium", art: "yard" },
-  { id: "energy_array", x: 70.3, y: 29, view: "infra", building: "energy_array", short: "Energie", size: "medium", art: "major" },
-  { id: "fusion", x: 18, y: 35, view: "infra", building: "fusion", short: "Fusion", size: "medium", art: "major" },
-  { id: "shield", x: 14.7, y: 69, view: "infra", building: "shield", short: "Schild", size: "medium", art: "defense" },
-  { id: "quantum_lab", x: 78.5, y: 35, view: "research", building: "quantum_lab", short: "Labor+", size: "medium", art: "science" },
-  { id: "jumpgate", x: 68.5, y: 73, view: "infra", building: "jumpgate", short: "Sprungtor", size: "medium", art: "yard" },
-  { id: "robotics", x: 19.4, y: 77.5, view: "infra", building: "robotics", short: "Robotik", size: "medium", art: "major" },
-  { id: "nanite", x: 81, y: 73, view: "yard", building: "nanite", short: "Naniten", size: "medium", art: "major" },
-  { id: "matter_mine", x: 24, y: 51, view: "infra", building: "matter_mine", short: "Met-Mine", size: "mini", art: "small" },
-  { id: "helium_well", x: 42, y: 29.5, view: "infra", building: "helium_well", short: "Helium", size: "small", art: "small" },
-  { id: "titan_extractor", x: 54.5, y: 23.5, view: "infra", building: "titan_extractor", short: "Titan", size: "mini", art: "small" },
-  { id: "uplink", x: 72, y: 48.3, view: "infra", building: "uplink", short: "Kri-Mine", size: "micro", art: "small" },
-  { id: "diamond_forge", x: 34.6, y: 74.5, view: "infra", building: "diamond_forge", short: "Diamant", size: "micro", art: "small" },
-  { id: "silo", x: 26, y: 30.2, view: "infra", building: "silo", short: "Lager", size: "medium", art: "utility" },
-  { id: "spy_center", x: 75.1, y: 48.3, view: "infra", building: "spy_center", short: "Spionage", size: "micro", art: "science" },
-  { id: "beacon", x: 57.5, y: 23.5, view: "infra", building: "beacon", short: "Bake", size: "micro", art: "utility" },
-  { id: "colony_dock", x: 26, y: 51, view: "infra", building: "colony_dock", short: "Dock", size: "micro", art: "yard" },
-  { id: "habitat", x: 36.8, y: 77, view: "infra", building: "habitat", short: "Habitat", size: "micro", art: "utility" },
 ];
 
 try {
@@ -1388,6 +1362,21 @@ function cityQuestCard() {
   </button>`;
 }
 
+function cityCommanderRail() {
+  const secondary = [];
+  const readyDaily = (state.snap.ops || []).find((item) => item.complete && !item.claimed);
+  const readyWeekly = (state.snap.weekly || []).find((item) => item.complete && !item.claimed);
+  const readyCampaign = (state.snap.contracts || []).find((item) => item.complete && !item.claimed);
+  const hasThreat = (state.snap.incoming || []).length > 0;
+  const hints = state.snap.hints || {};
+  if (readyDaily && hasThreat) secondary.push(`<button type="button" class="city-side-task ready" data-op="${readyDaily.id}"><i>✓</i><span><b>Tagesorder fertig</b><small>Belohnung abholen</small></span></button>`);
+  if (readyWeekly) secondary.push(`<button type="button" class="city-side-task ready" data-weekly="${readyWeekly.id}"><i>✓</i><span><b>Wochenorder fertig</b><small>Belohnung abholen</small></span></button>`);
+  if (readyCampaign && (hasThreat || readyDaily)) secondary.push(`<button type="button" class="city-side-task ready" data-claim="${readyCampaign.id}"><i>✓</i><span><b>Kampagne fertig</b><small>Belohnung abholen</small></span></button>`);
+  if (hints.reports) secondary.push(`<button type="button" class="city-side-task" data-view-jump="reports"><i>${Math.min(9, hints.reports)}</i><span><b>Neue Berichte</b><small>Nachrichten öffnen</small></span></button>`);
+  if (hints.activity) secondary.push(`<button type="button" class="city-side-task" data-view-jump="activity"><i>◎</i><span><b>Einsatz bereit</b><small>Einsatzzentrale öffnen</small></span></button>`);
+  return `<div class="city-commander" aria-label="Commander-Aufgaben">${cityQuestCard()}${secondary.length ? `<div class="city-side-tasks">${secondary.slice(0, 2).join("")}</div>` : ""}</div>`;
+}
+
 function colonyCityHtml() {
   const p = state.snap.planet;
   const e = state.snap.empire;
@@ -1409,6 +1398,7 @@ function colonyCityHtml() {
       lvl > 0 ? "built" : "",
       rec ? "rec" : "",
       q ? "busy" : "",
+      `level-${buildingLevelBand(lvl)}`,
       `size-${plot.size || "small"}`,
       plot.zone === "def" ? "def" : "",
       plot.id === "defense_hub" ? "hub" : "",
@@ -1476,7 +1466,7 @@ function colonyCityHtml() {
   const biome = /^(terran|ocean|desert|ice|lava|gas|ruin)$/.test(p.type) ? p.type : "terran";
   const cityArt = `/assets/colony/base-${biome}-v3.png?v=2`;
   const vista = `<img class="city-vista" src="${cityArt}" alt="" draggable="false" />`;
-  return `<section class="city-view">
+  return `<section class="city-view biome-${biome}">
     <div class="city-stage" id="city-stage">
       <div class="city-map" id="city-map">
         ${vista}
@@ -1485,13 +1475,10 @@ function colonyCityHtml() {
       </div>
     </div>
     <div class="city-side">
-      <button type="button" data-city-sheet="quests" title="Aufträge">!</button>
-      <button type="button" data-city-sheet="planet" title="Planet">i</button>
-      <button type="button" data-city-zoom="out" title="Rauszoomen">−</button>
-      <button type="button" data-city-zoom="fit" title="Ganze Stadt">▣</button>
-      <button type="button" data-city-zoom="in" title="Ranzoomen">+</button>
+      <button type="button" class="city-orders" data-city-sheet="quests" title="Aufträge öffnen"><span aria-hidden="true">▤</span><b>AUFTRÄGE</b></button>
+      <button type="button" class="city-planet-info" data-city-sheet="planet" title="Planet-Informationen" aria-label="Planet-Informationen">i</button>
     </div>
-    ${tut ? tutHtml : cityQuestCard()}
+    ${tut ? tutHtml : cityCommanderRail()}
     ${sheet}
   </section>`;
 }
@@ -2532,18 +2519,6 @@ function bindCity(root) {
   } else if (media && !media.complete) media.addEventListener("load", bootCam, { once: true });
   else bootCam();
   requestAnimationFrame(bootCam);
-  root.querySelectorAll("[data-city-zoom]").forEach((b) =>
-    b.addEventListener("click", () => {
-      const { sw, sh } = viewSize();
-      const mode = b.dataset.cityZoom;
-      if (mode === "fit") {
-        cam.scale = minScale();
-        clampCam();
-        apply();
-      } else if (mode === "out") zoomAt(sw / 2, sh / 2, cam.scale * 0.76);
-      else zoomAt(sw / 2, sh / 2, cam.scale * 1.3);
-    })
-  );
   stage.addEventListener("pointerdown", (e) => {
     if (e.target.closest(".city-quest, .city-side, .city-tut, .city-sheet, .city-zoom")) return;
     if (e.pointerType === "mouse" && e.button !== 0) return;

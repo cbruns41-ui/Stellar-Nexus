@@ -2955,6 +2955,51 @@ button.linkish {
   font-size: 16px;
   font-weight: 700;
 }
+.city-side .city-orders {
+  position: relative;
+  width: auto;
+  min-width: 132px;
+  padding: 0 14px 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 9px;
+  overflow: hidden;
+  border-color: rgba(62, 232, 196, .72);
+  background: linear-gradient(135deg, rgba(17, 93, 104, .96), rgba(5, 30, 44, .96));
+  color: #e9fffb;
+  box-shadow: 0 8px 24px rgba(0,0,0,.48), 0 0 18px rgba(62,232,196,.16), inset 0 0 18px rgba(62,232,196,.08);
+  letter-spacing: .09em;
+}
+.city-side .city-orders::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 3px 0 0 var(--cyan);
+  pointer-events: none;
+}
+.city-side .city-orders:hover {
+  border-color: var(--cyan);
+  filter: brightness(1.12);
+  box-shadow: 0 8px 26px rgba(0,0,0,.52), 0 0 24px rgba(62,232,196,.28);
+}
+.city-side .city-orders span {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: rgba(62,232,196,.14);
+  color: var(--cyan);
+  font-size: 17px;
+}
+.city-side .city-orders b { font: 700 10px var(--display); }
+.city-side .city-planet-info {
+  align-self: flex-start;
+  background: rgba(8, 20, 32, .9);
+  color: #9edfff;
+}
 .city-quest {
   position: absolute;
   left: 10px;
@@ -3011,7 +3056,6 @@ button.linkish {
   overflow: hidden;
 }
 .mini-bar b { display: block; height: 100%; background: var(--cyan); }
-.city-side [data-city-zoom] { font-size: 18px; line-height: 1; }
 .city-tut {
   position: absolute;
   left: 10px;
@@ -3467,4 +3511,99 @@ button.linkish {
   }
   .og-row.focus-row .og-body { padding: 12px 14px 6px; }
   .og-row.focus-row .og-act { padding: 0 14px 14px; }
+}
+
+/* Commander rail: one dominant next action, at most two secondary signals. */
+.city-commander {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 86px;
+  z-index: 6;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(210px, 28%);
+  gap: 8px;
+  align-items: stretch;
+}
+.city-commander .city-quest {
+  position: relative;
+  inset: auto;
+  min-width: 0;
+  margin: 0;
+}
+.city-side-tasks { display: grid; grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.city-side-task {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 9px;
+  border: 1px solid rgba(91, 174, 217, .36);
+  border-radius: 11px;
+  background: linear-gradient(135deg, rgba(6,20,32,.95), rgba(5,11,20,.94));
+  color: var(--text);
+  text-align: left;
+  box-shadow: 0 8px 22px rgba(0,0,0,.4);
+}
+.city-side-task i {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(62, 184, 232, .12);
+  color: var(--cyan);
+  font-style: normal;
+  font: 700 11px var(--display);
+}
+.city-side-task span { display: grid; min-width: 0; }
+.city-side-task b { overflow: hidden; font: 700 10px var(--display); text-overflow: ellipsis; white-space: nowrap; }
+.city-side-task small { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.city-side-task.ready { border-color: rgba(94,232,160,.58); }
+.city-side-task.ready i { background: rgba(94,232,160,.14); color: var(--ok); }
+
+/* Built structures stay visually quiet until the player points at or selects them. */
+.city-plot.built:not(.selected):not(.rec) .city-plot-main > b,
+.city-plot.built:not(.selected):not(.rec) .city-plot-main > span {
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity .16s ease, transform .16s ease;
+}
+.city-plot.built:hover .city-plot-main > b,
+.city-plot.built:hover .city-plot-main > span,
+.city-plot.built:focus-within .city-plot-main > b,
+.city-plot.built:focus-within .city-plot-main > span {
+  opacity: 1;
+  transform: translateY(0);
+}
+.city-plot.level-developed .city-building-art { filter: drop-shadow(0 13px 12px rgba(0,0,0,.66)) saturate(1.08); }
+.city-plot.level-advanced .city-building-art { filter: drop-shadow(0 14px 13px rgba(0,0,0,.68)) saturate(1.16) brightness(1.05); }
+.city-plot.level-elite .city-building-art { filter: drop-shadow(0 0 14px rgba(62,232,196,.35)) drop-shadow(0 15px 13px rgba(0,0,0,.7)) saturate(1.22); }
+.city-plot.level-advanced::after,
+.city-plot.level-elite::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 30px;
+  width: 54%;
+  height: 12%;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(62,232,196,.22), transparent 70%);
+  pointer-events: none;
+}
+.city-view.biome-lava { --city-accent: #ff8b4a; }
+.city-view.biome-ice { --city-accent: #9cddff; }
+.city-view.biome-ocean { --city-accent: #54e4dc; }
+.city-view.biome-desert { --city-accent: #e8bd73; }
+.city-view.biome-gas { --city-accent: #b79cff; }
+.city-view.biome-ruin { --city-accent: #d58bff; }
+.city-view[class*="biome-"] .city-plot.rec { border-color: var(--city-accent, #5ee8a0); }
+
+@media (max-width: 760px) {
+  .city-commander { grid-template-columns: 1fr; bottom: 82px; }
+  .city-side-tasks { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: none; }
+  .city-side-task { padding: 6px 8px; }
+  .city-side-task small { display: none; }
 }
