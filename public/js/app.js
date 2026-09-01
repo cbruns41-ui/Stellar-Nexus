@@ -17,6 +17,7 @@ const state = {
   newsTab: "reports",
   openReports: new Set(),
   highlightBuilding: null,
+  cityBuilding: null,
   citySheet: null,
   cityCam: { x: 0, y: 0, scale: 1, ready: false },
   colonizeMode: null, // { sourcePlanetId, targetSystemId, targetPlanetId } bei Kolonie-Auswahl
@@ -61,28 +62,28 @@ const TUTORIAL = [
 ];
 
 const CITY_PLOTS = [
-  { id: "command", x: 42, y: 45, view: "infra", building: "command", short: "Nexus" },
-  { id: "matter_mine", x: 46, y: 43, view: "infra", building: "matter_mine", short: "Mine" },
-  { id: "energy_array", x: 37, y: 42, view: "infra", building: "energy_array", short: "Array" },
-  { id: "helium_well", x: 40, y: 61, view: "infra", building: "helium_well", short: "Helium" },
-  { id: "titan_extractor", x: 35, y: 54, view: "infra", building: "titan_extractor", short: "Titan" },
-  { id: "uplink", x: 41, y: 57, view: "infra", building: "uplink", short: "Kristall" },
-  { id: "diamond_forge", x: 49, y: 48, view: "infra", building: "diamond_forge", short: "Diamant" },
-  { id: "silo", x: 48, y: 53, view: "infra", building: "silo", short: "Lager" },
-  { id: "shipyard", x: 51, y: 63, view: "yard", building: "shipyard", short: "Werft" },
-  { id: "archive", x: 56, y: 58, view: "research", building: "archive", short: "Labor" },
-  { id: "spy_center", x: 56, y: 44, view: "infra", building: "spy_center", short: "Spionage" },
-  { id: "shield", x: 44, y: 69, view: "infra", building: "shield", short: "Schild" },
-  { id: "beacon", x: 47, y: 38, view: "infra", building: "beacon", short: "Bake" },
-  { id: "colony_dock", x: 20, y: 76, view: "infra", building: "colony_dock", short: "Dock" },
-  { id: "robotics", x: 52, y: 50, view: "infra", building: "robotics", short: "Robotik" },
-  { id: "fusion", x: 33, y: 50, view: "infra", building: "fusion", short: "Fusion" },
-  { id: "habitat", x: 33, y: 46, view: "infra", building: "habitat", short: "Habitat" },
-  { id: "nanite", x: 54, y: 64, view: "yard", building: "nanite", short: "Naniten" },
-  { id: "quantum_lab", x: 58, y: 52, view: "research", building: "quantum_lab", short: "Labor+" },
-  { id: "jumpgate", x: 47, y: 34, view: "infra", building: "jumpgate", short: "Sprungtor" },
-  { id: "defense_hub", x: 74, y: 38, view: "defense", building: "defense_hub", short: "Verteid.", zone: "def" },
-  { id: "citadel", x: 84, y: 70, view: "infra", building: "citadel", short: "Zitadelle", zone: "def" },
+  { id: "command", x: 50, y: 53, view: "infra", building: "command", short: "Nexus" },
+  { id: "matter_mine", x: 23, y: 31, view: "infra", building: "matter_mine", short: "Met-Mine" },
+  { id: "energy_array", x: 75, y: 31, view: "infra", building: "energy_array", short: "Energie" },
+  { id: "helium_well", x: 40, y: 26, view: "infra", building: "helium_well", short: "Helium" },
+  { id: "titan_extractor", x: 56, y: 23, view: "infra", building: "titan_extractor", short: "Titan" },
+  { id: "uplink", x: 20, y: 69, view: "infra", building: "uplink", short: "Kri-Mine" },
+  { id: "diamond_forge", x: 63, y: 43, view: "infra", building: "diamond_forge", short: "Diamant" },
+  { id: "silo", x: 40, y: 48, view: "infra", building: "silo", short: "Lager" },
+  { id: "shipyard", x: 76, y: 70, view: "yard", building: "shipyard", short: "Schiffsbau" },
+  { id: "archive", x: 58, y: 49, view: "research", building: "archive", short: "Labor" },
+  { id: "spy_center", x: 63, y: 32, view: "infra", building: "spy_center", short: "Spionage" },
+  { id: "shield", x: 46, y: 74, view: "infra", building: "shield", short: "Schild" },
+  { id: "beacon", x: 48, y: 20, view: "infra", building: "beacon", short: "Bake" },
+  { id: "colony_dock", x: 34, y: 79, view: "infra", building: "colony_dock", short: "Dock" },
+  { id: "robotics", x: 37, y: 38, view: "infra", building: "robotics", short: "Robotik" },
+  { id: "fusion", x: 31, y: 47, view: "infra", building: "fusion", short: "Fusion" },
+  { id: "habitat", x: 29, y: 57, view: "infra", building: "habitat", short: "Habitat" },
+  { id: "nanite", x: 67, y: 57, view: "yard", building: "nanite", short: "Naniten" },
+  { id: "quantum_lab", x: 59, y: 62, view: "research", building: "quantum_lab", short: "Labor+" },
+  { id: "jumpgate", x: 56, y: 15, view: "infra", building: "jumpgate", short: "Sprungtor" },
+  { id: "defense_hub", x: 84, y: 48, view: "defense", building: "defense_hub", short: "Verteid.", zone: "def" },
+  { id: "citadel", x: 87, y: 76, view: "infra", building: "citadel", short: "Zitadelle", zone: "def" },
 ];
 
 try {
@@ -150,7 +151,7 @@ function renderResources() {
         <div class="res-meta">
           <em>${esc(def.short || def.name)}</em>
           <b style="color:${full ? "var(--danger)" : def.color}">${fmt(v)}</b>
-          <small>+${fmt(prod)}/h</small>
+          <small>${prod > 0 ? `+${fmt(prod)}/h` : "kein Gebäude"}</small>
         </div>
         <i class="fill" style="width:${pct}%;background:${def.color}"></i>
       </div>`;
@@ -175,25 +176,12 @@ function renderDock() {
   if (!dock) return;
   const q = state.snap?.queue || [];
   const f = state.snap?.fleets || [];
-  const incoming = state.snap?.incoming || [];
   const acts = (state.snap?.activities || []).filter((a) => a.running);
-  if (!q.length && !f.length && !incoming.length && !acts.length) {
+  if (!q.length && !f.length && !acts.length) {
     dock.innerHTML = `<div class="muted" style="align-self:center">Keine aktiven Aufträge.</div>`;
     return;
   }
   const t = Date.now();
-  const incomingHtml = incoming
-    .map((hit) => {
-      const pct = clamp(((t - (hit.departedAt || hit.arrivesAt - 90000)) / Math.max(1, hit.arrivesAt - (hit.departedAt || hit.arrivesAt - 90000))) * 100, 0, 100);
-      const kind = hit.kind === "spy" ? "SCAN" : hit.kind === "raid" ? "RAID" : "ANGRIFF";
-      return `<div class="fleet-item panel dock-jump hostile" role="button" tabindex="0" data-dock-view="galaxy" data-dock-planet="${hit.planetId || ""}" title="Zur Galaxie">
-          <b>${kind}</b>
-          <span>${esc(hit.from)} → ${esc(hit.planet)}</span>
-          <div class="bar"><i style="width:${pct}%"></i></div>
-          <span>${eta(hit.arrivesAt - t)}</span>
-        </div>`;
-    })
-    .join("");
   const queueHtml = q
     .map((item) => {
       const pct = clamp(((t - item.startedAt) / Math.max(1, item.completesAt - item.startedAt)) * 100, 0, 100);
@@ -202,7 +190,7 @@ function renderDock() {
       const view = queueViewOf(item.kind);
       return `<div class="queue-item panel dock-jump" role="button" tabindex="0" data-dock-view="${view}" data-dock-planet="${item.planetId || ""}" title="${esc(kind)} öffnen">
           <b>${kind}</b>
-          <span>${esc(item.name)}${item.qty > 1 ? " ×" + item.qty : ""}${item.levelTo ? " → " + item.levelTo : ""}</span>
+          <span><strong class="queue-planet">${esc(item.planetName || "Welt")}</strong> · ${esc(item.name)}${item.qty > 1 ? " ×" + item.qty : ""}${item.levelTo ? " → " + item.levelTo : ""}</span>
           <div class="bar"><i style="width:${pct}%"></i></div>
           <div class="row"><span>${eta(item.completesAt - t)}</span>
             <button class="btn ghost small" data-cancel="${item.id}">Abbruch</button></div>
@@ -232,7 +220,7 @@ function renderDock() {
         </div>`;
     })
     .join("");
-  dock.innerHTML = incomingHtml + queueHtml + fleetHtml + actHtml;
+  dock.innerHTML = queueHtml + fleetHtml + actHtml;
 }
 
 function clamp(n, a, b) {
@@ -918,7 +906,7 @@ function colonyOverview(p) {
         <img class="og-art" src="/assets/buildings/${b.id}.jpg" alt="" />
         <div>
           <h3>${esc(b.name)} <span class="lvl">Stufe ${lvl}</span></h3>
-          <p>${res ? `${esc(res.name)} · +${fmt(prod)}/h` : esc(b.blurb)}</p>
+          <p>${res ? `${esc(res.name)} · ${prod > 0 ? `+${fmt(prod)}/h` : "kein Gebäude"}` : esc(b.blurb)}</p>
         </div>
       </article>`;
     })
@@ -1357,19 +1345,6 @@ function cityQuestCard() {
       <span class="go">ÖFFNEN</span>
     </button>`;
   }
-  const q = (state.snap.queue || [])[0];
-  if (q) {
-    const pct = clamp(((t - q.startedAt) / Math.max(1, q.completesAt - q.startedAt)) * 100, 0, 100);
-    return `<button type="button" class="city-quest" data-view-jump="${queueViewOf(q.kind)}" data-jump-planet="${q.planetId || ""}">
-      <img src="/assets/buildings/${esc(q.itemId || "command")}.jpg" alt="" />
-      <div>
-        <div class="k">IM BAU</div>
-        <h3>${esc(q.name)}${q.levelTo ? " → " + q.levelTo : ""}</h3>
-        <p><i class="mini-bar"><b style="width:${pct}%"></b></i> ${eta(q.completesAt - t)}</p>
-      </div>
-      <span class="go">ANSEHEN</span>
-    </button>`;
-  }
   const readyOp = (state.snap.ops || []).find((o) => o.complete && !o.claimed);
   if (readyOp) {
     return `<button type="button" class="city-quest" data-op="${readyOp.id}">
@@ -1448,14 +1423,20 @@ function colonyCityHtml() {
             : plot.id === "defense_hub"
               ? "Stellung bauen"
               : "Bauen";
-    const action = !unlocked
-      ? `data-city-lock="${esc(need || "Noch gesperrt")}"`
-      : `data-view-jump="${plot.view}" data-open-infra="${plot.building || ""}"`;
-    return `<button type="button" class="${cls}" style="left:${plot.x}%;top:${plot.y}%" ${action}>
+    const selected = state.cityBuilding === plot.id;
+    const canUpgrade = !!plot.building && unlocked && !q && !info?.max && canAfford(info?.nextCost || {});
+    return `<div class="${cls}${selected ? " selected" : ""}" style="left:${plot.x}%;top:${plot.y}%">
         ${rec ? `<i class="city-arrow">↑</i>` : ""}
-        <b>${esc(plot.short)}</b>
-        <span>${esc(sub)}</span>
-      </button>`;
+        <button type="button" class="city-plot-main" data-city-building="${plot.id}"${!unlocked ? ` data-city-lock="${esc(need || "Noch gesperrt")}"` : ""}>
+          ${lvl > 0 ? `<img class="city-building-art" src="/assets/buildings/${plot.building}.jpg" alt="" />` : `<i class="city-empty-site" aria-hidden="true">＋</i>`}
+          <b>${esc(plot.short)}</b>
+          <span>Level ${lvl}${q ? ` · ${eta(q.completesAt - Date.now())}` : ""}</span>
+        </button>
+        ${selected ? `<div class="city-building-actions">
+          ${plot.building && unlocked && !info?.max ? `<button type="button" class="city-upgrade" data-build="${plot.building}" ${!canUpgrade ? "disabled" : ""}>${lvl ? `Auf Level ${lvl + 1}` : "Gebäude bauen"}</button>` : ""}
+          <button type="button" class="city-info" data-open-infra="${plot.building}">Info</button>
+        </div>` : ""}
+      </div>`;
   }).join("");
   const tutHtml = tut
     ? `<div class="city-tut">
@@ -1475,7 +1456,7 @@ function colonyCityHtml() {
         ? `<div class="city-sheet city-sheet-sm">
             <button type="button" class="city-sheet-close" data-city-sheet="">Schließen</button>
             <div class="section-title"><h2>${esc(p.name)}</h2><span class="muted">${esc(p.systemName)}</span></div>
-            <p class="hint">${esc(p.typeName)} · Größe ${p.size}${p.isHub ? " · Nexus-Hub" : ""}${e.newbieLeft ? ` · Anfängerschutz ${eta(e.newbieLeft)}` : ""}</p>
+            <p class="hint">${esc(p.typeName)} · Größe ${p.size}${p.isHub ? " · Nexus-Hub" : ""}${e.newbieLeft ? ` · Anfängerschutz ${eta(e.newbieLeft)}` : ""}${p.pirateShieldUntil > Date.now() ? ` · Piraten-Schutz ${eta(p.pirateShieldUntil - Date.now())}` : ""}</p>
             <p><b>Commander</b> Stufe ${e.level || 1} · ${e.score || 0} Punkte</p>
             <label class="keep"><b>Direktive</b>
               <select id="directive-select" data-planet="${p.id}">
@@ -1487,20 +1468,14 @@ function colonyCityHtml() {
             </label>
           </div>`
         : "";
-  const reduceMotion = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
   const biome = /^(terran|ocean|desert|ice|lava|gas|ruin)$/.test(p.type) ? p.type : "terran";
-  const cityArt = `/assets/colony/${biome}.jpg?v=5`;
-  const cityVid = `/assets/colony/${biome}.mp4?v=5`;
-  const vista = reduceMotion
-    ? `<img class="city-vista" src="${cityArt}" alt="" draggable="false" />`
-    : `<video class="city-vista" autoplay muted loop playsinline poster="${cityArt}" src="${cityVid}" data-fallback="${cityArt}" draggable="false"></video>`;
+  const cityArt = `/assets/colony/base-${biome}-v3.png?v=1`;
+  const vista = `<img class="city-vista" src="${cityArt}" alt="" draggable="false" />`;
   return `<section class="city-view">
     <div class="city-stage" id="city-stage">
       <div class="city-map" id="city-map">
         ${vista}
-        <div class="city-zone" style="left:46%;top:24%">Kolonie</div>
-        <div class="city-zone def" style="left:78%;top:26%">Stellung</div>
-        <div class="city-zone" style="left:18%;top:66%">Landeplatz</div>
+        <div class="city-atmosphere" aria-hidden="true"></div>
         ${plots}
       </div>
     </div>
@@ -1525,7 +1500,7 @@ const views = {
   infra() {
     const p = state.snap.planet;
     const prev = Object.fromEntries((state.preview?.buildings || []).map((b) => [b.id, b]));
-    const busy = state.snap.queue.some((q) => q.kind === "building" && q.planetId === p.id);
+    const runningBuilding = new Set(state.snap.queue.filter((q) => q.kind === "building" && q.planetId === p.id).map((q) => q.itemId));
     const rows = Object.values(state.catalog.buildings)
       .map((b) => {
         const info = prev[b.id] || { level: p.buildings[b.id] || 0, unlocked: true };
@@ -1533,7 +1508,8 @@ const views = {
         if (!info.unlocked) action = `<div class="lock">Voraussetzungen fehlen</div>`;
         else if (info.max) action = `<div class="ok">Maximalstufe</div>`;
         else {
-          const canBuild = !busy && canAfford(info.nextCost || {});
+          const isRunning = runningBuilding.has(b.id);
+          const canBuild = !isRunning && canAfford(info.nextCost || {});
           action = `<button class="btn primary" data-build="${b.id}" ${!canBuild ? "disabled" : ""}>Ausbau auf Stufe ${(info.level || 0) + 1}</button>
             <div class="muted">${info.nextTime ? eta(info.nextTime * 1000) : ""}</div>`;
         }
@@ -2169,7 +2145,7 @@ const views = {
         const chosen = a.duration || "short";
         const durs = (a.durations || [])
           .map(
-            (d) => `<button type="button" class="duration-btn ${d.id === chosen ? "on" : ""}" data-activity="${a.id}" data-duration="${d.id}" ${running || ready ? "disabled" : ""}>
+            (d) => `<button type="button" class="duration-btn ${d.id === chosen ? "on" : ""}" data-duration-choice="${d.id}" data-activity-card="${a.id}" ${running ? "disabled" : ""}>
               <b>${esc(d.name)}</b>
               <span>${eta(d.ms)} · ${esc(d.blurb)}${d.energy ? ` · ${d.energy} E` : ""}</span>
             </button>`
@@ -2180,7 +2156,7 @@ const views = {
         const startButton = running
           ? `<button type="button" class="btn ghost" disabled>Aktiv · ${esc(a.durationName || "Einsatz")}</button>`
           : ready
-            ? `<button type="button" class="btn primary" data-activity="${a.id}" data-duration="${chosen}">BEREIT</button>`
+            ? `<button type="button" class="btn primary" data-activity="${a.id}" data-duration="${chosen}">Start</button>`
             : `<button type="button" class="btn primary" data-activity="${a.id}" data-duration="${chosen}">Start</button>`;
         return `<article class="force-card panel ${statusClass}">
           <div class="force-art">
@@ -2460,9 +2436,14 @@ function bindCity(root) {
       renderView({ preserveForm: false });
     })
   );
-  root.querySelectorAll(".city-plot:not(.locked)").forEach((b) =>
-    b.addEventListener("click", () => {
+  root.querySelectorAll("[data-city-building]").forEach((b) =>
+    b.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
       if (tutorialActive() && TUTORIAL[tutorialIndex()]?.id === "move") setTutorialIndex(1);
+      const id = b.dataset.cityBuilding;
+      state.cityBuilding = state.cityBuilding === id ? null : id;
+      renderView({ preserveForm: false });
     })
   );
   root.querySelectorAll("[data-city-lock]").forEach((b) =>
@@ -2638,9 +2619,16 @@ function bindCity(root) {
 }
 
 function bindView(root) {
-  root.querySelectorAll("[data-build]").forEach((b) =>
-    b.addEventListener("click", () => act(() => api("/build", { method: "POST", body: { id: b.dataset.build, planetId: state.snap.planet.id } })))
-  );
+  root.querySelectorAll("[data-build]").forEach((b) => {
+    b.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const id = b.dataset.build;
+      const planetId = state.snap.planet.id;
+      b.disabled = true;
+      act(() => api("/build", { method: "POST", body: { id, planetId } }));
+    });
+  });
   root.querySelectorAll("[data-ship]").forEach((b) =>
     b.addEventListener("click", () => {
       const qty = Number(root.querySelector(`[data-qty="${b.dataset.ship}"]`)?.value || 1);
@@ -2660,6 +2648,14 @@ function bindView(root) {
   if (state.view === "chat") bootChat();
   if (state.view === "reports") bindNews(root);
   if (state.view === "sim") bindSim(root);
+  root.querySelectorAll("[data-duration-choice]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const card = button.closest(".force-card");
+      card?.querySelectorAll("[data-duration-choice]").forEach((item) => item.classList.toggle("on", item === button));
+      const start = card?.querySelector("[data-activity]");
+      if (start) start.dataset.duration = button.dataset.durationChoice;
+    });
+  });
   root.querySelectorAll("[data-activity]").forEach((b) => {
     if (b.disabled) return;
     b.addEventListener("click", () => {
@@ -4415,7 +4411,22 @@ async function bootMap() {
     root.querySelectorAll("[data-map-filter]").forEach((input) => { filters[input.dataset.mapFilter] = input.checked; });
     state.map.setFilter(filters);
   };
-  root.querySelector("#map-search")?.addEventListener("input", applyMapFilter);
+  const mapSearch = root.querySelector("#map-search");
+  mapSearch?.addEventListener("input", applyMapFilter);
+  mapSearch?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    const query = mapSearch.value.trim().toLocaleLowerCase("de");
+    const system = (state.galaxy?.systems || []).find((item) => item.name.toLocaleLowerCase("de") === query)
+      || (state.galaxy?.systems || []).find((item) => item.name.toLocaleLowerCase("de").includes(query));
+    if (!system) {
+      toast("System nicht gefunden.", true);
+      return;
+    }
+    mapSearch.value = system.name;
+    applyMapFilter();
+    state.map.focusSystem(system.id, 2.7);
+  });
   root.querySelectorAll("[data-map-filter]").forEach((input) => input.addEventListener("change", applyMapFilter));
   const focusSelect = root.querySelector("#planet-focus");
   if (focusSelect) {
@@ -4779,7 +4790,18 @@ function openMission(targetId, sys) {
     });
     box.querySelector("#acs-hold-ticks")?.addEventListener("change", paintTravel);
   };
-  missionSel.onchange = paintCargo;
+  missionSel.onchange = () => {
+    if (missionSel.value !== "spy") {
+      const picked = pickedShips();
+      const hasRealShip = Object.keys(picked).some((id) => id !== "probe");
+      if (!hasRealShip) {
+        const firstCombat = [...document.querySelectorAll("#ship-picks [data-ship]")]
+          .find((input) => input.dataset.ship !== "probe" && Number(input.max || 0) > 0);
+        if (firstCombat) firstCombat.value = "1";
+      }
+    }
+    paintCargo();
+  };
   document.getElementById("ship-picks").addEventListener("input", () => {
     paintPreview();
     paintTravel();

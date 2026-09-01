@@ -197,11 +197,10 @@ input:focus, select:focus, textarea:focus { border-color: var(--cyan); box-shado
 }
 .shell.view-galaxy,
 .shell.view-home {
-  grid-template-rows: auto 1fr auto;
-  grid-template-areas: "top" "main" "tabs";
+  grid-template-rows: auto 1fr auto auto;
+  grid-template-areas: "top" "main" "dock" "tabs";
 }
-.shell.view-galaxy .dock,
-.shell.view-home .dock { display: none; }
+.shell.view-galaxy .dock { display: none; }
 
 .topbar {
   grid-area: top;
@@ -424,7 +423,17 @@ img.res-ico { width: 16px; height: 16px; object-fit: cover; border-radius: 4px; 
   padding: 8px 12px;
   background: rgba(5, 8, 14, 0.94);
   overflow-x: auto;
+  padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
 }
+.dock:has(.queue-item)::before {
+  content: "IM BAU";
+  flex: 0 0 auto;
+  align-self: center;
+  color: var(--cyan);
+  font: 700 11px var(--display);
+  letter-spacing: .12em;
+}
+.queue-planet { color: var(--cyan); font-weight: 700; }
 
 .alert-strip {
   position: absolute;
@@ -1793,7 +1802,7 @@ img.og-art-ship[src*="battleship"] {
   .tabbar {
     display: grid;
     grid-area: tabs;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 2px;
     padding: 4px 4px calc(6px + env(safe-area-inset-bottom, 0px));
     background: rgba(5, 8, 14, 0.96);
@@ -1965,15 +1974,16 @@ img.og-art-ship[src*="battleship"] {
     max-width: 100vw;
     overflow: hidden;
     grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr auto;
-    grid-template-areas: "top" "main" "tabs";
+    grid-template-rows: auto 1fr auto auto;
+    grid-template-areas: "top" "main" "dock" "tabs";
   }
   .shell.view-galaxy,
   .shell.view-home {
-    grid-template-rows: auto 1fr auto;
-    grid-template-areas: "top" "main" "tabs";
+    grid-template-rows: auto 1fr auto auto;
+    grid-template-areas: "top" "main" "dock" "tabs";
   }
-  .dock { display: none !important; }
+  .dock { display: flex; max-height: 76px; }
+  .dock:has(> .muted:only-child) { display: none; }
 
   .topbar {
     display: grid;
@@ -2754,7 +2764,7 @@ button.linkish {
   position: absolute;
   transform: translate(-50%, -100%);
   min-width: 58px;
-  padding: 3px 6px 4px;
+  padding: 0;
   border-radius: 10px;
   border: 1px solid rgba(62, 232, 196, 0.4);
   background: rgba(4, 10, 16, 0.86);
@@ -2763,6 +2773,113 @@ button.linkish {
   z-index: 3;
   box-shadow: 0 8px 18px rgba(0,0,0,0.45);
   pointer-events: auto;
+}
+.city-atmosphere {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 28% 35%, rgba(73,210,255,.18) 0 1px, transparent 3px),
+    radial-gradient(circle at 72% 58%, rgba(73,210,255,.14) 0 2px, transparent 5px),
+    linear-gradient(105deg, transparent 35%, rgba(173,229,255,.08) 48%, transparent 61%);
+  background-size: 180px 140px, 260px 210px, 180% 100%;
+  mix-blend-mode: screen;
+  animation: colony-life 14s linear infinite;
+}
+@keyframes colony-life {
+  0% { background-position: 0 0, 0 0, 120% 0; opacity: .5; }
+  50% { opacity: .9; }
+  100% { background-position: 180px -70px, -260px 105px, -80% 0; opacity: .5; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .city-atmosphere,
+  .city-empty-site { animation: none; }
+}
+.city-plot-main {
+  display: block;
+  width: 100%;
+  min-width: 108px;
+  padding: 7px 12px 8px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+}
+.city-building-art {
+  display: block;
+  width: 92px;
+  height: 58px;
+  margin: -48px auto 5px;
+  border: 1px solid rgba(105,218,255,.52);
+  border-radius: 12px 12px 7px 7px;
+  object-fit: cover;
+  box-shadow: 0 10px 24px rgba(0,0,0,.72), 0 0 16px rgba(39,181,255,.22);
+}
+.city-empty-site {
+  display: grid;
+  width: 42px;
+  height: 26px;
+  margin: -22px auto 3px;
+  place-items: center;
+  border: 1px dashed rgba(116,205,238,.72);
+  border-radius: 50%;
+  background: rgba(4,15,24,.48);
+  color: rgba(154,225,248,.85);
+  font-style: normal;
+  font-size: 15px;
+  animation: empty-site-pulse 2.4s ease-in-out infinite;
+}
+@keyframes empty-site-pulse {
+  50% { box-shadow: 0 0 16px rgba(62,232,196,.38); border-color: var(--cyan); }
+}
+.city-building-actions {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 7px);
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  width: max-content;
+  padding: 6px;
+  border: 1px solid rgba(89,190,235,.55);
+  border-radius: 11px;
+  background: rgba(4,10,18,.97);
+  box-shadow: 0 12px 28px rgba(0,0,0,.72);
+}
+.city-upgrade {
+  position: static;
+  transform: none;
+  width: max-content;
+  min-width: 132px;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid #6ff2b4;
+  border-radius: 9px;
+  background: linear-gradient(180deg, #48c83d, #167b25);
+  box-shadow: 0 9px 24px rgba(0,0,0,.6), 0 0 18px rgba(72,200,61,.3);
+  color: #f3fff2;
+  font: 700 11px var(--display);
+  letter-spacing: .03em;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+.city-plot.selected { z-index: 12; border-color: var(--cyan); box-shadow: 0 0 22px rgba(62,232,196,.42); }
+.city-info {
+  min-width: 58px;
+  border: 1px solid rgba(100,196,240,.5);
+  border-radius: 9px;
+  background: linear-gradient(180deg, #17314a, #091827);
+  color: #d9f3ff;
+  font: 700 11px var(--display);
+}
+.city-upgrade:disabled {
+  filter: grayscale(.75);
+  opacity: .5 !important;
+  cursor: not-allowed;
 }
 .city-plot.def {
   border-color: rgba(255, 122, 80, 0.55);
@@ -2777,14 +2894,14 @@ button.linkish {
 }
 .city-plot b {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.02em;
 }
 .city-plot span {
   display: block;
-  font-size: 9px;
-  color: var(--muted);
+  font-size: 10px;
+  color: #c7d8ed;
 }
 .city-plot.rec {
   border-color: #5ee8a0;
@@ -3042,12 +3159,17 @@ button.linkish {
   .nav button.on { box-shadow: inset 0 -3px 0 var(--cyan); }
 
   .og-art, video.og-art, .og-art-ship {
-    width: 100%;
-    height: auto;
-    aspect-ratio: 16 / 9;
+    width: 42%;
+    height: 100%;
+    min-height: 150px;
+    aspect-ratio: auto;
     object-fit: cover;
     object-position: center 40%;
   }
+  .og-row { grid-template-columns: 42% 1fr; }
+  .og-row .og-body { padding: 12px; }
+  .og-row .og-act { grid-column: 2; padding: 0 12px 12px; }
+  .og-row .og-act .btn { min-height: 48px; width: 100%; }
   video.og-art-ship {
     object-fit: contain;
     background: #03050a;

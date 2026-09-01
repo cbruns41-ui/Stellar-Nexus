@@ -2193,6 +2193,7 @@ function planetView(db, planet, empire) {
     shipCount,
     shipCap: shipCap(db, planet.id),
     shipCapBoostUntil: empire.ship_cap_boost_until || 0,
+    pirateShieldUntil: planet.founded_at ? planet.founded_at + 3 * 60 * 60 * 1000 : 0,
     allianceId: planet.alliance_id || 0,
     isAlliance: !!planet.alliance_id,
     allianceTag: planet.alliance_id
@@ -2223,7 +2224,7 @@ function snapshot(db, user, planetId) {
   const planet = fresh.find((p) => p.id === focus);
   const techs = techsMap(db, empire.id);
   const queue = db
-    .prepare("SELECT * FROM queue WHERE empire_id = ? ORDER BY completes_at")
+    .prepare("SELECT q.*, p.name AS planet_name FROM queue q LEFT JOIN planets p ON p.id = q.planet_id WHERE q.empire_id = ? ORDER BY q.completes_at")
     .all(empire.id)
     .map((q) => ({
       id: q.id,
@@ -2242,6 +2243,7 @@ function snapshot(db, user, planetId) {
       qty: q.qty,
       levelTo: q.level_to,
       planetId: q.planet_id,
+      planetName: q.planet_name || "Unbekannte Welt",
       startedAt: q.started_at,
       completesAt: q.completes_at,
     }));
@@ -2558,7 +2560,7 @@ function tickGalaxy(db) {
 }
 
 function pirateShieldWindowMs() {
-  return 2 * 60 * 60 * 1000 + Math.random() * 2 * 60 * 60 * 1000;
+  return 3 * 60 * 60 * 1000;
 }
 
 function spawnRaid(db) {

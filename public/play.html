@@ -15,7 +15,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Sora:wght@400;500;600;700&family=Tektur:wght@500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/css/style.css?v=60" />
+    <link rel="stylesheet" href="/css/style.css?v=63" />
   </head>
   <body data-mode="play">
     <canvas id="stars" aria-hidden="true"></canvas>
@@ -81,23 +81,15 @@
       <nav class="tabbar" id="tabbar">
         <button type="button" data-view="command" data-tab="home" class="on">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/></svg>
-          Kolonie <i data-badge="command" hidden></i>
+          Planet <i data-badge="command" hidden></i>
         </button>
         <button type="button" data-view="galaxy" data-tab="map">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 5v2M12 17v2M5 12h2M17 12h2"/></svg>
-          Galaxie <i data-badge="galaxy" hidden></i>
+          Karte <i data-badge="galaxy" hidden></i>
         </button>
-        <button type="button" data-view="alliance" data-tab="ally">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="10" r="2.4"/><circle cx="16" cy="10" r="2.4"/><path d="M4 18c.6-2.4 2.4-3.6 4-3.6s3.4 1.2 4 3.6M12 18c.6-2.4 2.4-3.6 4-3.6s3.4 1.2 4 3.6"/></svg>
-          Allianz <i data-badge="alliance" hidden></i>
-        </button>
-        <button type="button" data-view="fleets" data-tab="fleet">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 16l8-10 8 10H4z"/></svg>
-          Flotte <i data-badge="fleets" hidden></i>
-        </button>
-        <button type="button" data-more="1" data-tab="more">
+        <button type="button" data-open-nav="1" data-tab="cmd">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14"/></svg>
-          Mehr <i data-badge="more" hidden></i>
+          Kommando <i data-badge="more" hidden></i>
         </button>
       </nav>
     </div>
@@ -107,6 +99,6 @@
 
     <script src="/js/play-boot.js?v=21"></script>
     <script src="/js/pwa.js?v=1"></script>
-    <script type="module" src="/js/app.js?v=66"></script>
+    <script type="module" src="/js/app.js?v=69"></script>
   </body>
 </html>
