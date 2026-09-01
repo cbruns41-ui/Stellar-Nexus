@@ -1,6 +1,6 @@
 import { api, getState, getCatalog, getPreview, getGalaxy, getSystem, getReports, getRanks, getEmpire, combatPreview, combatSim, getAlliances, getAlliance, getAllianceActivity } from "./api.js";
 import { esc, fmt, eta, when, costHtml, planetCss, planetGlobeUrl, planetColonyUrl, mediaTag, bindMediaFallbacks, toast, showModal, hideModal, shipList, starfield, resourceIcon, icon, beep, notify, tickEta, ticksOf, tickMsFrom } from "./ui.js";
-import { createMap, systemHtml } from "./map.js?v=47";
+import { createMap, systemHtml } from "./map.js?v=49";
 import { battleReplayHtml, bindBattleReplays } from "./battle.js";
 
 const $ = (id) => document.getElementById(id);
@@ -65,27 +65,27 @@ const TUTORIAL = [
 // large pads and compact resource buildings on the small satellite pads.
 const CITY_PLOTS = [
   { id: "command", x: 50, y: 54, view: "infra", building: "command", short: "Nexus", size: "capital", art: "command" },
-  { id: "citadel", x: 22, y: 31, view: "infra", building: "citadel", short: "Zitadelle", size: "large", art: "defense", zone: "def" },
-  { id: "archive", x: 74, y: 31, view: "research", building: "archive", short: "Labor", size: "large", art: "science" },
-  { id: "defense_hub", x: 21, y: 68, view: "defense", building: "defense_hub", short: "Verteid.", size: "large", art: "defense", zone: "def" },
-  { id: "shipyard", x: 75, y: 71, view: "yard", building: "shipyard", short: "Schiffsbau", size: "large", art: "yard" },
-  { id: "energy_array", x: 68, y: 28, view: "infra", building: "energy_array", short: "Energie", size: "medium", art: "major" },
-  { id: "fusion", x: 29, y: 29, view: "infra", building: "fusion", short: "Fusion", size: "medium", art: "major" },
-  { id: "shield", x: 17, y: 65, view: "infra", building: "shield", short: "Schild", size: "medium", art: "defense" },
-  { id: "quantum_lab", x: 80, y: 34, view: "research", building: "quantum_lab", short: "Labor+", size: "medium", art: "science" },
-  { id: "jumpgate", x: 69, y: 66, view: "infra", building: "jumpgate", short: "Sprungtor", size: "medium", art: "yard" },
-  { id: "robotics", x: 27, y: 66, view: "infra", building: "robotics", short: "Robotik", size: "medium", art: "major" },
-  { id: "nanite", x: 81, y: 67, view: "yard", building: "nanite", short: "Naniten", size: "medium", art: "major" },
-  { id: "matter_mine", x: 25, y: 48, view: "infra", building: "matter_mine", short: "Met-Mine", size: "small", art: "small" },
-  { id: "helium_well", x: 42, y: 27, view: "infra", building: "helium_well", short: "Helium", size: "small", art: "small" },
-  { id: "titan_extractor", x: 56, y: 21, view: "infra", building: "titan_extractor", short: "Titan", size: "small", art: "small" },
-  { id: "uplink", x: 73, y: 48, view: "infra", building: "uplink", short: "Kri-Mine", size: "small", art: "small" },
-  { id: "diamond_forge", x: 37, y: 73, view: "infra", building: "diamond_forge", short: "Diamant", size: "small", art: "small" },
-  { id: "silo", x: 34, y: 45, view: "infra", building: "silo", short: "Lager", size: "small", art: "utility" },
-  { id: "spy_center", x: 65, y: 43, view: "infra", building: "spy_center", short: "Spionage", size: "small", art: "science" },
-  { id: "beacon", x: 48, y: 25, view: "infra", building: "beacon", short: "Bake", size: "small", art: "utility" },
-  { id: "colony_dock", x: 43, y: 72, view: "infra", building: "colony_dock", short: "Dock", size: "small", art: "yard" },
-  { id: "habitat", x: 61, y: 70, view: "infra", building: "habitat", short: "Habitat", size: "small", art: "utility" },
+  { id: "citadel", x: 22, y: 31.5, view: "infra", building: "citadel", short: "Zitadelle", size: "medium", art: "defense", zone: "def" },
+  { id: "archive", x: 74, y: 30.5, view: "research", building: "archive", short: "Labor", size: "medium", art: "science" },
+  { id: "defense_hub", x: 21, y: 72, view: "defense", building: "defense_hub", short: "Verteid.", size: "medium", art: "defense", zone: "def" },
+  { id: "shipyard", x: 75, y: 66, view: "yard", building: "shipyard", short: "Schiffsbau", size: "medium", art: "yard" },
+  { id: "energy_array", x: 70.3, y: 29, view: "infra", building: "energy_array", short: "Energie", size: "medium", art: "major" },
+  { id: "fusion", x: 18, y: 35, view: "infra", building: "fusion", short: "Fusion", size: "medium", art: "major" },
+  { id: "shield", x: 14.7, y: 69, view: "infra", building: "shield", short: "Schild", size: "medium", art: "defense" },
+  { id: "quantum_lab", x: 78.5, y: 35, view: "research", building: "quantum_lab", short: "Labor+", size: "medium", art: "science" },
+  { id: "jumpgate", x: 68.5, y: 73, view: "infra", building: "jumpgate", short: "Sprungtor", size: "medium", art: "yard" },
+  { id: "robotics", x: 19.4, y: 77.5, view: "infra", building: "robotics", short: "Robotik", size: "medium", art: "major" },
+  { id: "nanite", x: 81, y: 73, view: "yard", building: "nanite", short: "Naniten", size: "medium", art: "major" },
+  { id: "matter_mine", x: 24, y: 51, view: "infra", building: "matter_mine", short: "Met-Mine", size: "mini", art: "small" },
+  { id: "helium_well", x: 42, y: 29.5, view: "infra", building: "helium_well", short: "Helium", size: "small", art: "small" },
+  { id: "titan_extractor", x: 54.5, y: 23.5, view: "infra", building: "titan_extractor", short: "Titan", size: "mini", art: "small" },
+  { id: "uplink", x: 72, y: 48.3, view: "infra", building: "uplink", short: "Kri-Mine", size: "micro", art: "small" },
+  { id: "diamond_forge", x: 34.6, y: 74.5, view: "infra", building: "diamond_forge", short: "Diamant", size: "micro", art: "small" },
+  { id: "silo", x: 26, y: 30.2, view: "infra", building: "silo", short: "Lager", size: "medium", art: "utility" },
+  { id: "spy_center", x: 75.1, y: 48.3, view: "infra", building: "spy_center", short: "Spionage", size: "micro", art: "science" },
+  { id: "beacon", x: 57.5, y: 23.5, view: "infra", building: "beacon", short: "Bake", size: "micro", art: "utility" },
+  { id: "colony_dock", x: 26, y: 51, view: "infra", building: "colony_dock", short: "Dock", size: "micro", art: "yard" },
+  { id: "habitat", x: 36.8, y: 77, view: "infra", building: "habitat", short: "Habitat", size: "micro", art: "utility" },
 ];
 
 try {
@@ -694,7 +694,14 @@ function watchEvents(snap) {
 }
 
 function renderAlerts() {
-  const el = $("alert-strip");
+  const globalAlert = $("alert-strip");
+  if (globalAlert) {
+    globalAlert.hidden = true;
+    globalAlert.classList.add("hidden");
+    globalAlert.innerHTML = "";
+  }
+  $("game")?.classList.remove("has-alert");
+  const el = $("map-raid-banner");
   if (!el) return;
   const threat = (state.snap?.incoming || [])
     .filter((hit) => !state.ignoredIncoming.has(Number(hit.id || 0)))
@@ -707,7 +714,6 @@ function renderAlerts() {
     el.innerHTML = "";
     el.onclick = null;
     el.onkeydown = null;
-    $("game")?.classList.remove("has-alert");
     return;
   }
 
@@ -730,7 +736,6 @@ function renderAlerts() {
       <button type="button" class="btn small ghost" data-alert-ignore="${Number(threat.id || 0)}">Ignorieren</button>
     </div>
   `;
-  $("game")?.classList.add("has-alert");
 
   el.onclick = (ev) => {
     const ignore = ev.target.closest("[data-alert-ignore]");
@@ -744,18 +749,14 @@ function renderAlerts() {
     if (defend) {
       const planetId = Number(defend.dataset.alertDefend || 0);
       const systemId = Number(defend.dataset.alertSystem || 0);
-      if (planetId && systemId) jumpToGalaxyPlanet(planetId, systemId);
-      else if (planetId) setView("galaxy");
+      if (planetId && systemId) openDefenseMission(planetId, systemId, threat);
       return;
     }
-    if (defendPlanet && defendSystem) jumpToGalaxyPlanet(defendPlanet, defendSystem);
-    else if (defendPlanet) setView("galaxy");
   };
   el.onkeydown = (ev) => {
     if (ev.key !== "Enter" && ev.key !== " ") return;
     ev.preventDefault();
-    if (defendPlanet && defendSystem) jumpToGalaxyPlanet(defendPlanet, defendSystem);
-    else if (defendPlanet) setView("galaxy");
+    if (defendPlanet && defendSystem) openDefenseMission(defendPlanet, defendSystem, threat);
   };
 }
 
@@ -1403,6 +1404,7 @@ function colonyCityHtml() {
     const rec = plot.id === recId && unlocked;
     const cls = [
       "city-plot",
+      `building-${plot.id}`,
       !unlocked ? "locked" : "",
       lvl > 0 ? "built" : "",
       rec ? "rec" : "",
@@ -1428,7 +1430,7 @@ function colonyCityHtml() {
               : "Bauen";
     const selected = state.cityBuilding === plot.id;
     const canUpgrade = !!plot.building && unlocked && !q && !info?.max && canAfford(info?.nextCost || {});
-    return `<div class="${cls}${selected ? " selected" : ""}" style="left:${plot.x}%;top:${plot.y}%">
+    return `<div class="${cls}${selected ? " selected" : ""}" style="left:${plot.x}%;top:${plot.y}%;z-index:${selected ? 900 : 300 + Math.round(plot.y)}">
         ${rec ? `<i class="city-arrow">↑</i>` : ""}
         <button type="button" class="city-plot-main" data-city-building="${plot.id}"${!unlocked ? ` data-city-lock="${esc(need || "Noch gesperrt")}"` : ""}>
           ${lvl > 0 ? `<img class="city-building-art" src="/assets/colony/buildings/${plot.art || "utility"}.png" alt="" draggable="false" />` : `<i class="city-empty-site" aria-hidden="true">＋</i>`}
@@ -1828,7 +1830,8 @@ const views = {
   galaxy() {
     const bookmarks = (state.snap.bookmarks || []).map((b) => `<span class="map-bookmark"><button type="button" data-bookmark-focus="${b.planetId}">${esc(b.label || "Gespeicherter Planet")}</button><button type="button" data-bookmark-delete="${b.planetId}" aria-label="Gespeichertes Ziel löschen">×</button></span>`).join("");
     return `<div class="map-wrap"><canvas id="starmap"></canvas>
-      <div class="map-tools panel"><select id="planet-focus"><option value="">— Planet springen —</option></select><input id="map-search" type="search" placeholder="System suchen…"><details class="map-filters"><summary>Filter</summary><div class="map-filters-body"><label><input type="checkbox" data-map-filter="own"> Eigene</label><label><input type="checkbox" data-map-filter="hostile"> Feindlich</label><label><input type="checkbox" data-map-filter="free"> Frei</label><label><input type="checkbox" data-map-filter="special"> Besonderheiten</label></div></details>${bookmarks ? `<div class="map-bookmarks"><b>Gespeicherte Ziele</b>${bookmarks}</div>` : ""}</div>
+      <div class="map-tools panel"><div class="map-search-wrap"><span aria-hidden="true">⌕</span><input id="map-search" type="search" autocomplete="off" placeholder="System suchen…"><div id="map-search-results" class="map-search-results" hidden></div></div><select id="planet-focus"><option value="">— Planet springen —</option></select><details class="map-filters"><summary>Filter</summary><div class="map-filters-body"><label><input type="checkbox" data-map-filter="own"> Eigene</label><label><input type="checkbox" data-map-filter="hostile"> Feindlich</label><label><input type="checkbox" data-map-filter="free"> Frei</label><label><input type="checkbox" data-map-filter="special"> Besonderheiten</label></div></details>${bookmarks ? `<div class="map-bookmarks"><b>Gespeicherte Ziele</b>${bookmarks}</div>` : ""}</div>
+      <div id="map-raid-banner" class="map-raid-banner hidden" hidden></div>
       <div class="map-legend panel">Ziehen: Schwenken · Rad: Zoom · Klick: System
         <div>Großer Punkt + weißer Ring + Kreuz = dein System · Teal-Puls = dein System · Rotbogen = Remnants · Orange-Ring = Piratenhorst · Goldbogen = Warlord · Cyan-Halo = Nexus-Riss</div></div>
       <div class="map-flight-note">Eigene Flüge: farbige Route mit bewegtem Marker · gestrichelt = Rückflug</div>
@@ -2765,7 +2768,7 @@ function bindView(root) {
   if (state.highlightBuilding) {
     const row = root.querySelector(`#bldg-${state.highlightBuilding}`);
     state.highlightBuilding = null;
-    if (row) setTimeout(() => row.scrollIntoView({ block: "center", behavior: "smooth" }), 80);
+    if (row) setTimeout(() => row.scrollIntoView({ block: "start", behavior: "smooth" }), 80);
   }
   if (state.view === "galaxy" && state.map) {
     const applyMapFilter = () => {
@@ -2859,6 +2862,7 @@ function bindView(root) {
   const lo = root.querySelector("#logout-mobile");
   if (lo) lo.onclick = () => $("logout").click();
   if (state.view === "galaxy") bootMap();
+  renderAlerts();
 }
 
 function bindNews(root) {
@@ -4363,7 +4367,7 @@ async function bootMap() {
       b.addEventListener("click", () => act(() => api("/focus", { method: "POST", body: { planetId: Number(b.dataset.focus) } })))
     );
     box.querySelectorAll("[data-target]").forEach((b) =>
-      b.addEventListener("click", () => openMission(Number(b.dataset.target), detail))
+      b.addEventListener("click", () => openMission(Number(b.dataset.target), detail, b.dataset.missionKind || ""))
     );
     box.querySelectorAll("[data-bookmark]").forEach((b) => b.addEventListener("click", () => {
       const label = window.prompt("Bezeichnung für diesen Planeten:", b.dataset.bookmarkName || "");
@@ -4415,7 +4419,38 @@ async function bootMap() {
     state.map.setFilter(filters);
   };
   const mapSearch = root.querySelector("#map-search");
-  mapSearch?.addEventListener("input", applyMapFilter);
+  const searchResults = root.querySelector("#map-search-results");
+  const openSearchSystem = (system) => {
+    if (!system || !state.map) return;
+    mapSearch.value = system.name;
+    if (searchResults) searchResults.hidden = true;
+    applyMapFilter();
+    state.map.focusSystem(system.id, 2.7);
+  };
+  const paintSearchResults = () => {
+    if (!mapSearch || !searchResults) return;
+    const query = mapSearch.value.trim().toLocaleLowerCase("de");
+    if (!query) {
+      searchResults.hidden = true;
+      searchResults.innerHTML = "";
+      return;
+    }
+    const matches = (state.galaxy?.systems || [])
+      .filter((system) => system.name.toLocaleLowerCase("de").includes(query))
+      .slice(0, 6);
+    searchResults.innerHTML = matches.length
+      ? matches.map((system) => `<button type="button" data-search-system="${system.id}"><i aria-hidden="true"></i><span><b>${esc(system.name)}</b><small>${system.planetCount || system.planets || "System"}</small></span><em>›</em></button>`).join("")
+      : `<p>Kein System gefunden</p>`;
+    searchResults.hidden = false;
+    searchResults.querySelectorAll("[data-search-system]").forEach((button) => button.addEventListener("click", () => {
+      const system = (state.galaxy?.systems || []).find((item) => item.id === Number(button.dataset.searchSystem));
+      openSearchSystem(system);
+    }));
+  };
+  mapSearch?.addEventListener("input", () => {
+    applyMapFilter();
+    paintSearchResults();
+  });
   mapSearch?.addEventListener("keydown", (event) => {
     if (event.key !== "Enter") return;
     event.preventDefault();
@@ -4426,9 +4461,7 @@ async function bootMap() {
       toast("System nicht gefunden.", true);
       return;
     }
-    mapSearch.value = system.name;
-    applyMapFilter();
-    state.map.focusSystem(system.id, 2.7);
+    openSearchSystem(system);
   });
   root.querySelectorAll("[data-map-filter]").forEach((input) => input.addEventListener("change", applyMapFilter));
   const focusSelect = root.querySelector("#planet-focus");
@@ -4499,15 +4532,31 @@ async function bootMap() {
   });
 }
 
-function openMission(targetId, sys) {
+async function openDefenseMission(targetId, systemId, threat = null) {
+  try {
+    const sys = await getSystem(systemId);
+    if (!sys?.planets?.some((planet) => planet.id === targetId)) throw new Error("Zielplanet nicht gefunden.");
+    openMission(targetId, sys, "intercept", {
+      title: `Verteidigen · ${threat?.planet || sys.name}`,
+      warning: threat ? `${threat.kind === "raid" ? "Piraten-Raid" : "Angriff"} in ${eta(Math.max(0, threat.arrivesAt - Date.now()))}` : "",
+    });
+  } catch (err) {
+    toast(err.message || "Verteidigung nicht geöffnet.", true);
+  }
+}
+
+function openMission(targetId, sys, initialMission = "", dialogOpts = {}) {
   const planet = sys.planets.find((p) => p.id === targetId);
+  if (!planet) {
+    toast("Zielplanet nicht gefunden.", true);
+    return;
+  }
   const own = planet.own || planet.canManage;
   const canAllyColonize = !planet.owner && state.snap.alliance?.canColonizePlanet;
   
   // Kolonisierung: Quellplanet auswählen → dann Zielplanet
   const canColonize = !planet.owner && (!own) && !sys.pirate && !sys.remnant;
-  if (canColonize && !state.colonizeMode) {
-    // Erster Klick auf "Kolonie": Quellplanet speichern
+  if (canColonize && initialMission === "colonize" && !state.colonizeMode) {
     const hasColonyShip = (state.snap.planet?.ships?.colony_ship || 0) > 0 || (state.snap.planet?.ships?.flagship || 0) > 0;
     if (!hasColonyShip) {
       toast("Kein Kolonieschiff am Fokus-Planeten.", true);
@@ -4516,10 +4565,11 @@ function openMission(targetId, sys) {
     state.colonizeMode = {
       sourcePlanetId: state.snap.planet.id,
       sourcePlanetName: state.snap.planet.name,
-      targetPlanetId: null
+      targetPlanetId: targetId,
+      targetPlanetName: planet.name,
+      targetSystemName: sys.name,
     };
-    toast(`Kolonie von ${state.snap.planet.name} — wähle Zielplanet.`);
-    return;
+    return openColonizeMissionFromSelection(sys, planet);
   }
   
   if (state.colonizeMode && !state.colonizeMode.targetPlanetId) {
@@ -4557,8 +4607,8 @@ function openMission(targetId, sys) {
       ];
   if (planet.debris) missions.unshift(["salvage", "Trümmer bergen"]);
   showModal(`<div class="sheet panel">
-    <h2 style="margin:0 0 8px;font-size:14px">Mission: ${esc(planet.name)}</h2>
-    <p class="hint">${esc(sys.name)}</p>
+    <h2 style="margin:0 0 8px;font-size:18px">${esc(dialogOpts.title || `Mission · ${planet.name}`)}</h2>
+    <p class="hint">${dialogOpts.warning ? `<b class="danger">${esc(dialogOpts.warning)}</b> · ` : ""}${esc(sys.name)} · ${esc(planet.name)}</p>
     ${planet.owner?.protected && !own ? `<p class="ok">${esc(planet.owner.protectReason || "Dieser Commander steht unter Fair-Play-Schutz.")}</p>` : ""}
     <label class="muted">Auftrag
       <select id="mission" style="width:100%;margin:6px 0 10px;background:#05060c;border:1px solid var(--line);padding:8px;color:var(--text)">
@@ -4593,6 +4643,7 @@ function openMission(targetId, sys) {
   </div>`);
   const cargoBox = document.getElementById("cargo-fields");
   const missionSel = document.getElementById("mission");
+  if (initialMission && [...missionSel.options].some((option) => option.value === initialMission)) missionSel.value = initialMission;
   const previewEl = document.getElementById("combat-preview");
   let joinFleetId = 0;
   let lastTravel = null;

@@ -90,6 +90,7 @@ export function createMap(canvas, onSelect) {
   function endPointer(e) {
     if (drag && !drag.moved && typeof onSelect === "function") {
       const s = hit(e);
+      highlightSystemId = s?.id || null;
       onSelect(s || null);
     }
     drag = null;
@@ -144,9 +145,66 @@ export function createMap(canvas, onSelect) {
   new ResizeObserver(resize).observe(canvas);
   resize();
 
+  function noise(seed) {
+    const x = Math.sin(seed * 91.733) * 43758.5453;
+    return x - Math.floor(x);
+  }
+
+  function drawBackdrop(ctx, now) {
+    const w = canvas.width;
+    const h = canvas.height;
+    const t = (now || 0) / 1000;
+    const base = ctx.createLinearGradient(0, 0, w, h);
+    base.addColorStop(0, "#01040a");
+    base.addColorStop(.48, "#061322");
+    base.addColorStop(1, "#02040b");
+    ctx.fillStyle = base;
+    ctx.fillRect(0, 0, w, h);
+
+    const clouds = [
+      [.2, .28, .42, "rgba(18,104,168,.15)"],
+      [.76, .38, .36, "rgba(39,68,160,.12)"],
+      [.58, .86, .46, "rgba(15,128,145,.08)"],
+    ];
+    for (const [px, py, radius, color] of clouds) {
+      const x = w * px - (cam.x * .018) % (w * .16);
+      const y = h * py - (cam.y * .014) % (h * .12);
+      const g = ctx.createRadialGradient(x, y, 0, x, y, Math.max(w, h) * radius);
+      g.addColorStop(0, color);
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    for (let i = 0; i < 150; i += 1) {
+      const depth = .25 + noise(i + 41) * .75;
+      const driftX = cam.x * depth * .035;
+      const driftY = cam.y * depth * .035;
+      const x = ((noise(i * 3 + 7) * w - driftX) % w + w) % w;
+      const y = ((noise(i * 5 + 19) * h - driftY) % h + h) % h;
+      const pulse = .68 + .32 * Math.sin(t * (.45 + noise(i + 9)) + i);
+      const size = (.45 + noise(i + 22) * 1.55) * Math.min(2, devicePixelRatio || 1);
+      ctx.globalAlpha = (.2 + depth * .58) * pulse;
+      ctx.fillStyle = noise(i + 88) > .88 ? "#9edfff" : "#e9f6ff";
+      ctx.fillRect(x, y, size, size);
+      if (size > 2.2) {
+        ctx.globalAlpha *= .34;
+        ctx.fillRect(x - size * 2, y + size * .35, size * 5, size * .3);
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    const vignette = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * .18, w / 2, h / 2, Math.max(w, h) * .72);
+    vignette.addColorStop(0, "rgba(0,0,0,0)");
+    vignette.addColorStop(1, "rgba(0,0,0,.58)");
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, w, h);
+  }
+
   function draw(now) {
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawBackdrop(ctx, now);
     if (!data) return;
     ctx.save();
     ctx.translate(canvas.width / 2, canvas.height / 2);
@@ -155,12 +213,30 @@ export function createMap(canvas, onSelect) {
 
     const t = (now || Date.now()) / 1000;
     const systemById = new Map(data.systems.map((s) => [s.id, s]));
+
+    ctx.save();
+    ctx.strokeStyle = "rgba(75,164,210,.055)";
+    ctx.lineWidth = 1 / cam.scale;
+    for (let radius = 320; radius <= 1450; radius += 280) {
+      ctx.beginPath();
+      ctx.ellipse(1500, 1500, radius, radius * .64, -.12, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+
     ctx.lineWidth = 1.2 / cam.scale;
     for (const l of data.links) {
       const a = systemById.get(l.a);
       const b = systemById.get(l.b);
       if (!a || !b) continue;
-      ctx.strokeStyle = "rgba(62,224,255,0.16)";
+      ctx.strokeStyle = "rgba(31,145,204,.10)";
+      ctx.lineWidth = 4.2 / cam.scale;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(104,211,255,.27)";
+      ctx.lineWidth = .75 / cam.scale;
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
@@ -201,6 +277,25 @@ export function createMap(canvas, onSelect) {
       const isOwn = !!own;
       const color = isOwn ? data.self.color : s.owners[0]?.color || s.star.color;
       const r = s.isHub ? (isOwn ? 10 : 8) : (isOwn ? 7 : 5);
+      const selected = highlightSystemId === s.id;
+      ctx.save();
+      ctx.globalAlpha = selected ? .82 : .45;
+      ctx.fillStyle = color;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = (selected ? 24 : 13) / cam.scale;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, r + (selected ? 5 : 3), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      ctx.globalAlpha = selected ? .72 : .34;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = .7 / cam.scale;
+      ctx.beginPath();
+      ctx.moveTo(s.x - (r + 15) / cam.scale, s.y);
+      ctx.lineTo(s.x + (r + 15) / cam.scale, s.y);
+      ctx.moveTo(s.x, s.y - (r + 11) / cam.scale);
+      ctx.lineTo(s.x, s.y + (r + 11) / cam.scale);
+      ctx.stroke();
       ctx.beginPath();
       ctx.fillStyle = color;
       ctx.globalAlpha = 0.22;
@@ -271,25 +366,38 @@ export function createMap(canvas, onSelect) {
         ctx.lineTo(s.x, s.y + m);
         ctx.stroke();
       }
-      if (hover && hover.id === s.id) {
+      if ((hover && hover.id === s.id) || highlightSystemId === s.id || (cam.scale > 1.35 && (isOwn || s.isHub))) {
         ctx.fillStyle = "#e8f6ff";
-        ctx.font = `${12 / cam.scale}px Sora, sans-serif`;
-        ctx.fillText(s.warlord ? s.name + "  †" : s.name, s.x + 10, s.y - 8);
+        ctx.font = `600 ${12 / cam.scale}px Sora, sans-serif`;
+        ctx.shadowColor = "#020610";
+        ctx.shadowBlur = 8 / cam.scale;
+        ctx.fillText(s.warlord ? s.name + "  †" : s.name, s.x + 12 / cam.scale, s.y - 9 / cam.scale);
+        ctx.shadowBlur = 0;
       }
       if (data.self?.homeSystemId === s.id) {
-        ctx.strokeStyle = "#ff3b4d";
-        ctx.lineWidth = 3.2 / cam.scale;
-        ctx.globalAlpha = 0.85 + 0.15 * Math.sin(t * 3);
-        ctx.setLineDash([]);
-        const box = 24 / cam.scale;
-        ctx.strokeRect(s.x - box, s.y - box, box * 2, box * 2);
+        ctx.strokeStyle = "#f4c85a";
+        ctx.lineWidth = 1.8 / cam.scale;
+        ctx.globalAlpha = 0.78 + 0.18 * Math.sin(t * 3);
+        const mark = 18 / cam.scale;
+        ctx.beginPath();
+        ctx.moveTo(s.x, s.y - mark);
+        ctx.lineTo(s.x + mark, s.y);
+        ctx.lineTo(s.x, s.y + mark);
+        ctx.lineTo(s.x - mark, s.y);
+        ctx.closePath();
+        ctx.stroke();
       }
       if (highlightSystemId === s.id && data.self?.homeSystemId !== s.id) {
-        ctx.strokeStyle = "#ff4d6d";
+        ctx.strokeStyle = "#3ee8ff";
         ctx.lineWidth = 2.4 / cam.scale;
         ctx.globalAlpha = 0.7 + 0.3 * Math.sin(t * 4);
         ctx.beginPath();
         ctx.arc(s.x, s.y, r + 16, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 0.28;
+        ctx.lineWidth = 1 / cam.scale;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, r + 27, 0, Math.PI * 2);
         ctx.stroke();
       }
     }
@@ -370,8 +478,18 @@ export function systemHtml(sys, catalog, originShips, opts = {}) {
   const highlightPlanetId = Number(opts.highlightPlanetId || 0);
   const colonizeMode = opts.colonizeMode || null;
   const systemId = opts.systemId || 0;
+  const roman = (value) => {
+    const n = Math.max(1, Number(value) || 1);
+    const glyphs = [[10, "X"], [9, "IX"], [5, "V"], [4, "IV"], [1, "I"]];
+    let rest = n;
+    return glyphs.map(([amount, glyph]) => {
+      const count = Math.floor(rest / amount);
+      rest %= amount;
+      return glyph.repeat(count);
+    }).join("");
+  };
   const planetRows = sys.planets
-    .map((p) => {
+    .map((p, index) => {
       const owner = p.owner
         ? `${p.owner.alliance ? `<span class="muted">[${esc(p.owner.alliance.tag)}]</span> ` : ""}<button type="button" class="linkish" data-profile="${p.owner.id}" style="color:${p.owner.color}">${esc(p.owner.name)}</button>`
         : sys.pirate
@@ -386,25 +504,27 @@ export function systemHtml(sys, catalog, originShips, opts = {}) {
       if (colonizeMode && !colonizeMode.targetPlanetId) {
         // Auswahl-Modus aktiv: Nur unbesiedelte Planeten können Ziel sein
         if (!p.owner && !sys.pirate && !sys.remnant) {
-          acts = `<button class="btn small" data-target="${p.id}" style="background:#f0c14a;color:#0a0a0d">Ziel auswählen</button>`;
+          acts = `<button class="btn small map-act-colonize" data-target="${p.id}" data-mission-kind="colonize">Kolonisieren</button>`;
         } else {
           acts = `<button class="btn small" disabled>Besetzt</button>`;
         }
       } else {
         // Normal-Modus
         acts = p.own || p.canManage
-          ? `<button class="btn small" data-focus="${p.id}">Fokus</button><button class="btn small" data-target="${p.id}">Mission</button>`
-          : `<button class="btn small" data-target="${p.id}">Mission</button>`;
+          ? `<button class="btn small" data-focus="${p.id}">Fokus</button><button class="btn small" data-target="${p.id}" data-mission-kind="mission">Mission</button>`
+          : !p.owner && !sys.pirate && !sys.remnant
+            ? `<button class="btn small map-act-colonize" data-target="${p.id}" data-mission-kind="colonize">Kolonisieren</button><button class="btn small" data-target="${p.id}" data-mission-kind="spy">Scout</button><button class="btn small" data-target="${p.id}" data-mission-kind="mission">Mission</button>`
+            : `<button class="btn small" data-target="${p.id}" data-mission-kind="spy">Scout</button><button class="btn small" data-target="${p.id}" data-mission-kind="mission">Mission</button>`;
       }
       
       return `<article class="sys-planet-card${alert ? " sys-planet-alert" : ""}${p.own ? " own" : ""}" data-planet-id="${p.id}">
         <img class="planet-thumb" src="/assets/planets/${p.type || "terran"}.jpg" alt="" />
         <div class="sys-planet-copy">
-          <b>${esc(p.name)}${p.isHome ? ` <span class="chip ok">Heimat</span>` : ""}</b>
+          <b><em class="planet-roman">${roman(p.slot || index + 1)}</em>${esc(p.name)}${p.isHome ? ` <span class="chip ok">Heimat</span>` : ""}</b>
           <span class="muted">${esc(p.typeName)} · Größe ${p.size}</span>
           <span class="sys-owner">${owner}${p.owner?.newbie ? ` <span class="chip ok">Schutz</span>` : p.owner?.protected ? ` <span class="chip ok">Fair-Play</span>` : ""}</span>
         </div>
-        <div class="sys-planet-acts">${acts}<button class="btn ghost small" data-bookmark="${p.id}" data-bookmark-name="${esc(p.name)}">Merken</button>${p.debris ? `<button class="btn small" data-target="${p.id}">Bergen</button>` : ""}</div>
+        <div class="sys-planet-acts">${acts}${p.debris ? `<button class="btn small" data-target="${p.id}" data-mission-kind="salvage">Bergen</button>` : ""}</div>
       </article>`;
     })
     .join("");
@@ -441,7 +561,7 @@ export function systemHtml(sys, catalog, originShips, opts = {}) {
       <i class="sys-sheet-handle" aria-hidden="true"></i>
       <div class="section-title"><h2>${esc(sys.name)}</h2><button type="button" class="sys-close" data-sys-close aria-label="Schließen">×</button></div>
       <p class="muted sys-starline">${esc(sys.star?.name || "")}</p>
-      ${quick}
+      ${colonizeMode && !colonizeMode.targetPlanetId ? quick : ""}
       ${sys.isHub ? `<p class="hint">Nexus-Hub — Mehrheitskontrolle gewährt Kristall-Bonus.</p>` : ""}
       ${sys.pirate ? `<p class="hint" style="color:#ff8a3a">Piratenhorst Stufe ${sys.pirate} — Angriff bringt Prisen.</p>` : ""}
       ${sys.warlord ? `<p class="hint" style="color:#f0c14a">Warlord: ${esc(sys.warlord)} — extra Flotte, Relikt.</p>` : ""}
