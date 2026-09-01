@@ -19,6 +19,7 @@ const state = {
   highlightBuilding: null,
   citySheet: null,
   cityCam: { x: 0, y: 0, scale: 1, ready: false },
+  colonizeMode: null, // { sourcePlanetId, targetSystemId, targetPlanetId } bei Kolonie-Auswahl
 };
 
 const TUTORIAL = [
@@ -4281,7 +4282,11 @@ async function bootMap() {
     }
     const highlightPlanetId = Number(opts?.planetId || (state.mapFocus?.systemId === sys.id ? state.mapFocus.planetId : 0));
     if (!opts?.planetId && state.mapFocus && state.mapFocus.systemId !== sys.id) state.mapFocus = null;
-    box.innerHTML = systemHtml(detail, state.catalog, state.snap.planet?.ships, { highlightPlanetId });
+    box.innerHTML = systemHtml(detail, state.catalog, state.snap.planet?.ships, { 
+      highlightPlanetId,
+      colonizeMode: state.colonizeMode,
+      systemId: sys.id
+    });
     box.querySelector("[data-sys-close]")?.addEventListener("click", () => {
       box.innerHTML = "";
     });
@@ -4414,13 +4419,46 @@ async function bootMap() {
 
 function openMission(targetId, sys) {
   const planet = sys.planets.find((p) => p.id === targetId);
+  const own = planet.own || planet.canManage;
+  const canAllyColonize = !planet.owner && state.snap.alliance?.canColonizePlanet;
+  
+  // Kolonisierung: Quellplanet auswählen → dann Zielplanet
+  const canColonize = !planet.owner && (!own) && !sys.pirate && !sys.remnant;
+  if (canColonize && !state.colonizeMode) {
+    // Erster Klick auf "Kolonie": Quellplanet speichern
+    const hasColonyShip = (state.snap.planet?.ships?.colony_ship || 0) > 0 || (state.snap.planet?.ships?.flagship || 0) > 0;
+    if (!hasColonyShip) {
+      toast("Kein Kolonieschiff am Fokus-Planeten.", true);
+      return;
+    }
+    state.colonizeMode = {
+      sourcePlanetId: state.snap.planet.id,
+      sourcePlanetName: state.snap.planet.name,
+      targetPlanetId: null
+    };
+    toast(`Kolonie von ${state.snap.planet.name} — wähle Zielplanet.`);
+    return;
+  }
+  
+  if (state.colonizeMode && !state.colonizeMode.targetPlanetId) {
+    // Zweiter Klick: Zielplanet speichern
+    if (planet.owner) {
+      toast("Dieser Planet ist bereits besetzt.", true);
+      return;
+    }
+    state.colonizeMode.targetPlanetId = targetId;
+    state.colonizeMode.targetPlanetName = planet.name;
+    state.colonizeMode.targetSystemName = sys.name;
+    // Jetzt Mission mit Quellplanet öffnen
+    return openColonizeMissionFromSelection(sys, planet);
+  }
+  
+  // Normale Mission (Nicht-Kolonisierung)
   const ships = Object.entries(state.snap.planet.ships || {}).filter(([, n]) => n > 0);
   if (!ships.length) {
     toast("Keine Schiffe am Fokus-Planeten.", true);
     return;
   }
-  const own = planet.own || planet.canManage;
-  const canAllyColonize = !planet.owner && state.snap.alliance?.canColonizePlanet;
   const missions = own
     ? [
         ["expedition", "Expedition"],
@@ -4737,6 +4775,133 @@ function openMission(targetId, sys) {
       });
       hideModal();
       toast("Flotte unterwegs.");
+      await refresh();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  };
+}
+
+async function openColonizeMissionFromSelection(sys, targetPlanet) {
+  // Lade Quellplanet-Daten (Schiffe)
+  const mode = state.colonizeMode;
+  state.colonizeMode = null; // Zurücksetzen
+  
+  let sourceShips;
+  try {
+    const snap = await getState();
+    const sourcePreview = await getPreview(mode.sourcePlanetId);
+    sourceShips = sourcePreview?.ships || {};
+  } catch (err) {
+    toast("Quellplanet-Daten nicht geladen.", true);
+    return;
+  }
+  
+  const hasColonyShip = (sourceShips.colony_ship || 0) > 0 || (sourceShips.flagship || 0) > 0;
+  if (!hasColonyShip) {
+    toast("Kein Kolonieschiff auf " + mode.sourcePlanetName, true);
+    return;
+  }
+  
+  const ships = Object.entries(sourceShips).filter(([, n]) => n > 0);
+  showModal(`<div class="sheet panel">
+    <h2 style="margin:0 0 8px;font-size:14px">Kolonisierung: ${esc(targetPlanet.name)}</h2>
+    <p class="hint">${esc(sys.name)} — Von ${esc(mode.sourcePlanetName)}</p>
+    <div class="row" style="margin:0 0 8px;gap:8px">
+      <button type="button" class="btn ghost small" id="ships-max">Alle auf Maximum</button>
+      <button type="button" class="btn ghost small" id="ships-clear">Leeren</button>
+    </div>
+    <div class="stack" id="ship-picks">
+      ${ships
+        .map(
+          ([id, n]) =>
+            `<label class="ship-pick">
+              <img src="/assets/ships/${id}.jpg" alt="" />
+              <span>${esc(state.catalog.ships[id].name)}<div class="muted">max ${n} · Tempo ${state.catalog.ships[id].speed}${state.catalog.ships[id].fuel ? " · Helium " + state.catalog.ships[id].fuel : ""}</div></span>
+              <input data-ship="${id}" type="number" min="0" max="${n}" value="${["colony_ship", "flagship"].includes(id) ? Math.min(1, n) : 0}">
+              <button type="button" class="btn ghost small" data-ship-max="${id}" data-max="${n}">Max</button>
+            </label>`
+        )
+        .join("")}
+    </div>
+    <div id="travel-box" class="travel-box muted">Schiffe wählen — Flugzeit erscheint hier.</div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn ghost" id="m-cancel">Abbrechen</button>
+      <button class="btn primary" id="m-go">Flotte senden</button>
+    </div>
+  </div>`);
+  
+  let lastTravel = null;
+  const travelBox = document.getElementById("travel-box");
+  
+  const pickedShips = () => {
+    const picked = {};
+    for (const input of document.querySelectorAll("#ship-picks [data-ship]")) {
+      const n = Number(input.value || 0);
+      if (n > 0) picked[input.dataset.ship] = n;
+    }
+    return picked;
+  };
+  
+  const paintTravel = () => {
+    const picked = pickedShips();
+    if (!Object.keys(picked).length) {
+      travelBox.className = "travel-box muted";
+      travelBox.textContent = "Schiffe wählen — Flugzeit erscheint hier.";
+      lastTravel = null;
+      return;
+    }
+    const speedNeeded = Math.max(...Object.entries(picked).map(([id]) => state.catalog.ships[id].speed || 1));
+    const distance = 10; // Vereinfacht - echte Entfernung würde berechnet
+    const travelTime = Math.ceil(distance * 1000 / speedNeeded);
+    travelBox.className = "travel-box";
+    travelBox.innerHTML = `<b>Flugzeit:</b> ${eta(travelTime)}`;
+    lastTravel = { distance, travelTime, picked };
+  };
+  
+  document.getElementById("ship-picks").addEventListener("input", paintTravel);
+  document.getElementById("ship-picks").addEventListener("click", (ev) => {
+    const btn = ev.target.closest("[data-ship-max]");
+    if (!btn) return;
+    ev.preventDefault();
+    const input = document.querySelector(`#ship-picks [data-ship="${btn.dataset.shipMax}"]`);
+    if (input) {
+      input.value = btn.dataset.max;
+      paintTravel();
+    }
+  });
+  document.getElementById("ships-max")?.addEventListener("click", () => {
+    for (const input of document.querySelectorAll("#ship-picks [data-ship]")) {
+      input.value = input.max;
+    }
+    paintTravel();
+  });
+  document.getElementById("ships-clear")?.addEventListener("click", () => {
+    for (const input of document.querySelectorAll("#ship-picks [data-ship]")) {
+      input.value = 0;
+    }
+    paintTravel();
+  });
+  
+  paintTravel();
+  document.getElementById("m-cancel").onclick = hideModal;
+  document.getElementById("m-go").onclick = async () => {
+    const picked = pickedShips();
+    if (!Object.keys(picked).length) {
+      toast("Wähle Kolonieschiffe", true);
+      return;
+    }
+    try {
+      await api("/colonize", {
+        method: "POST",
+        body: {
+          sourcePlanetId: mode.sourcePlanetId,
+          targetPlanetId: mode.targetPlanetId,
+          ships: picked,
+        },
+      });
+      hideModal();
+      toast("Kolonieschiff unterwegs.");
       await refresh();
     } catch (err) {
       toast(err.message, true);

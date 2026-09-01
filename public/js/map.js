@@ -368,6 +368,8 @@ export function systemHtml(sys, catalog, originShips, opts = {}) {
   const ships = Object.entries(originShips || {}).filter(([, n]) => n > 0);
   const remnant = Object.entries(sys.remnantShips || {}).filter(([, n]) => n > 0);
   const highlightPlanetId = Number(opts.highlightPlanetId || 0);
+  const colonizeMode = opts.colonizeMode || null;
+  const systemId = opts.systemId || 0;
   const planetRows = sys.planets
     .map((p) => {
       const owner = p.owner
@@ -378,9 +380,23 @@ export function systemHtml(sys, catalog, originShips, opts = {}) {
             ? `<span class="danger">Remnants</span>`
             : `<span class="muted">unbesetzt</span>`;
       const alert = highlightPlanetId && p.id === highlightPlanetId;
-      const acts = p.own || p.canManage
-        ? `<button class="btn small" data-focus="${p.id}">Fokus</button><button class="btn small" data-target="${p.id}">Mission</button>`
-        : `<button class="btn small" data-target="${p.id}">Mission</button>`;
+      
+      // Im Kolonie-Auswahlmodus: Unterscheide Zielplanet von anderen
+      let acts;
+      if (colonizeMode && !colonizeMode.targetPlanetId) {
+        // Auswahl-Modus aktiv: Nur unbesiedelte Planeten können Ziel sein
+        if (!p.owner && !sys.pirate && !sys.remnant) {
+          acts = `<button class="btn small" data-target="${p.id}" style="background:#f0c14a;color:#0a0a0d">Ziel auswählen</button>`;
+        } else {
+          acts = `<button class="btn small" disabled>Besetzt</button>`;
+        }
+      } else {
+        // Normal-Modus
+        acts = p.own || p.canManage
+          ? `<button class="btn small" data-focus="${p.id}">Fokus</button><button class="btn small" data-target="${p.id}">Mission</button>`
+          : `<button class="btn small" data-target="${p.id}">Mission</button>`;
+      }
+      
       return `<article class="sys-planet-card${alert ? " sys-planet-alert" : ""}${p.own ? " own" : ""}" data-planet-id="${p.id}">
         <img class="planet-thumb" src="/assets/planets/${p.type || "terran"}.jpg" alt="" />
         <div class="sys-planet-copy">
@@ -395,7 +411,12 @@ export function systemHtml(sys, catalog, originShips, opts = {}) {
   const focus = sys.planets.find((x) => x.id === highlightPlanetId) || sys.planets.find((x) => x.own || x.canManage) || sys.planets[0];
   let quick = "";
   if (focus) {
-    if (focus.own || focus.canManage) {
+    if (colonizeMode && !colonizeMode.targetPlanetId) {
+      // Im Auswahlmodus: Besondere Hinweise
+      quick = `<div class="sys-actions">
+        <p class="hint" style="margin:0;color:#f0c14a"><b>Wähle einen Zielplaneten</b><br/>Kolonie von ${esc(colonizeMode.sourcePlanetName)}</p>
+      </div>`;
+    } else if (focus.own || focus.canManage) {
       quick = `<div class="sys-actions">
         <button class="btn primary" data-focus="${focus.id}">Fokus</button>
         <button class="btn" data-target="${focus.id}">Mission</button>
