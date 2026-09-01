@@ -61,29 +61,31 @@ const TUTORIAL = [
   },
 ];
 
+// Shared by all biome base images: capital in the centre, major structures on
+// large pads and compact resource buildings on the small satellite pads.
 const CITY_PLOTS = [
-  { id: "command", x: 50, y: 53, view: "infra", building: "command", short: "Nexus" },
-  { id: "matter_mine", x: 23, y: 31, view: "infra", building: "matter_mine", short: "Met-Mine" },
-  { id: "energy_array", x: 75, y: 31, view: "infra", building: "energy_array", short: "Energie" },
-  { id: "helium_well", x: 40, y: 26, view: "infra", building: "helium_well", short: "Helium" },
-  { id: "titan_extractor", x: 56, y: 23, view: "infra", building: "titan_extractor", short: "Titan" },
-  { id: "uplink", x: 20, y: 69, view: "infra", building: "uplink", short: "Kri-Mine" },
-  { id: "diamond_forge", x: 63, y: 43, view: "infra", building: "diamond_forge", short: "Diamant" },
-  { id: "silo", x: 40, y: 48, view: "infra", building: "silo", short: "Lager" },
-  { id: "shipyard", x: 76, y: 70, view: "yard", building: "shipyard", short: "Schiffsbau" },
-  { id: "archive", x: 58, y: 49, view: "research", building: "archive", short: "Labor" },
-  { id: "spy_center", x: 63, y: 32, view: "infra", building: "spy_center", short: "Spionage" },
-  { id: "shield", x: 46, y: 74, view: "infra", building: "shield", short: "Schild" },
-  { id: "beacon", x: 48, y: 20, view: "infra", building: "beacon", short: "Bake" },
-  { id: "colony_dock", x: 34, y: 79, view: "infra", building: "colony_dock", short: "Dock" },
-  { id: "robotics", x: 37, y: 38, view: "infra", building: "robotics", short: "Robotik" },
-  { id: "fusion", x: 31, y: 47, view: "infra", building: "fusion", short: "Fusion" },
-  { id: "habitat", x: 29, y: 57, view: "infra", building: "habitat", short: "Habitat" },
-  { id: "nanite", x: 67, y: 57, view: "yard", building: "nanite", short: "Naniten" },
-  { id: "quantum_lab", x: 59, y: 62, view: "research", building: "quantum_lab", short: "Labor+" },
-  { id: "jumpgate", x: 56, y: 15, view: "infra", building: "jumpgate", short: "Sprungtor" },
-  { id: "defense_hub", x: 84, y: 48, view: "defense", building: "defense_hub", short: "Verteid.", zone: "def" },
-  { id: "citadel", x: 87, y: 76, view: "infra", building: "citadel", short: "Zitadelle", zone: "def" },
+  { id: "command", x: 50, y: 54, view: "infra", building: "command", short: "Nexus", size: "capital", art: "command" },
+  { id: "citadel", x: 22, y: 31, view: "infra", building: "citadel", short: "Zitadelle", size: "large", art: "defense", zone: "def" },
+  { id: "archive", x: 74, y: 31, view: "research", building: "archive", short: "Labor", size: "large", art: "science" },
+  { id: "defense_hub", x: 21, y: 68, view: "defense", building: "defense_hub", short: "Verteid.", size: "large", art: "defense", zone: "def" },
+  { id: "shipyard", x: 75, y: 71, view: "yard", building: "shipyard", short: "Schiffsbau", size: "large", art: "yard" },
+  { id: "energy_array", x: 68, y: 28, view: "infra", building: "energy_array", short: "Energie", size: "medium", art: "major" },
+  { id: "fusion", x: 29, y: 29, view: "infra", building: "fusion", short: "Fusion", size: "medium", art: "major" },
+  { id: "shield", x: 17, y: 65, view: "infra", building: "shield", short: "Schild", size: "medium", art: "defense" },
+  { id: "quantum_lab", x: 80, y: 34, view: "research", building: "quantum_lab", short: "Labor+", size: "medium", art: "science" },
+  { id: "jumpgate", x: 69, y: 66, view: "infra", building: "jumpgate", short: "Sprungtor", size: "medium", art: "yard" },
+  { id: "robotics", x: 27, y: 66, view: "infra", building: "robotics", short: "Robotik", size: "medium", art: "major" },
+  { id: "nanite", x: 81, y: 67, view: "yard", building: "nanite", short: "Naniten", size: "medium", art: "major" },
+  { id: "matter_mine", x: 25, y: 48, view: "infra", building: "matter_mine", short: "Met-Mine", size: "small", art: "small" },
+  { id: "helium_well", x: 42, y: 27, view: "infra", building: "helium_well", short: "Helium", size: "small", art: "small" },
+  { id: "titan_extractor", x: 56, y: 21, view: "infra", building: "titan_extractor", short: "Titan", size: "small", art: "small" },
+  { id: "uplink", x: 73, y: 48, view: "infra", building: "uplink", short: "Kri-Mine", size: "small", art: "small" },
+  { id: "diamond_forge", x: 37, y: 73, view: "infra", building: "diamond_forge", short: "Diamant", size: "small", art: "small" },
+  { id: "silo", x: 34, y: 45, view: "infra", building: "silo", short: "Lager", size: "small", art: "utility" },
+  { id: "spy_center", x: 65, y: 43, view: "infra", building: "spy_center", short: "Spionage", size: "small", art: "science" },
+  { id: "beacon", x: 48, y: 25, view: "infra", building: "beacon", short: "Bake", size: "small", art: "utility" },
+  { id: "colony_dock", x: 43, y: 72, view: "infra", building: "colony_dock", short: "Dock", size: "small", art: "yard" },
+  { id: "habitat", x: 61, y: 70, view: "infra", building: "habitat", short: "Habitat", size: "small", art: "utility" },
 ];
 
 try {
@@ -1405,6 +1407,7 @@ function colonyCityHtml() {
       lvl > 0 ? "built" : "",
       rec ? "rec" : "",
       q ? "busy" : "",
+      `size-${plot.size || "small"}`,
       plot.zone === "def" ? "def" : "",
       plot.id === "defense_hub" ? "hub" : "",
     ]
@@ -1428,7 +1431,7 @@ function colonyCityHtml() {
     return `<div class="${cls}${selected ? " selected" : ""}" style="left:${plot.x}%;top:${plot.y}%">
         ${rec ? `<i class="city-arrow">↑</i>` : ""}
         <button type="button" class="city-plot-main" data-city-building="${plot.id}"${!unlocked ? ` data-city-lock="${esc(need || "Noch gesperrt")}"` : ""}>
-          ${lvl > 0 ? `<img class="city-building-art" src="/assets/buildings/${plot.building}.jpg" alt="" />` : `<i class="city-empty-site" aria-hidden="true">＋</i>`}
+          ${lvl > 0 ? `<img class="city-building-art" src="/assets/colony/buildings/${plot.art || "utility"}.png" alt="" draggable="false" />` : `<i class="city-empty-site" aria-hidden="true">＋</i>`}
           <b>${esc(plot.short)}</b>
           <span>Level ${lvl}${q ? ` · ${eta(q.completesAt - Date.now())}` : ""}</span>
         </button>
@@ -1469,7 +1472,7 @@ function colonyCityHtml() {
           </div>`
         : "";
   const biome = /^(terran|ocean|desert|ice|lava|gas|ruin)$/.test(p.type) ? p.type : "terran";
-  const cityArt = `/assets/colony/base-${biome}-v3.png?v=1`;
+  const cityArt = `/assets/colony/base-${biome}-v3.png?v=2`;
   const vista = `<img class="city-vista" src="${cityArt}" alt="" draggable="false" />`;
   return `<section class="city-view">
     <div class="city-stage" id="city-stage">

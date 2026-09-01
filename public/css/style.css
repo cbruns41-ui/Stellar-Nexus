@@ -3214,3 +3214,54 @@ button.linkish {
   }
   .res { min-width: 0; overflow: hidden; }
 }
+
+/* Constructed colony buildings are transparent scene objects. The complete
+   footprint remains a button; the art itself never intercepts pointer input. */
+.city-plot.built {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+.city-plot.built:hover,
+.city-plot.built.selected { filter: drop-shadow(0 0 10px rgba(62, 232, 196, .5)); }
+.city-plot.built .city-plot-main {
+  position: relative;
+  height: 112px;
+  padding-top: 72px;
+}
+.city-plot.built.size-medium .city-plot-main { width: 176px; height: 138px; padding-top: 98px; }
+.city-plot.built.size-large .city-plot-main { width: 246px; height: 176px; padding-top: 136px; }
+.city-plot.built.size-capital .city-plot-main { width: 330px; height: 224px; padding-top: 184px; }
+.city-plot.built .city-building-art {
+  position: absolute;
+  left: 50%;
+  bottom: 30px;
+  display: block;
+  width: 116px;
+  height: auto;
+  margin: 0;
+  transform: translateX(-50%);
+  border: 0;
+  border-radius: 0;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  box-shadow: none;
+  filter: drop-shadow(0 13px 11px rgba(0,0,0,.62));
+}
+.city-plot.size-medium .city-building-art { width: 184px; }
+.city-plot.size-large .city-building-art { width: 258px; }
+.city-plot.size-capital .city-building-art { width: 348px; }
+.city-plot.built .city-plot-main > b,
+.city-plot.built .city-plot-main > span {
+  position: relative;
+  z-index: 2;
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  margin-inline: auto;
+  padding-inline: 6px;
+  border-radius: 5px;
+  background: rgba(4, 10, 16, .78);
+  text-shadow: 0 1px 4px #000;
+}
