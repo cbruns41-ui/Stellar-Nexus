@@ -2774,8 +2774,8 @@ button.linkish {
 .city-plot {
   position: absolute;
   transform: translate(-50%, -100%);
-  min-width: 64px;
-  padding: 4px 7px 5px;
+  min-width: 58px;
+  padding: 3px 6px 4px;
   border-radius: 10px;
   border: 1px solid rgba(62, 232, 196, 0.4);
   background: rgba(4, 10, 16, 0.86);
@@ -2863,7 +2863,7 @@ button.linkish {
   position: absolute;
   left: 10px;
   right: 10px;
-  bottom: 12px;
+  bottom: 86px;
   z-index: 6;
   display: flex;
   align-items: center;
