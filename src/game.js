@@ -1723,16 +1723,16 @@ function resolveColonize(db, fleet, ships, target, sys, techs, empire) {
   if (left.colony <= 0) delete left.colony;
   if (asAlliance) {
     db.prepare(
-      "UPDATE planets SET empire_id = ?, alliance_id = ?, metal = 520, helium = 320, titan = 120, energy = 520, crystal = 110, diamond = 6, last_tick = ? WHERE id = ?"
-    ).run(mine.leader_id || empire.id, mine.id, now(), target.id);
+      "UPDATE planets SET empire_id = ?, alliance_id = ?, metal = 520, helium = 320, titan = 120, energy = 520, crystal = 110, diamond = 6, last_tick = ?, founded_at = ? WHERE id = ?"
+    ).run(mine.leader_id || empire.id, mine.id, now(), now(), target.id);
     setBuilding(db, target.id, "command", 1);
     addReport(db, fleet.empire_id, "colony", `${target.name} als Allianz-Planet kolonisiert`, {
       text: `Neue Welt für [${mine.tag}]. Führung und gewählte Mitglieder bauen über das Allianz-Menü.`,
     });
   } else {
     db.prepare(
-      "UPDATE planets SET empire_id = ?, metal = 360, helium = 220, titan = 80, energy = 360, crystal = 70, diamond = 4, last_tick = ? WHERE id = ?"
-    ).run(empire.id, now(), target.id);
+      "UPDATE planets SET empire_id = ?, metal = 360, helium = 220, titan = 80, energy = 360, crystal = 70, diamond = 4, last_tick = ?, founded_at = ? WHERE id = ?"
+    ).run(empire.id, now(), now(), target.id);
     setBuilding(db, target.id, "command", 1);
     addReport(db, fleet.empire_id, "colony", `${target.name} kolonisiert`, {
       text: "Neue Welt dem Imperium einverleibt.",
@@ -2574,10 +2574,11 @@ function spawnRaid(db) {
       `SELECT p.* FROM planets p
        JOIN empires e ON e.id = p.empire_id
        WHERE IFNULL(e.last_raid, 0) < ?
+         AND (IFNULL(p.founded_at, 0) = 0 OR ? - IFNULL(p.founded_at, 0) > 10800000)
          AND e.id NOT IN (${busy.size ? [...busy].map(() => "?").join(",") : "0"})
        ORDER BY RANDOM() LIMIT 1`
     )
-    .get(Date.now() - cooldown, ...busy);
+    .get(Date.now() - cooldown, Date.now(), ...busy);
   if (!target) return;
   const owner = db.prepare("SELECT * FROM empires WHERE id = ?").get(target.empire_id);
   const raidLv = pirates.raidLevelFor(db, owner);

@@ -429,6 +429,7 @@ function migrate(db) {
   if (!hasCol(db, "empires", "last_survey")) db.exec("ALTER TABLE empires ADD COLUMN last_survey INTEGER NOT NULL DEFAULT 0");
   if (!hasCol(db, "empires", "last_drill")) db.exec("ALTER TABLE empires ADD COLUMN last_drill INTEGER NOT NULL DEFAULT 0");
   if (!hasCol(db, "planets", "alliance_id")) db.exec("ALTER TABLE planets ADD COLUMN alliance_id INTEGER");
+  if (!hasCol(db, "planets", "founded_at")) db.exec("ALTER TABLE planets ADD COLUMN founded_at INTEGER NOT NULL DEFAULT 0");
   db.exec(`CREATE TABLE IF NOT EXISTS alliance_planet_access (
     alliance_id INTEGER NOT NULL,
     empire_id INTEGER NOT NULL,

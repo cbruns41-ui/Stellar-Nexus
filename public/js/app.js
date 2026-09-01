@@ -109,6 +109,14 @@ function have() {
   return out;
 }
 
+function canAfford(cost) {
+  const res = have();
+  for (const k in cost) {
+    if ((res[k] || 0) < (cost[k] || 0)) return false;
+  }
+  return true;
+}
+
 function liveRes(k) {
   const p = state.snap.planet;
   if (!p) return 0;
@@ -1452,9 +1460,11 @@ const views = {
         let action = "";
         if (!info.unlocked) action = `<div class="lock">Voraussetzungen fehlen</div>`;
         else if (info.max) action = `<div class="ok">Maximalstufe</div>`;
-        else
-          action = `<button class="btn primary" data-build="${b.id}" ${busy ? "disabled" : ""}>Ausbau auf Stufe ${(info.level || 0) + 1}</button>
+        else {
+          const canBuild = !busy && canAfford(info.nextCost || {});
+          action = `<button class="btn primary" data-build="${b.id}" ${!canBuild ? "disabled" : ""}>Ausbau auf Stufe ${(info.level || 0) + 1}</button>
             <div class="muted">${info.nextTime ? eta(info.nextTime * 1000) : ""}</div>`;
+        }
         const focus = state.highlightBuilding === b.id;
         return `<article class="og-row panel${focus ? " focus-row" : ""}" id="bldg-${b.id}">
           <img class="og-art" src="/assets/buildings/${b.id}.jpg" alt="" />
@@ -1480,10 +1490,11 @@ const views = {
       .map((s) => {
         const info = prev[s.id] || { unlocked: false, cost: s.cost, time: s.time };
         const haveN = p.ships[s.id] || 0;
+        const canBuild = !busy && canAfford(info.cost || {});
         const action = !info.unlocked
           ? `<div class="lock">Voraussetzungen fehlen</div>`
           : `<label class="muted">Anzahl <input data-qty="${s.id}" type="number" min="1" max="20" value="1" style="width:64px;margin-left:6px"></label>
-             <button class="btn primary" data-ship="${s.id}" ${busy ? "disabled" : ""}>Bauen</button>
+             <button class="btn primary" data-ship="${s.id}" ${!canBuild ? "disabled" : ""}>Bauen</button>
              <div class="muted">${eta((info.time || s.time) * 1000)}</div>`;
         return `<article class="og-row panel">
           ${mediaTag(`/assets/ships/${s.id}.jpg`, "og-art og-art-ship")}
@@ -1513,10 +1524,11 @@ const views = {
       .map((d) => {
         const info = prev[d.id] || { unlocked: false, cost: d.cost, time: d.time, have: p.defenses?.[d.id] || 0 };
         const haveN = p.defenses?.[d.id] || info.have || 0;
+        const canBuild = !busy && canAfford(info.cost || {});
         const action = !info.unlocked
           ? `<div class="lock">Voraussetzungen fehlen</div>`
           : `<label class="muted">Anzahl <input data-dqty="${d.id}" type="number" min="1" max="20" value="1" style="width:64px;margin-left:6px"></label>
-             <button class="btn primary" data-defense="${d.id}" ${busy ? "disabled" : ""}>Bauen</button>
+             <button class="btn primary" data-defense="${d.id}" ${!canBuild ? "disabled" : ""}>Bauen</button>
              <div class="muted">${eta((info.time || d.time) * 1000)}</div>`;
         return `<article class="og-row panel">
           <img class="og-art" src="/assets/defenses/${d.id}.jpg" alt="" />
@@ -1536,6 +1548,7 @@ const views = {
     const defCount = Object.values(p.defenses || {}).reduce((s, n) => s + (Number(n) || 0), 0);
     const hubBusy = state.snap.queue.some((q) => q.kind === "building" && q.planetId === p.id);
     const hubInfo = (state.preview?.buildings || []).find((b) => b.id === "defense_hub");
+    const hubCanBuild = !hubBusy && canAfford(hubInfo?.nextCost || {});
     const hubCta = hubLvl
       ? ""
       : `<article class="og-row panel focus-row">
@@ -1546,7 +1559,7 @@ const views = {
             ${hubInfo?.nextCost ? costHtml(hubInfo.nextCost, have(), state.catalog) : ""}
           </div>
           <div class="og-act">
-            <button class="btn primary" data-build="defense_hub" ${hubBusy ? "disabled" : ""}>Errichten</button>
+            <button class="btn primary" data-build="defense_hub" ${!hubCanBuild ? "disabled" : ""}>Errichten</button>
             <button class="btn ghost" data-view-jump="command">Auf der Karte</button>
           </div>
         </article>`;
@@ -1573,11 +1586,12 @@ const views = {
           level: state.snap.techs[t.id] || 0,
           unlocked: nodeUnlocked("tech", t.id),
         };
+        const canResearch = !busy && canAfford(info.nextCost || {});
         const action = !info.unlocked
           ? `<div class="lock">Voraussetzungen fehlen</div>`
           : info.max
             ? `<div class="ok">Abgeschlossen</div>`
-            : `<button class="btn primary" data-tech="${t.id}" ${busy ? "disabled" : ""}>Forschen auf Stufe ${(info.level || 0) + 1}</button>
+            : `<button class="btn primary" data-tech="${t.id}" ${!canResearch ? "disabled" : ""}>Forschen auf Stufe ${(info.level || 0) + 1}</button>
              <div class="muted">${info.nextTime ? eta(info.nextTime * 1000) : ""}</div>`;
         return `<article class="og-row panel">
           <img class="og-art" src="/assets/techs/${t.id}.jpg" alt="" />
@@ -4977,7 +4991,7 @@ setInterval(() => {
 
 setInterval(() => {
   if (state.snap) refresh(undefined, { rerender: liveRerender() }).catch(() => {});
-}, 8000);
+}, 30000);
 
 async function boot() {
   try {
