@@ -298,6 +298,13 @@ async function jumpTo(view, planetId) {
       if (snap?.empire) {
         state.snap = snap;
         paintChrome();
+        // Lade Preview für neuen Planeten, um Gebäude/Schiffe/Forschung zu aktualisieren
+        try {
+          const p = await getPreview(pid);
+          state.preview = p;
+        } catch {
+          state.preview = null;
+        }
       }
     } catch {
       /* stay on current planet */
@@ -1606,7 +1613,7 @@ const views = {
         </article>`;
       })
       .join("");
-    return `<div class="section-title"><h2>Labor</h2><span class="muted">empireweit · <button type="button" class="btn ghost small" data-view-jump="command">Kolonie</button></span></div><div class="og-list">${rows}</div>`;
+    return `<div class="section-title"><h2>Imperiums-Labor</h2><span class="muted">Imperiumsweit · Stufen gelten auf allen Kolonien · <button type="button" class="btn ghost small" data-view-jump="command">Kolonie</button></span></div><p class="hint">Forschung auf jeder Kolonie möglich. Die Stufe zählt für das ganze Imperium.</p><div class="og-list">${rows}</div>`;
   },
 
   tree() {
@@ -2102,10 +2109,12 @@ const views = {
             </button>`
           )
           .join("");
-        return `<article class="force-card panel ${ready ? "" : running ? "running" : "empty"}">
+        const statusText = running ? eta(a.wait) : ready ? "LOOT" : eta(a.wait);
+        const statusClass = running ? "running" : ready ? "ready" : "waiting";
+        return `<article class="force-card panel ${statusClass}">
           <div class="force-art">
             ${mediaTag(a.art)}
-            <span class="force-count">${running ? eta(a.wait) : ready ? "BEREIT" : eta(a.wait)}</span>
+            <span class="force-count" title="${running ? "Rückkehr in" : ready ? "Loot abholen" : "Fertig in"}">${statusText}</span>
           </div>
           <div class="force-body">
             <h3>${esc(a.name)}</h3>
@@ -2620,10 +2629,20 @@ function bindView(root) {
   root.querySelectorAll("[data-focus]").forEach((b) =>
     b.addEventListener("click", () => act(() => api("/focus", { method: "POST", body: { planetId: Number(b.dataset.focus) } })))
   );
-  root.querySelectorAll("[data-open-infra]").forEach((b) =>
+  root.querySelectorAll("[data-open-infra]").forEach((b) => {
+    // Validiere Gebäude-ID vor Handler - verhindere Fehler bei leeren/ungültigen IDs
+    const buildingId = b.dataset.openInfra || "";
+    const view = b.dataset.viewJump || "infra";
+    if (!buildingId && view === "infra") {
+      // Ungültiges Element - verstecke es
+      b.style.display = "none";
+      return;
+    }
     b.addEventListener("click", () => {
-      if (b.dataset.openInfra) state.highlightBuilding = b.dataset.openInfra;
-      if (!b.dataset.viewJump) setView("infra", { routed: true });
+      if (buildingId) state.highlightBuilding = buildingId;
+      setView(view, { routed: true });
+    });
+  });
     })
   );
   root.querySelectorAll("[data-claim]").forEach((b) =>

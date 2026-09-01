@@ -1395,16 +1395,20 @@ img.og-art-ship[src*="battleship"] {
   font-family: var(--display);
   font-size: 20px;
   letter-spacing: 0.04em;
-  padding: 4px 10px;
+  padding: 6px 12px;
   background: rgba(4, 8, 14, 0.72);
   border: 1px solid var(--line2);
   color: var(--cyan);
+  min-width: 60px;
+  text-align: center;
 }
 .force-body { padding: 10px 12px 12px; }
 .force-body h3 { margin: 0 0 4px; font-size: 14px; }
 .force-body p { margin: 0 0 8px; color: var(--muted); font-size: 13px; line-height: 1.35; min-height: 2.6em; }
-.force-card.empty { opacity: 0.42; filter: grayscale(0.35); }
-.force-card.empty .force-count { color: var(--muted); border-color: var(--line); }
+.force-card.waiting { opacity: 0.56; filter: grayscale(0.28); }
+.force-card.waiting .force-count { color: var(--muted); border-color: var(--line); }
+.force-card.ready { opacity: 1; filter: saturate(1.12); }
+.force-card.ready .force-count { color: #00ff88; border-color: #00ff88; background: rgba(0, 255, 136, 0.12); font-weight: 600; }
 .force-card.running { opacity: 1; filter: none; }
 .duration-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; }
 .duration-btn {
