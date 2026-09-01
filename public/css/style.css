@@ -213,7 +213,10 @@ input:focus, select:focus, textarea:focus { border-color: var(--cyan); box-shado
 }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 200px; }
 .brand-avatar-btn {
+  position: relative;
+  z-index: 1;
   padding: 0;
+  margin-right: 10px;
   border: 0;
   background: none;
   border-radius: 10px;
@@ -233,6 +236,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--cyan); box-shado
 }
 .brand strong { display: block; font-size: 11px; color: var(--cyan); }
 .planet-select {
+  position: relative;
+  z-index: 2;
   margin-top: 4px;
   background: #070b14;
   border: 1px solid var(--line);
