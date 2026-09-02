@@ -445,6 +445,15 @@ function migrate(db) {
     PRIMARY KEY (empire_id, kind)
   )`);
   db.exec("CREATE INDEX IF NOT EXISTS idx_activity_runs_done ON activity_runs(completes_at)");
+  db.exec(`CREATE TABLE IF NOT EXISTS orbit_fire_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    empire_id INTEGER NOT NULL,
+    planet_id INTEGER NOT NULL,
+    started_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    claimed_at INTEGER NOT NULL DEFAULT 0
+  )`);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_orbit_fire_empire ON orbit_fire_sessions(empire_id, started_at)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_planets_alliance ON planets(alliance_id)");
   db.exec(`CREATE TABLE IF NOT EXISTS purchases (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

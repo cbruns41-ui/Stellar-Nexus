@@ -776,9 +776,9 @@ function attachRoutes(app, db) {
     const empire = db.prepare("SELECT * FROM empires WHERE user_id = ?").get(req.user.id);
     const systems = db.prepare("SELECT * FROM systems").all();
     const links = db.prepare("SELECT a, b FROM links").all();
-    const flights = db
+    const ownFlights = db
       .prepare(
-        `SELECT f.id, f.mission, f.is_return, f.departed_at, f.arrives_at,
+        `SELECT f.id, f.mission, f.is_return, f.departed_at, f.arrives_at, f.ships,
                 op.system_id AS origin_system_id, tp.system_id AS target_system_id
          FROM fleets f
          JOIN planets op ON op.id = f.origin_planet_id
@@ -791,11 +791,44 @@ function attachRoutes(app, db) {
         id: f.id,
         mission: f.mission,
         returning: !!f.is_return,
+        friendly: true,
+        shipCount: Object.values(JSON.parse(f.ships || "{}")).reduce((n, count) => n + (Number(count) || 0), 0),
         departedAt: f.departed_at,
         arrivesAt: f.arrives_at,
         originSystemId: f.origin_system_id,
         targetSystemId: f.target_system_id,
       }));
+    const incomingFlights = db
+      .prepare(
+        `SELECT f.id, f.mission, f.is_return, f.departed_at, f.arrives_at, f.ships,
+                op.system_id AS origin_system_id, tp.system_id AS target_system_id
+         FROM fleets f
+         JOIN planets op ON op.id = f.origin_planet_id
+         JOIN planets tp ON tp.id = f.target_planet_id
+         WHERE f.empire_id != ? AND f.is_return = 0
+           AND tp.empire_id = ? AND f.mission = 'attack'
+         ORDER BY f.arrives_at`
+      )
+      .all(empire.id, empire.id)
+      .map((f) => ({
+        id: f.id,
+        mission: f.mission,
+        returning: false,
+        friendly: false,
+        shipCount: Object.values(JSON.parse(f.ships || "{}")).reduce((n, count) => n + (Number(count) || 0), 0),
+        departedAt: f.departed_at,
+        arrivesAt: f.arrives_at,
+        originSystemId: f.origin_system_id,
+        targetSystemId: f.target_system_id,
+      }));
+    const flights = [...ownFlights, ...incomingFlights];
+    const stationedBySystem = Object.fromEntries(
+      db.prepare(
+        `SELECT p.system_id, COALESCE(SUM(sh.count),0) AS n
+         FROM planets p LEFT JOIN ships sh ON sh.planet_id = p.id
+         WHERE p.empire_id = ? GROUP BY p.system_id`
+      ).all(empire.id).map((row) => [row.system_id, row.n])
+    );
     const owners = db
       .prepare(
         `SELECT p.system_id, e.id AS empire_id, e.name, e.color, COUNT(*) AS n
@@ -846,6 +879,7 @@ function attachRoutes(app, db) {
         pirate: s.pirate || 0,
         rift: riftId === s.id,
         owners: bySys[s.id] || [],
+        fleetCount: Number(stationedBySystem[s.id] || 0),
       })),
       links,
       flights,
@@ -934,6 +968,48 @@ function attachRoutes(app, db) {
         { holdMs: req.body?.holdMs, joinFleetId: req.body?.joinFleetId }
       );
       res.json({ ...game.snapshot(db, req.user, planet.id), launched: result });
+    } catch (err) {
+      fail(res, 400, err.message);
+    }
+  });
+
+  app.post("/api/fleet/group", auth, (req, res) => {
+    try {
+      const result = withTx(db, () => {
+        game.tickWorld(db);
+        const empire = db.prepare("SELECT * FROM empires WHERE user_id = ?").get(req.user.id);
+        const target = db.prepare("SELECT * FROM planets WHERE id = ?").get(Number(req.body?.targetId));
+        if (!target) throw new Error("Zielplanet unbekannt.");
+        return game.sendFleetGroup(db, empire, target, String(req.body?.mission || "attack"), req.body?.deployments || []);
+      });
+      const empire = db.prepare("SELECT * FROM empires WHERE user_id = ?").get(req.user.id);
+      res.json({ ...game.snapshot(db, req.user, empire.last_planet_id), groupLaunched: result });
+    } catch (err) {
+      fail(res, 400, err.message);
+    }
+  });
+
+  app.post("/api/orbit-fire/start", auth, (req, res) => {
+    try {
+      const result = withTx(db, () => {
+        const { empire, planet } = loadCtx(req);
+        return game.startOrbitFire(db, empire, planet);
+      });
+      res.json({ orbitFire: result });
+    } catch (err) {
+      fail(res, 400, err.message);
+    }
+  });
+
+  app.post("/api/orbit-fire/claim", auth, (req, res) => {
+    try {
+      const result = withTx(db, () => {
+        game.tickWorld(db);
+        const empire = db.prepare("SELECT * FROM empires WHERE user_id = ?").get(req.user.id);
+        return game.claimOrbitFire(db, empire, Number(req.body?.sessionId), Number(req.body?.hits));
+      });
+      const empire = db.prepare("SELECT * FROM empires WHERE user_id = ?").get(req.user.id);
+      res.json({ ...game.snapshot(db, req.user, result.planetId), orbitFire: result });
     } catch (err) {
       fail(res, 400, err.message);
     }

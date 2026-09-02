@@ -16,12 +16,12 @@ export const CITY_PLOTS = Object.freeze([
   { id: "matter_mine", x: 24, y: 51, view: "infra", building: "matter_mine", short: "Met-Mine", size: "mini", art: "small" },
   { id: "helium_well", x: 42, y: 29.5, view: "infra", building: "helium_well", short: "Helium", size: "small", art: "small" },
   { id: "titan_extractor", x: 54.5, y: 23.5, view: "infra", building: "titan_extractor", short: "Titan", size: "mini", art: "small" },
-  { id: "uplink", x: 72, y: 48.3, view: "infra", building: "uplink", short: "Kri-Mine", size: "micro", art: "small" },
+  { id: "uplink", x: 65, y: 46.5, view: "infra", building: "uplink", short: "Kri-Mine", size: "micro", art: "small" },
   { id: "diamond_forge", x: 34.6, y: 74.5, view: "infra", building: "diamond_forge", short: "Diamant", size: "micro", art: "small" },
   { id: "silo", x: 26, y: 30.2, view: "infra", building: "silo", short: "Lager", size: "medium", art: "utility" },
-  { id: "spy_center", x: 75.1, y: 48.3, view: "infra", building: "spy_center", short: "Spionage", size: "micro", art: "science" },
-  { id: "beacon", x: 57.5, y: 23.5, view: "infra", building: "beacon", short: "Bake", size: "micro", art: "utility" },
-  { id: "colony_dock", x: 26, y: 51, view: "infra", building: "colony_dock", short: "Dock", size: "micro", art: "yard" },
+  { id: "spy_center", x: 82, y: 49.5, view: "infra", building: "spy_center", short: "Spionage", size: "micro", art: "science" },
+  { id: "beacon", x: 62, y: 22.5, view: "infra", building: "beacon", short: "Bake", size: "micro", art: "utility" },
+  { id: "colony_dock", x: 31, y: 56, view: "infra", building: "colony_dock", short: "Dock", size: "micro", art: "yard" },
   { id: "habitat", x: 36.8, y: 77, view: "infra", building: "habitat", short: "Habitat", size: "micro", art: "utility" },
 ]);
 

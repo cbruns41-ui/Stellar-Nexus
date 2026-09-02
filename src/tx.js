@@ -1,6 +1,7 @@
 "use strict";
 
 function withTx(db, fn) {
+  if (db.isTransaction) return fn();
   db.exec("BEGIN IMMEDIATE");
   try {
     const result = fn();

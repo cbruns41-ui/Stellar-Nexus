@@ -1,8 +1,8 @@
 import { api, getState, getCatalog, getPreview, getGalaxy, getSystem, getReports, getRanks, getEmpire, combatPreview, combatSim, getAlliances, getAlliance, getAllianceActivity } from "./api.js";
 import { esc, fmt, eta, when, costHtml, planetCss, planetGlobeUrl, planetColonyUrl, mediaTag, bindMediaFallbacks, toast, showModal, hideModal, shipList, starfield, resourceIcon, icon, beep, notify, tickEta, ticksOf, tickMsFrom } from "./ui.js";
-import { createMap, systemHtml } from "./map.js?v=49";
+import { createMap, systemHtml } from "./map.js?v=53";
 import { battleReplayHtml, bindBattleReplays } from "./battle.js";
-import { CITY_PLOTS, buildingLevelBand } from "./city.mjs?v=1";
+import { CITY_PLOTS, buildingLevelBand } from "./city.mjs?v=2";
 
 const $ = (id) => document.getElementById(id);
 
@@ -20,7 +20,7 @@ const state = {
   highlightBuilding: null,
   cityBuilding: null,
   citySheet: null,
-  cityCam: { x: 0, y: 0, scale: 1, ready: false },
+  cityCam: { x: 0, y: 0, scale: 1, ready: false, planetId: 0 },
   colonizeMode: null, // { sourcePlanetId, targetSystemId, targetPlanetId } bei Kolonie-Auswahl
   ignoredIncoming: new Set(),
   lastInteractionAt: 0,
@@ -153,6 +153,33 @@ function renderDock() {
   const q = state.snap?.queue || [];
   const f = state.snap?.fleets || [];
   const acts = (state.snap?.activities || []).filter((a) => a.running);
+  const signature = JSON.stringify([
+    q.map((x) => [x.id, x.startedAt, x.completesAt, x.qty, x.planetId]),
+    f.map((x) => [x.id, x.departedAt, x.arrivesAt, x.returning]),
+    acts.map((x) => [x.id, x.startedAt, x.readyAt, x.durationName]),
+  ]);
+  const updateTimes = () => {
+    const nowAt = Date.now();
+    const timed = [
+      ...q.map((x) => ({ start: x.startedAt, end: x.completesAt })),
+      ...f.map((x) => ({ start: x.departedAt, end: x.arrivesAt })),
+      ...acts.map((x) => ({ start: x.startedAt || nowAt - x.wait, end: x.readyAt || nowAt })),
+    ];
+    [...dock.children].forEach((card, index) => {
+      const start = Number(timed[index]?.start || nowAt);
+      const end = Number(timed[index]?.end || nowAt);
+      const pct = clamp(((nowAt - start) / Math.max(1, end - start)) * 100, 0, 100);
+      const fill = card.querySelector(".bar > i");
+      const label = card.querySelector("[data-dock-eta]");
+      if (fill) fill.style.width = `${pct}%`;
+      if (label) label.textContent = eta(end - nowAt);
+    });
+  };
+  if (dock.dataset.signature === signature) {
+    updateTimes();
+    return;
+  }
+  dock.dataset.signature = signature;
   if (!q.length && !f.length && !acts.length) {
     dock.innerHTML = `<div class="muted" style="align-self:center">Keine aktiven Aufträge.</div>`;
     return;
@@ -168,7 +195,7 @@ function renderDock() {
           <b>${kind}</b>
           <span><strong class="queue-planet">${esc(item.planetName || "Welt")}</strong> · ${esc(item.name)}${item.qty > 1 ? " ×" + item.qty : ""}${item.levelTo ? " → " + item.levelTo : ""}</span>
           <div class="bar"><i style="width:${pct}%"></i></div>
-          <div class="row"><span>${eta(item.completesAt - t)}</span>
+          <div class="row"><span data-dock-eta>${eta(item.completesAt - t)}</span>
             <button class="btn ghost small" data-cancel="${item.id}">Abbruch</button></div>
         </div>`;
     })
@@ -177,11 +204,11 @@ function renderDock() {
     .map((fl) => {
       const pct = clamp(((t - fl.departedAt) / Math.max(1, fl.arrivesAt - fl.departedAt)) * 100, 0, 100);
       const label = fl.returning ? "RÜCKFLUG" : (state.catalog.missions[fl.mission]?.name || fl.mission).toUpperCase();
-      return `<div class="fleet-item panel dock-jump" role="button" tabindex="0" data-dock-view="fleets" data-dock-planet="${fl.originPlanetId || ""}" title="Zur Flotte">
+      return `<div class="fleet-item panel dock-jump" role="button" tabindex="0" data-dock-view="galaxy" data-dock-planet="${fl.originPlanetId || ""}" title="Auf der Karte zeigen">
           <b>${label}</b>
           <span>${esc(fl.originName)} → ${esc(fl.targetName)}</span>
           <div class="bar"><i style="width:${pct}%"></i></div>
-          <span>${eta(fl.arrivesAt - t)}</span>
+          <span data-dock-eta>${eta(fl.arrivesAt - t)}</span>
         </div>`;
     })
     .join("");
@@ -192,11 +219,12 @@ function renderDock() {
           <b>EINSATZ</b>
           <span>${esc(a.name)} · ${esc(a.durationName || "")}</span>
           <div class="bar"><i style="width:${pct}%"></i></div>
-          <span>${eta(a.wait)}</span>
+          <span data-dock-eta>${eta((a.readyAt || Date.now()) - t)}</span>
         </div>`;
     })
     .join("");
   dock.innerHTML = queueHtml + fleetHtml + actHtml;
+  updateTimes();
 }
 
 function clamp(n, a, b) {
@@ -291,6 +319,7 @@ function bindJumps(root) {
     b.addEventListener("click", (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
+      if (b.dataset.highlightBuilding) state.highlightBuilding = b.dataset.highlightBuilding;
       jumpTo(b.dataset.viewJump, b.dataset.jumpPlanet);
     });
   });
@@ -398,7 +427,7 @@ function setView(name, opts = {}) {
   if (name === "galaxy" && tutorialActive() && TUTORIAL[tutorialIndex()]?.id === "galaxy") {
     setTutorialIndex(TUTORIAL.length);
   }
-  const next = name || "command";
+  const next = name === "fleets" ? "galaxy" : name || "command";
   const prev = state.view;
   const routed = !!opts.routed;
   if (!routed) {
@@ -476,7 +505,7 @@ document.addEventListener("keydown", markUserInteraction, { passive: true });
 function liveRerender() {
   if (isViewEditing()) return false;
   if (Date.now() - state.lastInteractionAt < 750) return false;
-  const skip = new Set(["galaxy", "chat", "reports", "sim", "alliance", "settings", "moderation", "command", "infra", "yard", "defense", "research"]);
+  const skip = new Set(["galaxy", "chat", "reports", "sim", "alliance", "settings", "moderation", "command", "infra", "yard", "defense", "research", "activity"]);
   return !skip.has(state.view);
 }
 
@@ -1351,7 +1380,7 @@ function cityQuestCard() {
   const thumb = rec?.building ? `/assets/buildings/${rec.building}.jpg` : "/assets/buildings/matter_mine.jpg";
   const jumpView = next?.view || rec?.view || "infra";
   const jumpBldg = rec?.building || "matter_mine";
-  return `<button type="button" class="city-quest" data-view-jump="${esc(jumpView)}" data-open-infra="${esc(jumpBldg)}">
+  return `<button type="button" class="city-quest" data-view-jump="${esc(jumpView)}" data-highlight-building="${esc(jumpBldg)}">
     <img src="${thumb}" alt="" />
     <div>
       <div class="k">NÄCHSTE AKTION</div>
@@ -1363,18 +1392,7 @@ function cityQuestCard() {
 }
 
 function cityCommanderRail() {
-  const secondary = [];
-  const readyDaily = (state.snap.ops || []).find((item) => item.complete && !item.claimed);
-  const readyWeekly = (state.snap.weekly || []).find((item) => item.complete && !item.claimed);
-  const readyCampaign = (state.snap.contracts || []).find((item) => item.complete && !item.claimed);
-  const hasThreat = (state.snap.incoming || []).length > 0;
-  const hints = state.snap.hints || {};
-  if (readyDaily && hasThreat) secondary.push(`<button type="button" class="city-side-task ready" data-op="${readyDaily.id}"><i>✓</i><span><b>Tagesorder fertig</b><small>Belohnung abholen</small></span></button>`);
-  if (readyWeekly) secondary.push(`<button type="button" class="city-side-task ready" data-weekly="${readyWeekly.id}"><i>✓</i><span><b>Wochenorder fertig</b><small>Belohnung abholen</small></span></button>`);
-  if (readyCampaign && (hasThreat || readyDaily)) secondary.push(`<button type="button" class="city-side-task ready" data-claim="${readyCampaign.id}"><i>✓</i><span><b>Kampagne fertig</b><small>Belohnung abholen</small></span></button>`);
-  if (hints.reports) secondary.push(`<button type="button" class="city-side-task" data-view-jump="reports"><i>${Math.min(9, hints.reports)}</i><span><b>Neue Berichte</b><small>Nachrichten öffnen</small></span></button>`);
-  if (hints.activity) secondary.push(`<button type="button" class="city-side-task" data-view-jump="activity"><i>◎</i><span><b>Einsatz bereit</b><small>Einsatzzentrale öffnen</small></span></button>`);
-  return `<div class="city-commander" aria-label="Commander-Aufgaben">${cityQuestCard()}${secondary.length ? `<div class="city-side-tasks">${secondary.slice(0, 2).join("")}</div>` : ""}</div>`;
+  return `<div class="city-commander" aria-label="Nächste Commander-Aktion">${cityQuestCard()}</div>`;
 }
 
 function colonyCityHtml() {
@@ -1525,12 +1543,12 @@ const views = {
   yard() {
     const p = state.snap.planet;
     const prev = Object.fromEntries((state.preview?.ships || []).map((s) => [s.id, s]));
-    const busy = state.snap.queue.some((q) => q.kind === "ship" && q.planetId === p.id);
+    const queuedShips = state.snap.queue.filter((q) => q.kind === "ship" && q.planetId === p.id);
     const rows = Object.values(state.catalog.ships)
       .map((s) => {
         const info = prev[s.id] || { unlocked: false, cost: s.cost, time: s.time };
         const haveN = p.ships[s.id] || 0;
-        const canBuild = !busy && canAfford(info.cost || {});
+        const canBuild = canAfford(info.cost || {});
         const action = !info.unlocked
           ? `<div class="lock">Voraussetzungen fehlen</div>`
           : `<label class="muted">Anzahl <input data-qty="${s.id}" type="number" min="1" max="20" value="1" style="width:64px;margin-left:6px"></label>
@@ -1551,6 +1569,7 @@ const views = {
       })
       .join("");
     return `<div class="section-title"><h2>Schiffswerft</h2><span class="muted">${p.isAlliance ? "Allianz-Planet · " : ""}${esc(p.name)} · <button type="button" class="btn ghost small" data-view-jump="command">Kolonie</button></span></div>
+      ${queuedShips.length ? `<p class="queue-slot-note"><b>${queuedShips.length} Werftauftrag${queuedShips.length === 1 ? "" : "e"}</b> aktiv · weitere Aufträge können angehängt werden.</p>` : ""}
       <p class="hint">Tempo = Reisegeschwindigkeit. Eine gemischte Flotte fliegt so schnell wie das langsamste Schiff. Weite Systeme brauchen länger.</p>
       <p class="hint">Schiffslimit: ${p.shipCount || 0} / ${p.shipCap || 0}${state.snap.empire?.shipCapBonus ? " · Werft-Turbine +" + state.snap.empire.shipCapBonus : ""}${(state.snap.empire?.shipCapBoostUntil && state.snap.empire.shipCapBoostUntil > Date.now()) ? " · +20 % bis " + new Date(state.snap.empire.shipCapBoostUntil).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : ""}</p>
       <div class="og-list">${rows}</div>`;
@@ -1816,9 +1835,11 @@ const views = {
 
   galaxy() {
     const bookmarks = (state.snap.bookmarks || []).map((b) => `<span class="map-bookmark"><button type="button" data-bookmark-focus="${b.planetId}">${esc(b.label || "Gespeicherter Planet")}</button><button type="button" data-bookmark-delete="${b.planetId}" aria-label="Gespeichertes Ziel löschen">×</button></span>`).join("");
+    const orbitShips = Object.values(state.snap.planet?.ships || {}).reduce((sum, n) => sum + Number(n || 0), 0);
     return `<div class="map-wrap"><canvas id="starmap"></canvas>
       <div class="map-tools panel"><div class="map-search-wrap"><span aria-hidden="true">⌕</span><input id="map-search" type="search" autocomplete="off" placeholder="System suchen…"><div id="map-search-results" class="map-search-results" hidden></div></div><select id="planet-focus"><option value="">— Planet springen —</option></select><details class="map-filters"><summary>Filter</summary><div class="map-filters-body"><label><input type="checkbox" data-map-filter="own"> Eigene</label><label><input type="checkbox" data-map-filter="hostile"> Feindlich</label><label><input type="checkbox" data-map-filter="free"> Frei</label><label><input type="checkbox" data-map-filter="special"> Besonderheiten</label></div></details>${bookmarks ? `<div class="map-bookmarks"><b>Gespeicherte Ziele</b>${bookmarks}</div>` : ""}</div>
       <div id="map-raid-banner" class="map-raid-banner hidden" hidden></div>
+      <button type="button" id="map-orbit-fire" class="map-orbit-fire" ${orbitShips ? "" : "disabled"}><i>◎</i><span><b>ORBIT-FEUER</b><small>${orbitShips ? `${orbitShips} Schiffe · 20 Sek. selbst steuern` : "Keine Schiffe am Fokus-Planeten"}</small></span></button>
       <div class="map-legend panel">Ziehen: Schwenken · Rad: Zoom · Klick: System
         <div>Großer Punkt + weißer Ring + Kreuz = dein System · Teal-Puls = dein System · Rotbogen = Remnants · Orange-Ring = Piratenhorst · Goldbogen = Warlord · Cyan-Halo = Nexus-Riss</div></div>
       <div class="map-flight-note">Eigene Flüge: farbige Route mit bewegtem Marker · gestrichelt = Rückflug</div>
@@ -2131,6 +2152,7 @@ const views = {
 
   activity() {
     const acts = state.snap.activities || [];
+    const occupiedSlots = acts.filter((a) => a.running).length;
     const cards = acts
       .map((a) => {
         const ready = a.ready;
@@ -2154,19 +2176,22 @@ const views = {
         return `<article class="force-card panel ${statusClass}">
           <div class="force-art">
             ${mediaTag(a.art)}
-            <span class="force-count" title="${running ? "Rückkehr in" : ready ? "Bereit" : "Fertig in"}">${statusText}</span>
+            ${ready
+              ? `<button type="button" class="force-count force-ready-action" data-activity="${a.id}" data-duration="${chosen}" title="Einsatz starten">${statusText}</button>`
+              : `<span class="force-count" title="${running ? "Rückkehr in" : "Fertig in"}">${statusText}</span>`}
           </div>
           <div class="force-body">
             <h3>${esc(a.name)}</h3>
             <p>${esc(a.blurb)}</p>
             <div class="duration-row">${durs}</div>
-            ${running ? `<div class="muted">Unterwegs (${esc(a.durationName || "Einsatz")}) · Beute bei Rückkehr</div>` : `<div class="activity-start-row">${startButton}</div>`}
+            ${running ? `<div class="activity-slot occupied">Slot belegt · Unterwegs (${esc(a.durationName || "Einsatz")}) · Beute bei Rückkehr</div>` : `<div class="activity-start-row">${startButton}</div>`}
           </div>
         </article>`;
       })
       .join("");
     return `<div class="section-title"><h2>Einsatzzentrale</h2>
         <span class="muted">Kurz wenig Beute · mittel solide Beute · lang reiche Beute</span></div>
+      <p class="activity-slot-summary"><b>${occupiedSlots}/${acts.length} Einsatz-Slots belegt</b><span>Jede Missionsart besitzt einen eigenen Slot.</span></p>
       <p class="hint">Wähle die Dauer, dann starte den Einsatz. Kurz/Mittel/Lang bestimmen nur die Laufzeit, nicht die Art des Einsatzes.</p>
       <div class="force-grid">${cards}</div>`;
   },
@@ -2410,6 +2435,8 @@ function bindSim(root) {
 }
 
 function bindCity(root) {
+  const p = state.snap?.planet;
+  if (!p) return;
   root.querySelectorAll("[data-tut-skip]").forEach((b) =>
     b.addEventListener("click", () => {
       setTutorialIndex(TUTORIAL.length);
@@ -2429,14 +2456,16 @@ function bindCity(root) {
       renderView({ preserveForm: false });
     })
   );
+  const selectCityBuilding = (id) => {
+    if (tutorialActive() && TUTORIAL[tutorialIndex()]?.id === "move") setTutorialIndex(1);
+    state.cityBuilding = state.cityBuilding === id ? null : id;
+    renderView({ preserveForm: false });
+  };
   root.querySelectorAll("[data-city-building]").forEach((b) =>
     b.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      if (tutorialActive() && TUTORIAL[tutorialIndex()]?.id === "move") setTutorialIndex(1);
-      const id = b.dataset.cityBuilding;
-      state.cityBuilding = state.cityBuilding === id ? null : id;
-      renderView({ preserveForm: false });
+      selectCityBuilding(b.dataset.cityBuilding);
     })
   );
   root.querySelectorAll("[data-city-lock]").forEach((b) =>
@@ -2453,6 +2482,11 @@ function bindCity(root) {
   const map = root.querySelector("#city-map");
   if (!stage || !map) return;
   const cam = state.cityCam;
+  if (cam.planetId !== p.id) {
+    cam.planetId = p.id;
+    cam.ready = false;
+    state.cityBuilding = null;
+  }
   const pts = new Map();
   let dragging = false;
   let moved = false;
@@ -2522,7 +2556,7 @@ function bindCity(root) {
   stage.addEventListener("pointerdown", (e) => {
     if (e.target.closest(".city-quest, .city-side, .city-tut, .city-sheet, .city-zoom")) return;
     if (e.pointerType === "mouse" && e.button !== 0) return;
-    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY });
     dragging = pts.size === 1;
     moved = false;
     if (pts.size === 2) {
@@ -2534,7 +2568,7 @@ function bindCity(root) {
   stage.addEventListener("pointermove", (e) => {
     if (!pts.has(e.pointerId)) return;
     const prev = pts.get(e.pointerId);
-    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY, startX: prev.startX, startY: prev.startY });
     if (pts.size === 2) {
       const [a, b] = [...pts.values()];
       const dist = Math.hypot(a.x - b.x, a.y - b.y);
@@ -2549,7 +2583,8 @@ function bindCity(root) {
     if (!dragging) return;
     const dx = e.clientX - prev.x;
     const dy = e.clientY - prev.y;
-    if (Math.abs(dx) + Math.abs(dy) > 6) {
+    const dragSlop = e.pointerType === "touch" ? 18 : 6;
+    if (Math.abs(e.clientX - prev.startX) + Math.abs(e.clientY - prev.startY) > dragSlop) {
       moved = true;
       if (e.pointerType === "mouse" && !stage.hasPointerCapture?.(e.pointerId)) {
         try {
@@ -2612,7 +2647,10 @@ function bindView(root) {
   });
   root.querySelectorAll("[data-ship]").forEach((b) =>
     b.addEventListener("click", () => {
-      const qty = Number(root.querySelector(`[data-qty="${b.dataset.ship}"]`)?.value || 1);
+      const input = root.querySelector(`[data-qty="${b.dataset.ship}"]`);
+      const qty = Number(input?.value || 1);
+      if (input) input.value = "1";
+      b.disabled = true;
       act(() => api("/ship", { method: "POST", body: { id: b.dataset.ship, qty, planetId: state.snap.planet.id } }));
     })
   );
@@ -2643,6 +2681,7 @@ function bindView(root) {
       const kind = b.dataset.activity;
       const duration = b.dataset.duration || "short";
       if (!kind) return;
+      root.querySelectorAll(`[data-activity="${kind}"]`).forEach((button) => { button.disabled = true; });
       act(() => api("/activity", { method: "POST", body: { kind, duration, planetId: state.snap.planet.id } }));
     });
   });
@@ -2828,7 +2867,7 @@ function bindView(root) {
       try {
         const sysId = state.snap.planets?.[0]?.systemId;
         const detail = await getSystem(Number(b.dataset.system) || sysId);
-        openMission(targetId, detail);
+        openGroupMission(targetId, detail, "attack");
       } catch {
         setView("galaxy");
       }
@@ -4287,7 +4326,7 @@ async function loadReports(filter = "all") {
     b.addEventListener("click", async () => {
       try {
         const detail = await getSystem(Number(b.dataset.system));
-        openMission(Number(b.dataset.reportAttack), detail);
+        openGroupMission(Number(b.dataset.reportAttack), detail, "attack");
       } catch (err) {
         toast(err.message || "Ziel unbekannt.", true);
         setView("galaxy");
@@ -4298,11 +4337,203 @@ async function loadReports(filter = "all") {
 
 let mapBootId = 0;
 
+async function startOrbitFire(planetId, planetName) {
+  let started;
+  try {
+    started = await api("/orbit-fire/start", { method: "POST", body: { planetId } });
+  } catch (err) {
+    toast(err.message || "Orbit-Feuer konnte nicht gestartet werden.", true);
+    return;
+  }
+  const session = started.orbitFire;
+  const layer = document.createElement("section");
+  layer.className = "orbit-game";
+  layer.setAttribute("role", "dialog");
+  layer.setAttribute("aria-label", `Orbit-Feuer über ${planetName}`);
+  layer.innerHTML = `<canvas class="orbit-canvas"></canvas>
+    <div class="orbit-hud"><b>ORBIT-FEUER</b><span class="orbit-place">${esc(planetName)}</span><strong data-orbit-time>20.0</strong></div>
+    <div class="orbit-battery"><span>BATTERIE</span><i><em data-orbit-battery></em></i></div>
+    <div class="orbit-shield"><span>BASIS-SCHILD</span><i><em data-orbit-shield></em></i></div>
+    <div class="orbit-score">ABSCHÜSSE <b data-orbit-score>0</b><small data-orbit-combo>COMBO ×1</small></div>
+    <div class="orbit-wave">WELLE <b data-orbit-wave>1</b><small data-orbit-accuracy>100% PRÄZISION</small></div>
+    <div class="orbit-inbound"><small>FEINDKONTAKT</small><b>WELLE 1 · INBOUND</b></div>
+    <button class="orbit-exit" type="button" aria-label="Minispiel abbrechen">×</button>
+    <div class="orbit-stick" aria-label="Zielen"><i></i><b></b></div>
+    <button class="orbit-fire" type="button"><i></i><b>FEUER</b></button>
+    <p class="orbit-help">Stick zum Zielen · Batterie lädt automatisch</p>`;
+  document.body.append(layer);
+  const canvas = layer.querySelector("canvas");
+  const ctx = canvas.getContext("2d");
+  const timeEl = layer.querySelector("[data-orbit-time]");
+  const batteryEl = layer.querySelector("[data-orbit-battery]");
+  const shieldEl = layer.querySelector("[data-orbit-shield]");
+  const scoreEl = layer.querySelector("[data-orbit-score]");
+  const comboEl = layer.querySelector("[data-orbit-combo]");
+  const waveEl = layer.querySelector("[data-orbit-wave]");
+  const accuracyEl = layer.querySelector("[data-orbit-accuracy]");
+  const stick = layer.querySelector(".orbit-stick");
+  const knob = stick.querySelector("b");
+  const fireButton = layer.querySelector(".orbit-fire");
+  let width = 1, height = 1, dpr = 1, battery = 100, hits = 0, aim = -Math.PI / 2;
+  let recoil = 0, muzzleFlash = 0, shake = 0, shotsFired = 0, shotsHit = 0, combo = 1, comboTime = 0, shield = 100;
+  let stopped = false, firing = false, dragging = false, last = performance.now(), nextTarget = 0, raf = 0;
+  const targets = [], shots = [], enemyShots = [], sparks = [], rings = [];
+  const backdrop = new Image();
+  backdrop.src = "/assets/minigames/orbit-fire-bg-v2.png";
+  const fighterSprite = new Image(); fighterSprite.src = "/assets/minigames/enemy-interceptor-v1.png";
+  const frigateSprite = new Image(); frigateSprite.src = "/assets/minigames/enemy-frigate-v1.png";
+  const cannonBaseSprite = new Image(); cannonBaseSprite.src = "/assets/minigames/cannon-base-v1.png";
+  const cannonTurretSprite = new Image(); cannonTurretSprite.src = "/assets/minigames/cannon-turret-v1.png";
+  const resize = () => {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    width = layer.clientWidth; height = layer.clientHeight;
+    canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr);
+    canvas.style.width = `${width}px`; canvas.style.height = `${height}px`;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  };
+  resize(); window.addEventListener("resize", resize);
+  const startAt = performance.now();
+  const duration = Number(session.durationMs) || 20_000;
+  const close = () => {
+    stopped = true; cancelAnimationFrame(raf); window.removeEventListener("resize", resize);
+    window.removeEventListener("keydown", keyDown); window.removeEventListener("keyup", keyUp);
+    layer.remove();
+  };
+  const setAim = (x, y) => {
+    const r = stick.getBoundingClientRect();
+    let dx = x - (r.left + r.width / 2), dy = y - (r.top + r.height / 2);
+    const length = Math.hypot(dx, dy) || 1, cap = r.width * .3;
+    if (length > cap) { dx *= cap / length; dy *= cap / length; }
+    knob.style.transform = `translate(${dx}px,${dy}px)`;
+    if (Math.hypot(dx, dy) > 5) aim = Math.max(-2.58, Math.min(-.56, Math.atan2(Math.min(-6, dy), dx)));
+  };
+  stick.addEventListener("pointerdown", (e) => { dragging = true; stick.setPointerCapture(e.pointerId); setAim(e.clientX, e.clientY); });
+  stick.addEventListener("pointermove", (e) => { if (dragging) setAim(e.clientX, e.clientY); });
+  stick.addEventListener("pointerup", () => { dragging = false; knob.style.transform = ""; });
+  fireButton.addEventListener("pointerdown", (e) => { e.preventDefault(); firing = true; fireButton.classList.add("pressed"); });
+  const stopFire = () => { firing = false; fireButton.classList.remove("pressed"); };
+  fireButton.addEventListener("pointerup", stopFire); fireButton.addEventListener("pointercancel", stopFire);
+  const keys = new Set();
+  const keyDown = (e) => { if (["ArrowLeft", "ArrowRight", "KeyA", "KeyD", "Space"].includes(e.code)) e.preventDefault(); keys.add(e.code); };
+  const keyUp = (e) => keys.delete(e.code);
+  window.addEventListener("keydown", keyDown); window.addEventListener("keyup", keyUp);
+  layer.querySelector(".orbit-exit").addEventListener("click", close);
+  let shotWait = 0;
+  const cannon = () => {
+    const x = width / 2, y = height * .84, length = Math.max(105, Math.min(190, height * .22));
+    return { x, y, length, mx: x + Math.cos(aim) * (length - recoil), my: y + Math.sin(aim) * (length - recoil) };
+  };
+  function shoot() {
+    if (battery < 12 || shotWait > 0) return;
+    battery -= 12; shotWait = .17;
+    shotsFired++;
+    recoil = 18; muzzleFlash = 1; shake = 5;
+    const gun = cannon();
+    shots.push({ x: gun.mx, y: gun.my, vx: Math.cos(aim) * 880, vy: Math.sin(aim) * 880, life: 1.15 });
+  }
+  function spawnTarget(immediate = false, forceHeavy = false) {
+    const fromLeft = Math.random() > .5;
+    const heavy = forceHeavy || Math.random() > .72;
+    const baseY = height * (.19 + Math.random() * .3);
+    targets.push({ x: immediate ? width * (.18 + Math.random() * .64) : fromLeft ? -130 : width + 130, y: baseY, baseY, vx: (fromLeft ? 1 : -1) * (heavy ? 55 : 105 + Math.random() * 90), r: heavy ? 44 : 29, hp: heavy ? 3 : 1, maxHp: heavy ? 3 : 1, phase: Math.random() * 8, heavy, flash:0, fireIn:.7+Math.random()*1.2 });
+  }
+  function drawCannon() {
+    const gun = cannon();
+    const baseW=Math.max(170,Math.min(280,width*.46)),baseH=baseW*(2/3),turretH=gun.length*1.42,turretW=turretH*(2/3);
+    ctx.save();ctx.translate(gun.x,gun.y+25);ctx.shadowBlur=25;ctx.shadowColor="rgba(25,209,255,.45)";
+    if(cannonBaseSprite.complete&&cannonBaseSprite.naturalWidth)ctx.drawImage(cannonBaseSprite,-baseW/2,-baseH*.52,baseW,baseH);ctx.shadowBlur=0;ctx.restore();
+    ctx.save();ctx.translate(gun.x,gun.y);ctx.rotate(aim+Math.PI/2);ctx.translate(0,recoil+turretH*.38);
+    if(cannonTurretSprite.complete&&cannonTurretSprite.naturalWidth)ctx.drawImage(cannonTurretSprite,-turretW/2,-turretH, turretW,turretH);
+    if(muzzleFlash>0){ctx.globalAlpha=muzzleFlash;const flash=ctx.createRadialGradient(0,-turretH*.99,2,0,-turretH*.99,46);flash.addColorStop(0,"#fff");flash.addColorStop(.22,"#5ff4ff");flash.addColorStop(1,"rgba(21,180,255,0)");ctx.fillStyle=flash;ctx.beginPath();ctx.arc(0,-turretH*.99,46,0,Math.PI*2);ctx.fill();}ctx.restore();
+  }
+  function draw() {
+    ctx.save(); if(shake>0)ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);
+    ctx.fillStyle = "#010710"; ctx.fillRect(0, 0, width, height);
+    if (backdrop.complete && backdrop.naturalWidth) {
+      const scale = Math.max(width / backdrop.naturalWidth, height / backdrop.naturalHeight);
+      const sw = width / scale, sh = height / scale;
+      ctx.drawImage(backdrop, (backdrop.naturalWidth - sw) / 2, (backdrop.naturalHeight - sh) / 2, sw, sh, 0, 0, width, height);
+    }
+    const shade = ctx.createLinearGradient(0, 0, 0, height); shade.addColorStop(0, "rgba(0,5,12,.18)"); shade.addColorStop(.55, "rgba(0,9,17,.04)"); shade.addColorStop(1, "rgba(0,3,8,.34)"); ctx.fillStyle = shade; ctx.fillRect(0, 0, width, height);
+    for (const t of targets) {
+      const sprite=t.heavy?frigateSprite:fighterSprite, dw=t.heavy?176:116, dh=dw*(2/3);
+      ctx.save();ctx.translate(t.x,t.y);ctx.rotate(Math.sin(t.phase)*.035);ctx.scale(t.vx>0?-1:1,1);ctx.shadowBlur=t.flash>0?30:14;ctx.shadowColor=t.flash>0?"#fff":"#ff3e30";
+      if(sprite.complete&&sprite.naturalWidth)ctx.drawImage(sprite,-dw/2,-dh/2,dw,dh);else{ctx.fillStyle="#8b2525";ctx.fillRect(-dw/2,-10,dw,20);}
+      if(t.flash>0){ctx.globalCompositeOperation="screen";ctx.globalAlpha=t.flash;ctx.fillStyle="#7beaff";ctx.fillRect(-dw/2,-dh/2,dw,dh);}ctx.restore();
+      if(t.maxHp>1){ctx.fillStyle="rgba(0,0,0,.7)";ctx.fillRect(t.x-t.r,t.y-t.r-10,t.r*2,4);ctx.fillStyle="#ff5649";ctx.fillRect(t.x-t.r,t.y-t.r-10,t.r*2*(t.hp/t.maxHp),4);}
+    }
+    ctx.strokeStyle = "#66e8ff"; ctx.lineWidth = 3; ctx.shadowBlur = 10; ctx.shadowColor = "#31dfff";
+    for (const s of shots) { ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(s.x - s.vx * .035, s.y - s.vy * .035); ctx.stroke(); }
+    ctx.strokeStyle="#ff493c";ctx.shadowColor="#ff2c20";ctx.lineWidth=2;for(const s of enemyShots){ctx.beginPath();ctx.moveTo(s.x,s.y);ctx.lineTo(s.x-s.vx*.05,s.y-s.vy*.05);ctx.stroke();}
+    ctx.shadowBlur = 0; for (const p of sparks){ctx.globalAlpha=Math.min(1,p.life*3);ctx.fillStyle=p.color||"#ffb44a";ctx.fillRect(p.x,p.y,p.size||3,p.size||3);}ctx.globalAlpha=1;
+    for(const ring of rings){ctx.globalAlpha=ring.life/.45;ctx.strokeStyle=ring.color;ctx.lineWidth=3;ctx.beginPath();ctx.arc(ring.x,ring.y,(1-ring.life/.45)*54+5,0,Math.PI*2);ctx.stroke();}ctx.globalAlpha=1;
+    drawCannon();
+    const gun=cannon(), bx=gun.mx, by=gun.my, rx = bx + Math.cos(aim) * Math.min(230,height*.28), ry = by + Math.sin(aim) * Math.min(230,height*.28);
+    ctx.strokeStyle="rgba(67,223,255,.2)";ctx.lineWidth=1;ctx.setLineDash([6,9]);ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(rx,ry);ctx.stroke();ctx.setLineDash([]);
+    const locked=targets.some(t=>Math.hypot(t.x-rx,t.y-ry)<t.r+24);ctx.strokeStyle=locked?"#ff574a":"#65ecff";ctx.lineWidth=locked?3:2;ctx.shadowBlur=12;ctx.shadowColor=locked?"#ff392c":"#25dfff";ctx.beginPath();ctx.arc(rx,ry,locked?21:17,0,Math.PI*2);ctx.moveTo(rx-27,ry);ctx.lineTo(rx-9,ry);ctx.moveTo(rx+9,ry);ctx.lineTo(rx+27,ry);ctx.moveTo(rx,ry-27);ctx.lineTo(rx,ry-9);ctx.moveTo(rx,ry+9);ctx.lineTo(rx,ry+27);ctx.stroke();ctx.shadowBlur=0;
+    ctx.restore();
+  }
+  async function finish() {
+    stopped = true; cancelAnimationFrame(raf);
+    layer.classList.add("finished");
+    layer.insertAdjacentHTML("beforeend", `<div class="orbit-result"><span>BATTERIE GEHALTEN</span><strong>${hits} Treffer</strong><small>Belohnung wird geborgen …</small></div>`);
+    try {
+      const out = await api("/orbit-fire/claim", { method: "POST", body: { sessionId: session.id, hits } });
+      state.snap = out;
+      paintChrome();
+      const result = layer.querySelector(".orbit-result");
+      result.querySelector("small").textContent = `+${out.orbitFire.metal} MET · +${out.orbitFire.crystal} KRI`;
+      await new Promise((resolve) => setTimeout(resolve, 1800));
+      close(); setView("command"); toast(`Orbit-Feuer: +${out.orbitFire.metal} MET · +${out.orbitFire.crystal} KRI`);
+    } catch (err) {
+      layer.querySelector(".orbit-result small").textContent = err.message || "Belohnung fehlgeschlagen";
+      setTimeout(() => { close(); setView("command"); }, 2200);
+    }
+  }
+  function frame(nowAt) {
+    if (stopped) return;
+    const dt = Math.min(.04, (nowAt - last) / 1000); last = nowAt;
+    const left = Math.max(0, duration - (nowAt - startAt)); timeEl.textContent = (left / 1000).toFixed(1);
+    const elapsed=duration-left,wave=Math.min(4,1+Math.floor(elapsed/5000));waveEl.textContent=wave;
+    if (keys.has("ArrowLeft") || keys.has("KeyA")) aim = Math.max(-2.55, aim - dt * 1.8);
+    if (keys.has("ArrowRight") || keys.has("KeyD")) aim = Math.min(-.59, aim + dt * 1.8);
+    battery = Math.min(100, battery + dt * 19); batteryEl.style.width = `${battery}%`; shotWait -= dt;
+    recoil=Math.max(0,recoil-dt*105);muzzleFlash=Math.max(0,muzzleFlash-dt*8);shake=Math.max(0,shake-dt*28);
+    if (firing || keys.has("Space")) shoot();
+    comboTime-=dt;if(comboTime<=0)combo=1;comboEl.textContent=`COMBO ×${combo}`;accuracyEl.textContent=`${shotsFired?Math.round(shotsHit/shotsFired*100):100}% PRÄZISION`;
+    nextTarget -= dt; if (nextTarget <= 0) { spawnTarget(); nextTarget = Math.max(.34,.78-wave*.1) + Math.random() * .25; }
+    for (const t of targets) { t.x += t.vx * dt; t.phase += dt * (t.heavy?2.2:4.5);t.y=t.baseY+Math.sin(t.phase)*(t.heavy?6:18);t.flash=Math.max(0,t.flash-dt*5);t.fireIn-=dt;if(t.fireIn<=0){const gun=cannon(),dx=gun.x-t.x,dy=gun.y-t.y,len=Math.hypot(dx,dy)||1;enemyShots.push({x:t.x,y:t.y,vx:dx/len*260,vy:dy/len*260,life:3});t.fireIn=(t.heavy?.8:1.5)+Math.random()*1.2;} }
+    for (const s of shots) { s.x += s.vx * dt; s.y += s.vy * dt; s.life -= dt; }
+    for(const s of enemyShots){s.x+=s.vx*dt;s.y+=s.vy*dt;s.life-=dt;const gun=cannon();if(Math.hypot(s.x-gun.x,s.y-gun.y)<72){s.life=0;shield=Math.max(0,shield-8);shieldEl.style.width=`${shield}%`;shake=10;rings.push({x:gun.x,y:gun.y,life:.45,color:"#ff493c"});}}
+    for (let i = targets.length - 1; i >= 0; i--) for (let j = shots.length - 1; j >= 0; j--) {
+      const t = targets[i], s = shots[j]; if (Math.hypot(t.x - s.x, t.y - s.y) < t.r + 5) {
+        shotsHit++;t.flash=1;rings.push({x:t.x,y:t.y,life:.45,color:t.hp>1?"#54e7ff":"#ff8a38"});
+        for (let k = 0; k < (t.hp===1?34:14); k++) sparks.push({ x: t.x, y: t.y, vx: (Math.random() - .5) * 320, vy: (Math.random() - .5) * 320, life: .35+Math.random()*.45,color:k%3?"#ff8b31":"#77edff",size:2+Math.random()*4 });
+        shots.splice(j, 1);t.hp--;
+        if(t.hp<=0){targets.splice(i,1);hits++;combo=Math.min(9,combo+1);comboTime=2.4;shake=Math.max(shake,t.heavy?9:5);scoreEl.textContent=hits;}
+        break;
+      }
+    }
+    for (const p of sparks) { p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; }
+    for(const ring of rings)ring.life-=dt;
+    for (let i = shots.length - 1; i >= 0; i--) if (shots[i].life <= 0) shots.splice(i, 1);
+    for(let i=enemyShots.length-1;i>=0;i--)if(enemyShots[i].life<=0)enemyShots.splice(i,1);
+    for (let i = targets.length - 1; i >= 0; i--) if (targets[i].x < -180 || targets[i].x > width + 180) targets.splice(i, 1);
+    for (let i = sparks.length - 1; i >= 0; i--) if (sparks[i].life <= 0) sparks.splice(i, 1);
+    for(let i=rings.length-1;i>=0;i--)if(rings[i].life<=0)rings.splice(i,1);
+    draw(); if (left <= 0) finish(); else raf = requestAnimationFrame(frame);
+  }
+  spawnTarget(true);spawnTarget(true);spawnTarget(true,true);
+  shieldEl.style.width="100%";
+  raf = requestAnimationFrame(frame);
+}
+
 async function bootMap() {
   const canvas = $("starmap");
   if (!canvas) return;
   const bootId = ++mapBootId;
   const stillHere = () => bootId === mapBootId && state.view === "galaxy" && $("starmap") === canvas;
+  $("map-orbit-fire")?.addEventListener("click", () => startOrbitFire(state.snap.planet.id, state.snap.planet.name));
   if (state.map) {
     try {
       state.map.destroy();
@@ -4342,8 +4573,17 @@ async function bootMap() {
       b.addEventListener("click", () => act(() => api("/focus", { method: "POST", body: { planetId: Number(b.dataset.focus) } })))
     );
     box.querySelectorAll("[data-target]").forEach((b) =>
-      b.addEventListener("click", () => openMission(Number(b.dataset.target), detail, b.dataset.missionKind || ""))
+      b.addEventListener("click", () => {
+        const kind = b.dataset.missionKind || "";
+        if (kind === "attack" || kind === "intercept") openGroupMission(Number(b.dataset.target), detail, kind);
+        else openMission(Number(b.dataset.target), detail, kind);
+      })
     );
+    box.querySelectorAll("[data-orbit-mode]").forEach((button) => button.addEventListener("click", () => {
+      box.querySelectorAll("[data-orbit-mode]").forEach((item) => item.classList.toggle("on", item === button));
+      try { localStorage.setItem(`sn-orbit-${sys.id}`, button.dataset.orbitMode); } catch { /* ignore */ }
+      if (button.dataset.orbitMode === "manual") startOrbitFire(Number(button.dataset.orbitPlanet), button.dataset.orbitName || sys.name);
+    }));
     box.querySelectorAll("[data-bookmark]").forEach((b) => b.addEventListener("click", () => {
       const label = window.prompt("Bezeichnung für diesen Planeten:", b.dataset.bookmarkName || "");
       if (label === null) return;
@@ -4395,9 +4635,10 @@ async function bootMap() {
   };
   const mapSearch = root.querySelector("#map-search");
   const searchResults = root.querySelector("#map-search-results");
+  if (mapSearch) mapSearch.value = "";
   const openSearchSystem = (system) => {
     if (!system || !state.map) return;
-    mapSearch.value = system.name;
+    mapSearch.value = "";
     if (searchResults) searchResults.hidden = true;
     applyMapFilter();
     state.map.focusSystem(system.id, 2.7);
@@ -4511,13 +4752,86 @@ async function openDefenseMission(targetId, systemId, threat = null) {
   try {
     const sys = await getSystem(systemId);
     if (!sys?.planets?.some((planet) => planet.id === targetId)) throw new Error("Zielplanet nicht gefunden.");
-    openMission(targetId, sys, "intercept", {
+    openGroupMission(targetId, sys, "intercept", {
       title: `Verteidigen · ${threat?.planet || sys.name}`,
       warning: threat ? `${threat.kind === "raid" ? "Piraten-Raid" : "Angriff"} in ${eta(Math.max(0, threat.arrivesAt - Date.now()))}` : "",
     });
+    try {
+      const orbitMode = localStorage.getItem(`sn-orbit-${sys.id}`) || "auto";
+      box.querySelectorAll("[data-orbit-mode]").forEach((button) => button.classList.toggle("on", button.dataset.orbitMode === orbitMode));
+    } catch { /* ignore */ }
   } catch (err) {
     toast(err.message || "Verteidigung nicht geöffnet.", true);
   }
+}
+
+function openGroupMission(targetId, sys, mission = "attack", dialogOpts = {}) {
+  const target = sys.planets.find((planet) => planet.id === targetId);
+  if (!target) return toast("Zielplanet nicht gefunden.", true);
+  const origins = (state.snap.planets || []).filter((planet) => {
+    if (planet.isAlliance || planet.id === targetId) return false;
+    return Object.values(planet.ships || {}).some((n) => Number(n) > 0);
+  });
+  if (!origins.length) return toast("Keine einsatzbereiten Schiffe auf deinen Planeten.", true);
+  const cards = origins.map((planet) => {
+    const ships = Object.entries(planet.ships || {}).filter(([, n]) => n > 0);
+    return `<section class="group-origin" data-group-origin="${planet.id}">
+      <div class="group-origin-head">
+        <img src="/assets/planets/${planet.type || "terran"}.jpg" alt="" />
+        <span><b>${esc(planet.name)}</b><small>${esc(planet.systemName || "")}</small></span>
+        <button type="button" class="btn ghost small" data-group-max="${planet.id}">Max</button>
+      </div>
+      <div class="group-ship-grid">${ships.map(([id, n]) => `<label>
+        <span>${esc(state.catalog.ships[id]?.name || id)} <small>/${n}</small></span>
+        <input type="number" min="0" max="${n}" value="0" data-group-ship="${id}" inputmode="numeric" />
+      </label>`).join("")}</div>
+    </section>`;
+  }).join("");
+  const hostile = mission === "attack";
+  showModal(`<div class="sheet panel group-fleet-sheet">
+    <button type="button" class="group-close" id="m-cancel" aria-label="Schließen">×</button>
+    <div class="group-kicker">${hostile ? "GEMEINSAMER SCHLAG" : "GEMEINSAME VERTEIDIGUNG"}</div>
+    <h2>${esc(dialogOpts.title || `${hostile ? "Angriff" : "Verteidigen"} · ${target.name}`)}</h2>
+    <p>${esc(sys.name)} · ${sys.remnant ? "Remnant NPC" : sys.pirate ? `Piraten Stufe ${sys.pirate}` : target.owner?.name || "freier Orbit"}</p>
+    ${dialogOpts.warning ? `<div class="group-warning">${esc(dialogOpts.warning)}</div>` : ""}
+    <div class="group-origin-list">${cards}</div>
+    <div class="group-summary" id="group-summary">0 Planeten · 0 Schiffe</div>
+    <button type="button" class="btn group-launch ${hostile ? "danger" : "primary"}" id="group-launch">${hostile ? "Flotten schicken" : "Verteidigung starten"}</button>
+  </div>`);
+  const modal = document.getElementById("modal");
+  const readDeployments = () => [...modal.querySelectorAll("[data-group-origin]")].map((card) => ({
+    planetId: Number(card.dataset.groupOrigin),
+    ships: Object.fromEntries([...card.querySelectorAll("[data-group-ship]")]
+      .map((input) => [input.dataset.groupShip, Math.max(0, Number(input.value) || 0)])
+      .filter(([, n]) => n > 0)),
+  })).filter((entry) => Object.keys(entry.ships).length);
+  const paint = () => {
+    const deployments = readDeployments();
+    const count = deployments.reduce((sum, entry) => sum + Object.values(entry.ships).reduce((n, value) => n + value, 0), 0);
+    document.getElementById("group-summary").textContent = `${deployments.length} Planet${deployments.length === 1 ? "" : "en"} · ${count} Schiffe · gemeinsamer Ankunfts-Tick`;
+    document.getElementById("group-launch").disabled = count <= 0;
+  };
+  modal.querySelectorAll("[data-group-max]").forEach((button) => button.addEventListener("click", () => {
+    const card = modal.querySelector(`[data-group-origin="${button.dataset.groupMax}"]`);
+    card?.querySelectorAll("[data-group-ship]").forEach((input) => { input.value = input.max; });
+    paint();
+  }));
+  modal.querySelectorAll("[data-group-ship]").forEach((input) => input.addEventListener("input", paint));
+  document.getElementById("m-cancel").onclick = hideModal;
+  document.getElementById("group-launch").onclick = async () => {
+    const button = document.getElementById("group-launch");
+    button.disabled = true;
+    try {
+      await api("/fleet/group", { method: "POST", body: { targetId, mission, deployments: readDeployments() } });
+      hideModal();
+      toast(mission === "attack" ? "Gemeinsamer Schlag unterwegs." : "Verteidigungsverbund unterwegs.");
+      await refresh();
+    } catch (err) {
+      button.disabled = false;
+      toast(err.message, true);
+    }
+  };
+  paint();
 }
 
 function openMission(targetId, sys, initialMission = "", dialogOpts = {}) {
@@ -5052,7 +5366,17 @@ async function act(fn) {
   }
 }
 
+let lastNavTouchAt = 0;
+$("nav")?.addEventListener("pointerup", (e) => {
+  if (e.pointerType !== "touch" && e.pointerType !== "pen") return;
+  const b = e.target.closest("button[data-view]");
+  if (!b) return;
+  e.preventDefault();
+  lastNavTouchAt = Date.now();
+  setView(b.dataset.view);
+});
 $("nav")?.addEventListener("click", (e) => {
+  if (Date.now() - lastNavTouchAt < 500) return;
   const b = e.target.closest("button[data-view]");
   if (b) setView(b.dataset.view);
 });
@@ -5292,18 +5616,29 @@ async function enterGame() {
   }
 }
 
+const handledCompletions = new Set();
 setInterval(() => {
   if (!state.snap) return;
   renderResources();
   renderDock();
-  const due = (state.snap.queue || []).some((q) => q.completesAt <= Date.now() + 400);
-  const dueF = (state.snap.fleets || []).some((f) => f.arrivesAt <= Date.now() + 400);
-  const dueA = (state.snap.activities || []).some((a) => a.running && a.readyAt <= Date.now() + 400);
-  if (due || dueF || dueA) refresh(undefined, { rerender: liveRerender() }).catch(() => {});
+  document.querySelectorAll("[data-live-eta]").forEach((el) => {
+    const at = Number(el.dataset.liveEta || 0);
+    if (at) el.textContent = tickEta(at - Date.now(), state.catalog);
+  });
+  const due = [
+    ...(state.snap.queue || []).filter((q) => q.completesAt <= Date.now() + 400).map((q) => `q:${q.id}:${q.completesAt}`),
+    ...(state.snap.fleets || []).filter((f) => f.arrivesAt <= Date.now() + 400).map((f) => `f:${f.id}:${f.arrivesAt}`),
+    ...(state.snap.activities || []).filter((a) => a.running && a.readyAt <= Date.now() + 400).map((a) => `a:${a.id}:${a.readyAt}`),
+  ];
+  const unseen = due.filter((key) => !handledCompletions.has(key));
+  if (unseen.length) {
+    unseen.forEach((key) => handledCompletions.add(key));
+    refresh(undefined, { rerender: false }).then(() => renderDock()).catch(() => {});
+  }
 }, 500);
 
 setInterval(() => {
-  if (state.snap) refresh(undefined, { rerender: liveRerender() }).catch(() => {});
+  if (state.snap) refresh(undefined, { rerender: false }).then(() => renderDock()).catch(() => {});
 }, 30000);
 
 async function boot() {

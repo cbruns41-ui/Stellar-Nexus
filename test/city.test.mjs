@@ -23,3 +23,11 @@ test("building level bands progress predictably", () => {
   assert.equal(buildingLevelBand(8), "advanced");
   assert.equal(buildingLevelBand(15), "elite");
 });
+
+test("small interactive city plots no longer share the same tap area", () => {
+  const byId = Object.fromEntries(CITY_PLOTS.map((plot) => [plot.id, plot]));
+  for (const [a, b] of [["uplink", "spy_center"], ["matter_mine", "colony_dock"], ["titan_extractor", "beacon"]]) {
+    const distance = Math.hypot(byId[a].x - byId[b].x, byId[a].y - byId[b].y);
+    assert.ok(distance >= 5, `${a} and ${b} are only ${distance.toFixed(1)}% apart`);
+  }
+});

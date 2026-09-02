@@ -248,7 +248,7 @@ export function createMap(canvas, onSelect) {
       const from = systemById.get(flight.originSystemId);
       const to = systemById.get(flight.targetSystemId);
       if (!from || !to) continue;
-      const color = missionColor[flight.mission] || "#e8f6ff";
+      const color = flight.friendly === false ? "#ff4d5f" : "#25dfff";
       const total = Math.max(1, flight.arrivesAt - flight.departedAt);
       const progress = Math.max(0, Math.min(1, (Date.now() - flight.departedAt) / total));
       const x = from.x + (to.x - from.x) * progress;
@@ -264,10 +264,22 @@ export function createMap(canvas, onSelect) {
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.fillStyle = color;
-      ctx.globalAlpha = 0.95;
+      ctx.globalAlpha = 0.98;
+      const angle = Math.atan2(to.y - from.y, to.x - from.x);
+      const marker = 7 / cam.scale;
+      ctx.translate(x, y);
+      ctx.rotate(angle);
       ctx.beginPath();
-      ctx.arc(x, y, 4.5 / cam.scale, 0, Math.PI * 2);
+      ctx.moveTo(marker, 0);
+      ctx.lineTo(-marker * .7, marker * .7);
+      ctx.lineTo(-marker * .25, 0);
+      ctx.lineTo(-marker * .7, -marker * .7);
+      ctx.closePath();
       ctx.fill();
+      ctx.rotate(-angle);
+      ctx.font = `700 ${10 / cam.scale}px Sora, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.fillText(`${flight.shipCount || ""} · ${Math.max(0, Math.ceil((flight.arrivesAt - Date.now()) / 60000))}:${String(Math.max(0, Math.ceil((flight.arrivesAt - Date.now()) / 1000)) % 60).padStart(2, "0")}`, 0, 18 / cam.scale);
       ctx.restore();
     }
 
@@ -400,6 +412,14 @@ export function createMap(canvas, onSelect) {
         ctx.arc(s.x, s.y, r + 27, 0, Math.PI * 2);
         ctx.stroke();
       }
+      if (s.fleetCount > 0) {
+        ctx.fillStyle = "#25dfff";
+        ctx.globalAlpha = 1;
+        ctx.font = `700 ${10 / cam.scale}px Sora, sans-serif`;
+        ctx.textAlign = "center";
+        ctx.fillText(`✦ ${s.fleetCount}`, s.x, s.y + (r + 20) / cam.scale);
+        ctx.textAlign = "start";
+      }
     }
     ctx.restore();
   }
@@ -509,12 +529,12 @@ export function systemHtml(sys, catalog, originShips, opts = {}) {
           acts = `<button class="btn small" disabled>Besetzt</button>`;
         }
       } else {
-        // Normal-Modus
+        // Karte ist zugleich Hangar und Missionszentrale.
         acts = p.own || p.canManage
-          ? `<button class="btn small" data-focus="${p.id}">Fokus</button><button class="btn small" data-target="${p.id}" data-mission-kind="mission">Mission</button>`
+          ? `<button class="btn small" data-focus="${p.id}">Planet</button><button class="btn small" data-target="${p.id}" data-mission-kind="intercept">Verteidigen</button>`
           : !p.owner && !sys.pirate && !sys.remnant
-            ? `<button class="btn small map-act-colonize" data-target="${p.id}" data-mission-kind="colonize">Kolonisieren</button><button class="btn small" data-target="${p.id}" data-mission-kind="spy">Scout</button><button class="btn small" data-target="${p.id}" data-mission-kind="mission">Mission</button>`
-            : `<button class="btn small" data-target="${p.id}" data-mission-kind="spy">Scout</button><button class="btn small" data-target="${p.id}" data-mission-kind="mission">Mission</button>`;
+            ? `<button class="btn small" data-target="${p.id}" data-mission-kind="spy">Scout</button><button class="btn small map-act-attack" data-target="${p.id}" data-mission-kind="attack">Angriff</button><button class="btn small map-act-colonize" data-target="${p.id}" data-mission-kind="colonize">Kolonisieren</button>`
+            : `<button class="btn small" data-target="${p.id}" data-mission-kind="spy">Scout</button><button class="btn small map-act-attack" data-target="${p.id}" data-mission-kind="attack">Angriff</button>`;
       }
       
       return `<article class="sys-planet-card${alert ? " sys-planet-alert" : ""}${p.own ? " own" : ""}" data-planet-id="${p.id}">
@@ -523,12 +543,15 @@ export function systemHtml(sys, catalog, originShips, opts = {}) {
           <b><em class="planet-roman">${roman(p.slot || index + 1)}</em>${esc(p.name)}${p.isHome ? ` <span class="chip ok">Heimat</span>` : ""}</b>
           <span class="muted">${esc(p.typeName)} · Größe ${p.size}</span>
           <span class="sys-owner">${owner}${p.owner?.newbie ? ` <span class="chip ok">Schutz</span>` : p.owner?.protected ? ` <span class="chip ok">Fair-Play</span>` : ""}</span>
+          ${p.ships ? `<span class="sys-hangar">${Object.entries(p.ships).filter(([, n]) => n > 0).map(([id, n]) => `<i><img src="/assets/ships/${id}.jpg" alt="" />${n} ${esc(catalog.ships[id]?.name || id)}</i>`).join("") || "Hangar leer"}</span>` : ""}
         </div>
         <div class="sys-planet-acts">${acts}${p.debris ? `<button class="btn small" data-target="${p.id}" data-mission-kind="salvage">Bergen</button>` : ""}</div>
       </article>`;
     })
     .join("");
   const focus = sys.planets.find((x) => x.id === highlightPlanetId) || sys.planets.find((x) => x.own || x.canManage) || sys.planets[0];
+  const orbitPlanet = (focus?.own && focus) || sys.planets.find((x) => x.own);
+  const orbitFleet = orbitPlanet ? Object.values(orbitPlanet.ships || {}).reduce((sum, n) => sum + Number(n || 0), 0) : 0;
   let quick = "";
   if (focus) {
     if (colonizeMode && !colonizeMode.targetPlanetId) {
@@ -561,6 +584,7 @@ export function systemHtml(sys, catalog, originShips, opts = {}) {
       <i class="sys-sheet-handle" aria-hidden="true"></i>
       <div class="section-title"><h2>${esc(sys.name)}</h2><button type="button" class="sys-close" data-sys-close aria-label="Schließen">×</button></div>
       <p class="muted sys-starline">${esc(sys.star?.name || "")}</p>
+      ${orbitPlanet ? `<section class="orbit-launch"><header><span>FLOTTE</span><b>${orbitFleet}</b><small>${orbitFleet ? "Schiffe im Hangar" : "Hangar leer"}</small></header><div class="orbit-mode" role="group" aria-label="Orbit-Feuer"><button type="button" class="on" data-orbit-mode="auto"><i>⌖</i><span><b>AUTO</b><small>Computer fliegt</small></span></button><button type="button" data-orbit-mode="manual" data-orbit-planet="${orbitPlanet.id}" data-orbit-name="${esc(orbitPlanet.name)}" ${orbitFleet ? "" : "disabled"}><i>◎</i><span><b>SELBST STEUERN</b><small>${orbitFleet ? "20 Sek. Orbit-Feuer" : "Schiffe benötigt"}</small></span></button></div><p>ⓘ Minispiel, keine Dauerwelt</p></section>` : ""}
       ${colonizeMode && !colonizeMode.targetPlanetId ? quick : ""}
       ${sys.isHub ? `<p class="hint">Nexus-Hub — Mehrheitskontrolle gewährt Kristall-Bonus.</p>` : ""}
       ${sys.pirate ? `<p class="hint" style="color:#ff8a3a">Piratenhorst Stufe ${sys.pirate} — Angriff bringt Prisen.</p>` : ""}
