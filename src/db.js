@@ -250,6 +250,32 @@ CREATE TABLE IF NOT EXISTS reports (
   seen INTEGER NOT NULL DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS fleet_ledger (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empire_id INTEGER,
+  planet_id INTEGER NOT NULL,
+  ship_id TEXT NOT NULL,
+  before_count INTEGER NOT NULL,
+  after_count INTEGER NOT NULL,
+  cause TEXT NOT NULL DEFAULT 'Systemänderung',
+  report_id INTEGER,
+  created_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_fleet_ledger_empire ON fleet_ledger(empire_id, created_at DESC);
+CREATE TRIGGER IF NOT EXISTS fleet_ledger_insert AFTER INSERT ON ships WHEN NEW.count != 0 BEGIN
+  INSERT INTO fleet_ledger(empire_id,planet_id,ship_id,before_count,after_count,cause,created_at)
+  VALUES((SELECT empire_id FROM planets WHERE id=NEW.planet_id),NEW.planet_id,NEW.ship_id,0,NEW.count,'Schiffe hinzugefügt',CAST(unixepoch('subsec')*1000 AS INTEGER));
+END;
+CREATE TRIGGER IF NOT EXISTS fleet_ledger_update AFTER UPDATE OF count ON ships WHEN OLD.count != NEW.count BEGIN
+  INSERT INTO fleet_ledger(empire_id,planet_id,ship_id,before_count,after_count,cause,created_at)
+  VALUES((SELECT empire_id FROM planets WHERE id=NEW.planet_id),NEW.planet_id,NEW.ship_id,OLD.count,NEW.count,CASE WHEN NEW.count<OLD.count THEN 'Schiffe abgezogen' ELSE 'Schiffe hinzugefügt' END,CAST(unixepoch('subsec')*1000 AS INTEGER));
+END;
+CREATE TRIGGER IF NOT EXISTS fleet_ledger_delete AFTER DELETE ON ships WHEN OLD.count != 0 BEGIN
+  INSERT INTO fleet_ledger(empire_id,planet_id,ship_id,before_count,after_count,cause,created_at)
+  VALUES((SELECT empire_id FROM planets WHERE id=OLD.planet_id),OLD.planet_id,OLD.ship_id,OLD.count,0,'Bestand entfernt',CAST(unixepoch('subsec')*1000 AS INTEGER));
+END;
+
 CREATE INDEX IF NOT EXISTS idx_planets_empire ON planets(empire_id);
 CREATE INDEX IF NOT EXISTS idx_planets_system ON planets(system_id);
 CREATE INDEX IF NOT EXISTS idx_queue_due ON queue(completes_at);
@@ -428,6 +454,7 @@ function migrate(db) {
   if (!hasCol(db, "empires", "alliance_member_boost")) db.exec("ALTER TABLE empires ADD COLUMN alliance_member_boost INTEGER NOT NULL DEFAULT 0");
   if (!hasCol(db, "empires", "last_survey")) db.exec("ALTER TABLE empires ADD COLUMN last_survey INTEGER NOT NULL DEFAULT 0");
   if (!hasCol(db, "empires", "last_drill")) db.exec("ALTER TABLE empires ADD COLUMN last_drill INTEGER NOT NULL DEFAULT 0");
+  if (!hasCol(db, "empires", "active_commander")) db.exec("ALTER TABLE empires ADD COLUMN active_commander TEXT NOT NULL DEFAULT 'voss'");
   if (!hasCol(db, "planets", "alliance_id")) db.exec("ALTER TABLE planets ADD COLUMN alliance_id INTEGER");
   if (!hasCol(db, "planets", "founded_at")) db.exec("ALTER TABLE planets ADD COLUMN founded_at INTEGER NOT NULL DEFAULT 0");
   db.exec(`CREATE TABLE IF NOT EXISTS alliance_planet_access (
@@ -455,6 +482,22 @@ function migrate(db) {
   )`);
   db.exec("CREATE INDEX IF NOT EXISTS idx_orbit_fire_empire ON orbit_fire_sessions(empire_id, started_at)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_planets_alliance ON planets(alliance_id)");
+  db.exec(`CREATE TABLE IF NOT EXISTS alliance_bosses (
+    alliance_id INTEGER NOT NULL, week TEXT NOT NULL, hp INTEGER NOT NULL, max_hp INTEGER NOT NULL, defeated_at INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (alliance_id, week)
+  )`);
+  db.exec(`CREATE TABLE IF NOT EXISTS alliance_boss_hits (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, alliance_id INTEGER NOT NULL, week TEXT NOT NULL, empire_id INTEGER NOT NULL,
+    day TEXT NOT NULL, damage INTEGER NOT NULL, created_at INTEGER NOT NULL
+  )`);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_alliance_boss_hits ON alliance_boss_hits(alliance_id, week, empire_id, day)");
+  if (!hasCol(db, "alliance_bosses", "level")) db.exec("ALTER TABLE alliance_bosses ADD COLUMN level INTEGER NOT NULL DEFAULT 1");
+  if (!hasCol(db, "alliance_bosses", "available_at")) db.exec("ALTER TABLE alliance_bosses ADD COLUMN available_at INTEGER NOT NULL DEFAULT 0");
+  if (!hasCol(db, "alliance_boss_hits", "boss_level")) db.exec("ALTER TABLE alliance_boss_hits ADD COLUMN boss_level INTEGER NOT NULL DEFAULT 1");
+  db.exec(`CREATE TABLE IF NOT EXISTS sector_season_claims (
+    empire_id INTEGER NOT NULL, season_id TEXT NOT NULL, tier INTEGER NOT NULL, claimed_at INTEGER NOT NULL,
+    PRIMARY KEY (empire_id, season_id, tier)
+  )`);
   db.exec(`CREATE TABLE IF NOT EXISTS purchases (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,

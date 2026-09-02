@@ -126,6 +126,7 @@ function buildPayload(body, catalog, win) {
     pirate: body?.pirate || 0,
     atkPower: Number(body?.atkPower) || 0,
     defPower: Number(body?.defPower) || 0,
+    shield: Number(body?.shield) || 0,
     atk: roster(body?.atkShips, body?.atkLost, body?.atkLeft, catalog?.ships, "ships"),
     def: roster(body?.defShips, body?.defLost, body?.defLeft, catalog?.ships, "ships"),
     bat: roster(body?.defDefense, body?.defLostDefense, body?.defLeftDefense, catalog?.defenses, "defenses"),
@@ -135,6 +136,10 @@ function buildPayload(body, catalog, win) {
 export function battleReplayHtml(body, catalog, win) {
   const payload = buildPayload(body, catalog, win);
   if (!payload.atk.length && !payload.def.length && !payload.bat.length) return "";
+  const atkStart = payload.atk.reduce((sum, unit) => sum + unit.start, 0);
+  const defStart = [...payload.def, ...payload.bat].reduce((sum, unit) => sum + unit.start, 0);
+  const atkLost = payload.atk.reduce((sum, unit) => sum + unit.lost, 0);
+  const defLost = [...payload.def, ...payload.bat].reduce((sum, unit) => sum + unit.lost, 0);
   return `<div class="battle-replay" data-replay="${encodeURIComponent(JSON.stringify(payload))}">
     <canvas class="battle-canvas" aria-hidden="true"></canvas>
     <div class="battle-replay-bar">
@@ -143,7 +148,7 @@ export function battleReplayHtml(body, catalog, win) {
       <span class="br-def">Verteidiger</span>
     </div>
     <button type="button" class="btn ghost small br-again" hidden>Nochmal</button>
-  </div>`;
+  </div><div class="battle-brief"><b>${payload.win ? "Orbit durchbrochen" : "Angriff gestoppt"}</b><span>Angreifer ${atkStart} · <i>−${atkLost}</i></span><span>Verteidigung ${defStart} · <i>−${defLost}</i></span>${payload.shield ? `<span>Schild S${payload.shield}</span>` : ""}</div>`;
 }
 
 function layout(units, side, W, H) {
@@ -162,10 +167,10 @@ function layout(units, side, W, H) {
     u.baseY = 36 + slot - h / 2;
     u.phase = i * 0.7 + (side === "atk" ? 0 : 1.3);
     if (side === "atk") {
-      u.restX = 14;
+      u.restX = 14 + Math.abs(i - (n - 1) / 2) * Math.min(18, W * 0.018);
       u.fromX = -u.w - 20;
     } else {
-      u.restX = W - 14 - u.w;
+      u.restX = W - 14 - u.w - Math.abs(i - (n - 1) / 2) * Math.min(18, W * 0.018);
       u.fromX = W + 20;
     }
     u.side = side;
@@ -239,7 +244,8 @@ function playBattleReplay(el) {
 
   function resize() {
     const rect = canvas.getBoundingClientRect();
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const coarse = window.matchMedia?.("(pointer: coarse)")?.matches;
+    const dpr = Math.min(coarse ? 1.5 : 2, window.devicePixelRatio || 1);
     W = Math.max(280, Math.floor(rect.width));
     H = Math.max(180, Math.floor(rect.height));
     canvas.width = Math.floor(W * dpr);
@@ -265,6 +271,7 @@ function playBattleReplay(el) {
       color,
       w: 1 + rand() * 1.4,
       target: to,
+      critical: rand() < 0.11,
     });
   }
 
@@ -291,6 +298,18 @@ function playBattleReplay(el) {
     const bob = Math.sin(now / 420 + u.phase) * (u.shown > 0 ? 2.2 : 0);
     u.y = u.baseY + bob;
     const img = getImg(u.src);
+    const wing = Math.min(5, Math.max(1, u.shown));
+    ctx.save();
+    ctx.globalAlpha = u.alpha * 0.55;
+    ctx.fillStyle = u.side === "atk" ? "#3ee8c4" : "#ff8a4c";
+    for (let i = 1; i < wing; i++) {
+      const row = Math.ceil(i / 2);
+      const dir = i % 2 ? -1 : 1;
+      const fx = u.side === "atk" ? u.x - row * 9 : u.x + u.w + row * 9;
+      const fy = u.y + u.h * .5 + dir * row * 5;
+      ctx.beginPath();ctx.moveTo(fx,fy);ctx.lineTo(fx+(u.side === "atk"?6:-6),fy-3);ctx.lineTo(fx+(u.side === "atk"?6:-6),fy+3);ctx.closePath();ctx.fill();
+    }
+    ctx.restore();
     ctx.save();
     ctx.globalAlpha = u.alpha;
     roundClip(ctx, u.x, u.y, u.w, u.h, 5);
@@ -405,10 +424,10 @@ function playBattleReplay(el) {
         continue;
       }
       const k = 1 - age / s.life;
-      ctx.strokeStyle = s.color;
+      ctx.strokeStyle = s.critical ? "rgba(255,238,120,.98)" : s.color;
       ctx.shadowColor = s.color;
-      ctx.shadowBlur = 12;
-      ctx.lineWidth = s.w * k;
+      ctx.shadowBlur = s.critical ? 22 : 12;
+      ctx.lineWidth = s.w * k * (s.critical ? 2.2 : 1);
       ctx.globalAlpha = 0.25 + 0.75 * k;
       ctx.beginPath();
       ctx.moveTo(s.x1, s.y1);
@@ -418,6 +437,16 @@ function playBattleReplay(el) {
       ctx.arc(s.x1, s.y1, 2.2, 0, Math.PI * 2);
       ctx.fillStyle = "#fff";
       ctx.fill();
+      if (age > s.life * .42) {
+        const hit = clamp((age / s.life - .42) / .58, 0, 1);
+        ctx.globalAlpha = (1 - hit) * (s.critical ? .95 : .55);
+        ctx.strokeStyle = s.critical ? "#ffe870" : (s.target.side === "def" ? "#65dfff" : "#ff9b67");
+        ctx.lineWidth = s.critical ? 3 : 1.5;
+        ctx.beginPath();ctx.arc(s.x2,s.y2,5 + hit * (s.critical ? 28 : 18),0,Math.PI*2);ctx.stroke();
+        if (s.critical && hit < .65) {
+          ctx.fillStyle="#fff2a1";ctx.font="700 10px Tektur, sans-serif";ctx.textAlign="center";ctx.fillText("KRITISCH",s.x2,s.y2-16-hit*12);
+        }
+      }
     }
     for (let i = sparks.length - 1; i >= 0; i--) {
       const s = sparks[i];

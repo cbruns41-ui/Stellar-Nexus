@@ -41,8 +41,8 @@ test("world operations can safely join an existing transaction", () => {
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM events").get().n, 2);
 });
 
-test("orbit fire loot is small, deterministic and score-capped", () => {
-  assert.deepEqual(orbitFireReward(-5), { hits: 0, metal: 50, crystal: 3 });
-  assert.deepEqual(orbitFireReward(12.9), { hits: 12, metal: 98, crystal: 7 });
-  assert.deepEqual(orbitFireReward(999), { hits: 40, metal: 210, crystal: 16 });
+test("orbit fire loot covers all resources, scales and remains score-capped", () => {
+  assert.deepEqual(orbitFireReward(-5, () => 0), { hits: 0, loot: { metal: 70, helium: 35, titan: 25, energy: 55, crystal: 8, diamond: 0 }, metal: 70, helium: 35, titan: 25, energy: 55, crystal: 8, diamond: 0 });
+  assert.deepEqual(orbitFireReward(12.9, () => 0), { hits: 12, loot: { metal: 154, helium: 83, titan: 61, energy: 115, crystal: 32, diamond: 0 }, metal: 154, helium: 83, titan: 61, energy: 115, crystal: 32, diamond: 0 });
+  assert.deepEqual(orbitFireReward(999, () => 1), { hits: 40, loot: { metal: 400, helium: 230, titan: 175, energy: 300, crystal: 98, diamond: 3 }, metal: 400, helium: 230, titan: 175, energy: 300, crystal: 98, diamond: 3 });
 });

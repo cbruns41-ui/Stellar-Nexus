@@ -1,12 +1,26 @@
 import { esc } from "./ui.js";
 
-export function createMap(canvas, onSelect) {
+export function createMap(canvas, onSelect, onViewChange) {
   let data = null;
   let cam = { x: 1500, y: 1500, scale: 0.55 };
   let drag = null;
   let hover = null;
   let filter = { query: "", own: false, hostile: false, free: false, special: false };
   let highlightSystemId = null;
+  let lastViewMode = "";
+
+  function viewMode() {
+    if (cam.scale < 0.72) return "sector";
+    if (cam.scale < 2.15) return "system";
+    return "orbit";
+  }
+
+  function notifyViewMode(force = false) {
+    const mode = viewMode();
+    if (!force && mode === lastViewMode) return;
+    lastViewMode = mode;
+    if (typeof onViewChange === "function") onViewChange({ mode, scale: cam.scale });
+  }
 
   function world(ev) {
     const r = canvas.getBoundingClientRect();
@@ -106,6 +120,7 @@ export function createMap(canvas, onSelect) {
     const after = world(e);
     cam.x += before.x - after.x;
     cam.y += before.y - after.y;
+    notifyViewMode();
   }, { passive: false });
   canvas.addEventListener("touchstart", (e) => {
     if (e.touches.length === 2) {
@@ -126,6 +141,7 @@ export function createMap(canvas, onSelect) {
         e.touches[0].clientY - e.touches[1].clientY
       );
       cam.scale = Math.min(4.2, Math.max(0.16, pinch.scale * (d / pinch.d)));
+      notifyViewMode();
     }
   }, { passive: false });
   canvas.addEventListener("touchend", () => {
@@ -134,7 +150,8 @@ export function createMap(canvas, onSelect) {
 
   function resize() {
     const r = canvas.getBoundingClientRect();
-    const dpr = Math.min(2, devicePixelRatio || 1);
+    const mobile = Math.min(innerWidth || 9999, innerHeight || 9999) < 760;
+    const dpr = Math.min(mobile ? 1.5 : 2, devicePixelRatio || 1);
     const w = Math.max(1, Math.floor(r.width * dpr));
     const h = Math.max(1, Math.floor(r.height * dpr));
     if (canvas.width !== w || canvas.height !== h) {
@@ -176,7 +193,8 @@ export function createMap(canvas, onSelect) {
       ctx.fillRect(0, 0, w, h);
     }
 
-    for (let i = 0; i < 150; i += 1) {
+    const starCount = canvas.width < 900 ? 92 : 150;
+    for (let i = 0; i < starCount; i += 1) {
       const depth = .25 + noise(i + 41) * .75;
       const driftX = cam.x * depth * .035;
       const driftY = cam.y * depth * .035;
@@ -213,6 +231,7 @@ export function createMap(canvas, onSelect) {
 
     const t = (now || Date.now()) / 1000;
     const systemById = new Map(data.systems.map((s) => [s.id, s]));
+    const mode = viewMode();
 
     ctx.save();
     ctx.strokeStyle = "rgba(75,164,210,.055)";
@@ -224,12 +243,40 @@ export function createMap(canvas, onSelect) {
     }
     ctx.restore();
 
+    // Strategic ownership is an overlay, never a visibility mask: no fog of war.
+    if (mode === "sector") {
+      const influence = new Map();
+      for (const s of data.systems) {
+        for (const owner of s.owners || []) {
+          const item = influence.get(owner.empireId) || { owner, systems: [] };
+          item.systems.push(s);
+          influence.set(owner.empireId, item);
+        }
+      }
+      ctx.save();
+      ctx.globalCompositeOperation = "screen";
+      for (const { owner, systems } of influence.values()) {
+        for (const s of systems) {
+          const radius = 155 + Math.min(90, (owner.planets || 1) * 20);
+          const glow = ctx.createRadialGradient(s.x, s.y, 8, s.x, s.y, radius);
+          glow.addColorStop(0, `${owner.color}35`);
+          glow.addColorStop(.48, `${owner.color}18`);
+          glow.addColorStop(1, `${owner.color}00`);
+          ctx.fillStyle = glow;
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
+
     ctx.lineWidth = 1.2 / cam.scale;
     for (const l of data.links) {
       const a = systemById.get(l.a);
       const b = systemById.get(l.b);
       if (!a || !b) continue;
-      ctx.strokeStyle = "rgba(31,145,204,.10)";
+      ctx.strokeStyle = mode === "sector" ? "rgba(31,145,204,.07)" : "rgba(31,145,204,.10)";
       ctx.lineWidth = 4.2 / cam.scale;
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
@@ -290,6 +337,16 @@ export function createMap(canvas, onSelect) {
       const color = isOwn ? data.self.color : s.owners[0]?.color || s.star.color;
       const r = s.isHub ? (isOwn ? 10 : 8) : (isOwn ? 7 : 5);
       const selected = highlightSystemId === s.id;
+      const danger = s.warlord ? 3 : s.remnant ? 2 : s.pirate ? 1 : 0;
+      if (mode === "sector" && danger) {
+        ctx.save();
+        ctx.globalAlpha = .12 + danger * .05 + .025 * Math.sin(t * 2 + s.id);
+        ctx.fillStyle = danger === 3 ? "#f0c14a" : danger === 2 ? "#ff465c" : "#ff813b";
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, 52 + danger * 14, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
       ctx.save();
       ctx.globalAlpha = selected ? .82 : .45;
       ctx.fillStyle = color;
@@ -378,7 +435,9 @@ export function createMap(canvas, onSelect) {
         ctx.lineTo(s.x, s.y + m);
         ctx.stroke();
       }
-      if ((hover && hover.id === s.id) || highlightSystemId === s.id || (cam.scale > 1.35 && (isOwn || s.isHub))) {
+      const sectorLabel = mode === "sector" && (isOwn || s.isHub || danger >= 2);
+      const systemLabel = mode === "system" && (isOwn || s.isHub || danger || selected);
+      if ((hover && hover.id === s.id) || selected || sectorLabel || systemLabel || (mode === "orbit" && (isOwn || s.isHub))) {
         ctx.fillStyle = "#e8f6ff";
         ctx.font = `600 ${12 / cam.scale}px Sora, sans-serif`;
         ctx.shadowColor = "#020610";
@@ -439,10 +498,22 @@ export function createMap(canvas, onSelect) {
   }
 
   let raf = 0;
+  let lastFrame = 0;
+  let visiblePage = !document.hidden;
+  const reducedMotion = matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+  const frameMs = reducedMotion ? 80 : Math.min(innerWidth || 9999, innerHeight || 9999) < 760 ? 34 : 22;
   function loop(t) {
-    draw(t);
+    if (visiblePage && t - lastFrame >= frameMs) {
+      lastFrame = t;
+      draw(t);
+    }
     raf = requestAnimationFrame(loop);
   }
+  const visibility = () => {
+    visiblePage = !document.hidden;
+    if (visiblePage) lastFrame = 0;
+  };
+  document.addEventListener("visibilitychange", visibility);
   raf = requestAnimationFrame(loop);
 
   return {
@@ -450,6 +521,7 @@ export function createMap(canvas, onSelect) {
       const first = !data;
       data = next;
       if (first) centerHome(false);
+      notifyViewMode(true);
     },
     focusHome(open) {
       centerHome(!!open);
@@ -461,6 +533,18 @@ export function createMap(canvas, onSelect) {
       cam.x = x;
       cam.y = y;
       cam.scale = scale;
+      notifyViewMode();
+    },
+    setView(mode) {
+      const selected = data?.systems.find((s) => s.id === highlightSystemId);
+      const home = data?.systems.find((s) => s.id === data?.self?.homeSystemId);
+      const anchor = selected || home;
+      if (anchor && mode !== "sector") {
+        cam.x = anchor.x;
+        cam.y = anchor.y;
+      }
+      cam.scale = mode === "sector" ? .48 : mode === "orbit" ? 2.8 : 1.2;
+      notifyViewMode(true);
     },
     focusSystem(systemId, zoom) {
       const sys = data?.systems.find((s) => s.id === systemId);
@@ -469,6 +553,7 @@ export function createMap(canvas, onSelect) {
       cam.x = sys.x;
       cam.y = sys.y;
       cam.scale = zoom || 2;
+      notifyViewMode();
       if (typeof onSelect === "function") onSelect(sys);
       requestAnimationFrame(() => {});
     },
@@ -479,6 +564,7 @@ export function createMap(canvas, onSelect) {
       cam.x = sys.x;
       cam.y = sys.y;
       cam.scale = 2.4;
+      notifyViewMode();
       if (typeof onSelect === "function") onSelect(sys, { planetId: Number(planetId) || 0 });
       requestAnimationFrame(() => {});
     },
@@ -488,6 +574,7 @@ export function createMap(canvas, onSelect) {
     resize,
     destroy() {
       cancelAnimationFrame(raf);
+      document.removeEventListener("visibilitychange", visibility);
     },
   };
 }
@@ -530,8 +617,10 @@ export function systemHtml(sys, catalog, originShips, opts = {}) {
         }
       } else {
         // Karte ist zugleich Hangar und Missionszentrale.
-        acts = p.own || p.canManage
-          ? `<button class="btn small" data-focus="${p.id}">Planet</button><button class="btn small" data-target="${p.id}" data-mission-kind="intercept">Verteidigen</button>`
+        acts = p.canStation
+          ? `${p.canManage ? `<button class="btn small" data-focus="${p.id}">HQ</button>` : ""}<button class="btn small" data-target="${p.id}" data-mission-kind="transport">Versorgen</button><button class="btn small" data-target="${p.id}" data-mission-kind="deploy">Stationieren</button>`
+          : p.own || p.canManage
+            ? `<button class="btn small" data-focus="${p.id}">Planet</button><button class="btn small" data-target="${p.id}" data-mission-kind="intercept">Verteidigen</button>`
           : !p.owner && !sys.pirate && !sys.remnant
             ? `<button class="btn small" data-target="${p.id}" data-mission-kind="spy">Scout</button><button class="btn small map-act-attack" data-target="${p.id}" data-mission-kind="attack">Angriff</button><button class="btn small map-act-colonize" data-target="${p.id}" data-mission-kind="colonize">Kolonisieren</button>`
             : `<button class="btn small" data-target="${p.id}" data-mission-kind="spy">Scout</button><button class="btn small map-act-attack" data-target="${p.id}" data-mission-kind="attack">Angriff</button>`;
@@ -559,6 +648,8 @@ export function systemHtml(sys, catalog, originShips, opts = {}) {
       quick = `<div class="sys-actions">
         <p class="hint" style="margin:0;color:#f0c14a"><b>Wähle einen Zielplaneten</b><br/>Kolonie von ${esc(colonizeMode.sourcePlanetName)}</p>
       </div>`;
+    } else if (focus.canStation) {
+      quick = `<div class="sys-actions">${focus.canManage ? `<button class="btn" data-focus="${focus.id}">HQ öffnen</button>` : ""}<button class="btn" data-target="${focus.id}" data-mission-kind="transport">Allianzlager</button><button class="btn primary" data-target="${focus.id}" data-mission-kind="deploy">Schiffe stationieren</button></div>`;
     } else if (focus.own || focus.canManage) {
       quick = `<div class="sys-actions">
         <button class="btn primary" data-focus="${focus.id}">Fokus</button>
@@ -584,7 +675,7 @@ export function systemHtml(sys, catalog, originShips, opts = {}) {
       <i class="sys-sheet-handle" aria-hidden="true"></i>
       <div class="section-title"><h2>${esc(sys.name)}</h2><button type="button" class="sys-close" data-sys-close aria-label="Schließen">×</button></div>
       <p class="muted sys-starline">${esc(sys.star?.name || "")}</p>
-      ${orbitPlanet ? `<section class="orbit-launch"><header><span>FLOTTE</span><b>${orbitFleet}</b><small>${orbitFleet ? "Schiffe im Hangar" : "Hangar leer"}</small></header><div class="orbit-mode" role="group" aria-label="Orbit-Feuer"><button type="button" class="on" data-orbit-mode="auto"><i>⌖</i><span><b>AUTO</b><small>Computer fliegt</small></span></button><button type="button" data-orbit-mode="manual" data-orbit-planet="${orbitPlanet.id}" data-orbit-name="${esc(orbitPlanet.name)}" ${orbitFleet ? "" : "disabled"}><i>◎</i><span><b>SELBST STEUERN</b><small>${orbitFleet ? "20 Sek. Orbit-Feuer" : "Schiffe benötigt"}</small></span></button></div><p>ⓘ Minispiel, keine Dauerwelt</p></section>` : ""}
+      ${orbitPlanet ? `<section class="orbit-launch"><header><span>FLOTTE</span><b>${orbitFleet}</b><small>${orbitFleet ? "Schiffe im Hangar" : "Hangar leer"}</small></header><div class="orbit-mode" role="group" aria-label="Orbit-Feuer"><button type="button" class="on" data-orbit-mode="auto"><i>⌖</i><span><b>AUTO</b><small>Computer fliegt</small></span></button><button type="button" data-orbit-mode="manual" data-orbit-planet="${orbitPlanet.id}" data-orbit-name="${esc(orbitPlanet.name)}" ${orbitFleet ? "" : "disabled"}><i>◎</i><span><b>SELBST STEUERN</b><small>${orbitFleet ? "30 Sek. Orbit-Feuer" : "Schiffe benötigt"}</small></span></button></div><p>ⓘ Minispiel, keine Dauerwelt</p></section>` : ""}
       ${colonizeMode && !colonizeMode.targetPlanetId ? quick : ""}
       ${sys.isHub ? `<p class="hint">Nexus-Hub — Mehrheitskontrolle gewährt Kristall-Bonus.</p>` : ""}
       ${sys.pirate ? `<p class="hint" style="color:#ff8a3a">Piratenhorst Stufe ${sys.pirate} — Angriff bringt Prisen.</p>` : ""}

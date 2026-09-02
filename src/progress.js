@@ -1192,9 +1192,9 @@ function listOps(db, empire, planet) {
     db.prepare("SELECT quest_id FROM quests WHERE empire_id = ?").all(empire.id).map((r) => r.quest_id)
   );
   let stored = parseStoredOps(empire.daily_ops);
-  if (!stored || stored.day !== day || stored.ops.length < 3) {
+  if (!stored || stored.day !== day || stored.ops.length < 5) {
     const seed = hashDay(day + ":" + empire.id);
-    stored = { day, ops: pickFromPool(buildDailyPool(ctx), seed, 3) };
+    stored = { day, ops: pickFromPool(buildDailyPool(ctx), seed, 5) };
     db.prepare("UPDATE empires SET daily_ops = ? WHERE id = ?").run(JSON.stringify(stored), empire.id);
     empire.daily_ops = JSON.stringify(stored);
   }

@@ -35,6 +35,9 @@ const fairplay = require("./fairplay");
 const premium = require("./premium");
 const settings = require("./settings");
 const admin = require("./admin");
+const commanders = require("./commanders");
+const allianceBoss = require("./allianceBoss");
+const sectorSeason = require("./sectorSeason");
 
 const DELETE_CONFIRMATIONS = {
   de: "Löschen",
@@ -354,6 +357,26 @@ function attachRoutes(app, db) {
     }
   });
 
+  app.post("/api/commander/activate", auth, (req, res) => {
+    try {
+      const { empire, planet } = loadCtx(req);
+      commanders.activate(db, empire, String(req.body?.id || ""), progress.commanderLevel(empire.xp || 0));
+      res.json(game.snapshot(db, req.user, planet?.id));
+    } catch (err) {
+      fail(res, 400, err.message);
+    }
+  });
+
+  app.post("/api/sector-season/claim", auth, (req, res) => {
+    try {
+      const { empire, planet } = loadCtx(req);
+      withTx(db, () => sectorSeason.claim(db, empire, planet, req.body?.tier));
+      res.json(game.snapshot(db, req.user, planet?.id));
+    } catch (err) {
+      fail(res, 400, err.message);
+    }
+  });
+
   app.post("/api/focus", auth, (req, res) => {
     try {
       const empire = db.prepare("SELECT * FROM empires WHERE user_id = ?").get(req.user.id);
@@ -597,7 +620,9 @@ function attachRoutes(app, db) {
   app.get("/api/alliances/:id", auth, (req, res) => {
     try {
       const empire = db.prepare("SELECT * FROM empires WHERE user_id = ?").get(req.user.id);
-      res.json({ alliance: social.getAlliance(db, Number(req.params.id), empire.id) });
+      const alliance = social.getAlliance(db, Number(req.params.id), empire.id);
+      if (alliance.mine) alliance.boss = allianceBoss.publicBoss(db, alliance.id, empire.id);
+      res.json({ alliance });
     } catch (err) {
       fail(res, 400, err.message);
     }
@@ -918,7 +943,8 @@ function attachRoutes(app, db) {
           const al = db.prepare("SELECT id, tag, name, color FROM alliances WHERE id = ?").get(p.alliance_id);
           if (al) owner.alliance = { id: al.id, tag: al.tag, name: al.name, color: al.color };
         }
-        const visibleShips = owner && (owner.id === empire.id || social.canAccessPlanet(db, empire.id, p)) ? game.shipsMap(db, p.id) : null;
+        const allianceUse = social.canUseAlliancePlanet(db, empire.id, p);
+        const visibleShips = owner && (owner.id === empire.id || allianceUse) ? game.shipsMap(db, p.id) : null;
         return {
           id: p.id,
           name: p.name,
@@ -930,8 +956,9 @@ function attachRoutes(app, db) {
           isHome: !!(home && p.id === home.id),
           alliancePlanet: !!p.alliance_id,
           canManage: social.canAccessPlanet(db, empire.id, p),
+          canStation: allianceUse,
           ships: visibleShips,
-          defenses: (owner && owner.id === empire.id) || social.canAccessPlanet(db, empire.id, p) ? game.defensesMap(db, p.id) : null,
+          defenses: (owner && owner.id === empire.id) || allianceUse ? game.defensesMap(db, p.id) : null,
           debris: db.prepare("SELECT COUNT(*) AS n FROM debris WHERE planet_id = ?").get(p.id).n,
         };
       }),
@@ -968,6 +995,19 @@ function attachRoutes(app, db) {
         { holdMs: req.body?.holdMs, joinFleetId: req.body?.joinFleetId }
       );
       res.json({ ...game.snapshot(db, req.user, planet.id), launched: result });
+    } catch (err) {
+      fail(res, 400, err.message);
+    }
+  });
+
+  app.post("/api/alliances/boss/attack", auth, (req, res) => {
+    try {
+      const empire = db.prepare("SELECT * FROM empires WHERE user_id = ?").get(req.user.id);
+      const mine = social.myAlliance(db, empire.id);
+      if (!mine) throw new Error("Du bist in keiner Allianz.");
+      let result;
+      withTx(db, () => { result = allianceBoss.attack(db, mine.id, empire, req.body?.score); });
+      res.json({ result, boss: allianceBoss.publicBoss(db, mine.id, empire.id) });
     } catch (err) {
       fail(res, 400, err.message);
     }

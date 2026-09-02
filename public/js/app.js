@@ -1,7 +1,7 @@
 import { api, getState, getCatalog, getPreview, getGalaxy, getSystem, getReports, getRanks, getEmpire, combatPreview, combatSim, getAlliances, getAlliance, getAllianceActivity } from "./api.js";
-import { esc, fmt, eta, when, costHtml, planetCss, planetGlobeUrl, planetColonyUrl, mediaTag, bindMediaFallbacks, toast, showModal, hideModal, shipList, starfield, resourceIcon, icon, beep, notify, tickEta, ticksOf, tickMsFrom } from "./ui.js";
-import { createMap, systemHtml } from "./map.js?v=53";
-import { battleReplayHtml, bindBattleReplays } from "./battle.js";
+import { esc, fmt, eta, when, costHtml, planetCss, planetGlobeUrl, planetColonyUrl, mediaTag, bindMediaFallbacks, toast, showModal, hideModal, shipList, starfield, resourceIcon, icon, beep, notify, tickEta, ticksOf, tickMsFrom } from "./ui.js?v=2";
+import { createMap, systemHtml } from "./map.js?v=56";
+import { battleReplayHtml, bindBattleReplays } from "./battle.js?v=2";
 import { CITY_PLOTS, buildingLevelBand } from "./city.mjs?v=2";
 
 const $ = (id) => document.getElementById(id);
@@ -626,7 +626,7 @@ function paintChrome() {
     sel.value = cur;
   }
   const hints = s.hints || {};
-  const moreKeys = ["economy", "nexus", "activity", "reports", "chat", "infra", "yard", "defense", "research"];
+  const moreKeys = ["economy", "nexus", "activity", "reports", "chat", "infra", "yard", "defense", "research", "alliance"];
   const moreN = moreKeys.reduce((n, k) => n + (Number(hints[k]) || 0), 0);
   const badgeMap = { ...hints, more: moreN, reports: hints.reports || s.unread || 0, chat: hints.chat || s.unreadChat || 0 };
   for (const el of document.querySelectorAll("[data-badge]")) {
@@ -890,13 +890,32 @@ function contractsPanel() {
   const ops = (state.snap.ops || []).map((o) => opCard(o, "daily")).join("");
   const weekly = (state.snap.weekly || []).map((o) => opCard(o, "weekly")).join("");
   const threat = state.snap.pirates?.level || 1;
+  const claimedContracts = list.filter((c) => c.claimed).length;
+  const activeContract = list.find((c) => !c.claimed && !c.locked);
+  const chapters = [...new Set(list.map((c) => c.chapter).filter(Boolean))];
+  const currentChapter = activeContract?.chapter || chapters.at(-1) || "Nexus";
+  const campaignPct = list.length ? Math.round((claimedContracts / list.length) * 100) : 0;
+  const audit = state.snap.fleetAudit || { stationed: 0, inTransit: 0, colonies: [], recent: [] };
+  const fleetRows = (audit.colonies || []).map((p) => `<div><span><b>${esc(p.name)}</b><small>${Object.entries(p.ships || {}).filter(([, n]) => n > 0).map(([id, n]) => `${n}× ${esc(state.catalog.ships[id]?.name || id)}`).join(" · ") || "Hangar leer"}</small></span><strong>${p.total}</strong></div>`).join("");
+  const auditRows = (audit.ledger || []).map((event) => {
+    const delta = Number(event.afterCount) - Number(event.beforeCount);
+    const ship = state.catalog.ships[event.shipId]?.name || event.shipId;
+    return `<li class="${delta < 0 ? "has-loss" : delta > 0 ? "has-gain" : ""}"><span><b>${esc(event.cause)}</b><small>${esc(event.planetName)} · ${esc(ship)} · ${event.beforeCount} → ${event.afterCount}</small></span><strong>${delta > 0 ? "+" : ""}${delta}</strong><time>${when(event.createdAt)}</time>${event.reportId ? `<button type="button" class="btn ghost small" data-ledger-report="${event.reportId}">Bericht</button>` : `<i class="ledger-system">System</i>`}</li>`;
+  }).join("");
+  const commanderRows = (state.snap.commanders || []).map((c) => {
+    const bonus = c.attack ? `+${Math.round(c.attack * 100)}% Angriff` : c.travel ? `-${Math.round(c.travel * 100)}% Flugzeit` : `+${Math.round(c.loot * 100)}% Beute`;
+    return `<article class="commander-card ${c.active ? "active" : ""} ${c.unlocked ? "" : "locked"}"><i>${esc(c.name.split(" ").map((part) => part[0]).join(""))}</i><div><em>${esc(c.role)}</em><b>${esc(c.name)}</b><p>${esc(c.blurb)}</p><strong>${bonus}</strong></div>${c.active ? `<span>AKTIV</span>` : `<button type="button" class="btn small" data-commander="${c.id}" ${c.unlocked ? "" : "disabled"}>${c.unlocked ? "Zuweisen" : `Stufe ${c.level}`}</button>`}</article>`;
+  }).join("");
   return `<section class="contracts">
+    <section class="journey-card panel"><div><em>KAPITELREISE</em><h2>${esc(currentChapter)}</h2><p>${esc(activeContract?.title || "Die Galaxie wartet auf deinen nächsten Zug.")}</p></div><strong>${campaignPct}%</strong><i><span style="width:${campaignPct}%"></span></i><small>${claimedContracts} / ${list.length} Etappen abgeschlossen</small></section>
     <div class="section-title"><h2>Tagesorder${dailyOpen ? `<i class="page-badge">${dailyOpen}</i>` : ""}</h2><span class="muted">wechselt um Mitternacht · skaliert mit deinem Fortschritt · Piratenstufe ${threat}</span></div>
-    <div class="contract-list">${ops}</div>
+    <div class="radar-grid">${ops}</div>
+    <div class="section-title" style="margin-top:16px"><h2>Flotten-Commander</h2><span class="muted">Ein aktiver Bonus gilt imperiumsweit</span></div><div class="commander-grid">${commanderRows}</div>
     <div class="section-title" style="margin-top:16px"><h2>Wochenorder${weeklyOpen ? `<i class="page-badge">${weeklyOpen}</i>` : ""}</h2><span class="muted">eine größere Aufgabe pro ISO-Woche</span></div>
     <div class="contract-list">${weekly}</div>
     <div class="section-title" style="margin-top:16px"><h2>Kampagne${readyContracts ? `<i class="page-badge">${readyContracts}</i>` : ""}</h2><span class="muted">${readyContracts ? `${readyContracts} abholbereit · ` : ""}${esc(next?.text || "")}</span></div>
     <div class="contract-list">${rows}</div>
+    <details class="fleet-ledger panel"><summary><span><em>FLOTTENBUCH</em><b>${audit.stationed + audit.inTransit} Schiffe verbucht</b></span><i>${audit.stationed} Hangar · ${audit.inTransit} unterwegs</i></summary><div class="fleet-ledger-grid">${fleetRows}</div><h3>Lückenloses Bestandsjournal</h3><ul>${auditRows || `<li><span>Noch keine Bestandsänderung protokolliert</span></li>`}</ul><p>Jede Änderung enthält Zeitpunkt, Planet, Ursache und Bestand vorher/nachher. „System“ markiert eine technisch garantierte Änderung ohne separaten Bericht.</p></details>
   </section>`;
 }
 
@@ -1174,34 +1193,23 @@ function allianceDeskHtml(detail) {
   const planetBlock = planet
     ? `<div class="ally-planet-card panel">
         <div class="section-title"><h2>Allianz-Planet</h2><span class="muted">${esc(planet.systemName || "")}</span></div>
-        <p><b>${esc(planet.name)}</b> · Führung und gewählte Mitglieder bauen hier Gebäude, Werft, Verteidigung und Allianzforschung.</p>
+        <p><b>${esc(planet.name)}</b> · Gemeinsames Lager, Allianzforschung, Orbit-Verteidigung und Flottenstützpunkt.</p>
         ${detail.canManagePlanet ? `<button class="btn primary" type="button" id="ally-open-planet">Planet öffnen</button>` : `<p class="muted">Kein Zugang. Anführer kann dich freischalten.</p>`}
         ${grants ? `<div style="margin-top:12px"><h3 style="font-size:13px;margin:0 0 6px">Zugang</h3><p class="muted">Anführer und Co-Leader haben immer Zugang.</p>${grants}</div>` : ""}
       </div>`
     : `<div class="ally-planet-card panel">
         <div class="section-title"><h2>Allianz-Planet</h2><span class="muted">noch unbesiedelt</span></div>
-        <p>Die Führung kann einen freien Planeten als Allianz-Welt kolonisieren (Galaxie → Mission → Als Allianz-Planet besiedeln). Dort entstehen geteilte Bauten und Forschungen, die alle Mitglieder verstärken.</p>
+        <p>Die Führung kann einen freien Planeten als Allianz-Hauptquartier kolonisieren. Dort entstehen Lager, Forschung, Verteidigung und ein gemeinsamer Flottenstützpunkt.</p>
       </div>`;
   const research = (detail.research || [])
     .map((r) => {
       const pct = Math.round((r.progress || 0) * 100);
       const done = r.level >= r.max;
       const remaining = r.remaining || {};
-      const donate = done
-        ? ""
-        : `<div class="research-donate">${Object.keys(r.cost || {})
-            .filter((id) => (r.cost[id] || 0) > 0)
-            .map(
-              (id) => `<label>${esc(state.catalog.resources[id]?.name || id)}
-                <input type="number" min="0" max="${remaining[id] || 0}" value="0" data-donate-res="${r.id}" data-res="${id}">
-              </label>`
-            )
-            .join("")}</div>
-          <button class="btn ghost small" type="button" data-ally-donate="${r.id}">Vom Fokus-Planeten spenden</button>`;
       return `<div class="intel-block">
         <h4>${esc(r.name)} · Stufe ${r.level}/${r.max}</h4>
         <p class="muted">${esc(r.blurb)}</p>
-        ${done ? `<span class="chip ok">Max</span>` : `<div class="ally-progress"><i style="width:${pct}%"></i></div><div class="muted">${pct}% finanziert</div>${donate}`}
+        ${done ? `<span class="chip ok">Max</span>` : `<div class="ally-progress"><i style="width:${pct}%"></i></div><div class="muted">${pct}% finanziert · Lagerbedarf: ${costHtml(remaining, null, state.catalog)}</div>`}
       </div>`;
     })
     .join("");
@@ -1210,7 +1218,7 @@ function allianceDeskHtml(detail) {
       <div class="section-title"><h2>Allianzforschung</h2><span class="muted">Boni für alle</span></div>
       ${allianceBoostChips()}
       ${research}
-      ${detail.canManagePlanet && planet ? `<button class="btn ghost small" type="button" id="ally-goto-research">Forschung am Planeten</button>` : `<p class="muted">Spenden und Aufträge laufen über den Allianz-Planeten oder den Forschungs-Tab, wenn du ihn fokussiert hast.</p>`}
+      ${detail.canManagePlanet && planet ? `<button class="btn ghost small" type="button" id="ally-goto-research">Forschung am Planeten</button>` : `<p class="muted">Ressourcen werden per Transport ins Allianzlager geliefert. Forschungsaufträge starten berechtigte Mitglieder direkt am Allianz-Planeten.</p>`}
     </div>`;
 }
 
@@ -1237,27 +1245,17 @@ function allianceResearchHtml() {
       const done = r.level >= r.max;
       const cost = r.cost || {};
       const remaining = r.remaining || {};
-      const donate = Object.keys(cost)
-        .filter((id) => (cost[id] || 0) > 0)
-        .map(
-          (id) => `<label>${esc(state.catalog.resources[id]?.name || id)}
-            <input type="number" min="0" max="${remaining[id] || cost[id] || 0}" value="0" data-donate-res="${r.id}" data-res="${id}">
-          </label>`
-        )
-        .join("");
       const action = done
         ? `<div class="ok">Abgeschlossen</div>`
-        : `<button class="btn ghost small" data-ally-donate="${r.id}">Spenden</button>
-           ${canQueue ? `<button class="btn primary small" data-ally-tech="${r.id}" ${busy ? "disabled" : ""}>Auftrag (Planet)</button>` : ""}`;
+        : canQueue ? `<button class="btn primary small" data-ally-tech="${r.id}" ${busy ? "disabled" : ""}>Aus Lager forschen</button>` : `<span class="muted">Allianzplanet fokussieren</span>`;
       return `<article class="og-row panel">
         <img class="og-art" src="${esc(r.art || "/assets/techs/ai.jpg")}" alt="" />
         <div class="og-body">
           <h3>${esc(r.name)} <span class="lvl">Stufe ${r.level} / ${r.max}</span></h3>
           <p>${esc(r.blurb)}</p>
           ${done ? "" : `<div class="ally-progress" title="${pct}%"><i style="width:${pct}%"></i></div>
-            <div class="muted">Finanziert ${pct}% · deine Spende ${fmt(r.mine || 0)}</div>
-            ${costHtml(remaining, have(), state.catalog)}
-            <div class="research-donate">${donate}</div>`}
+            <div class="muted">Finanziert ${pct}% · Zahlung aus dem Allianzlager</div>
+            ${costHtml(remaining, have(), state.catalog)}`}
         </div>
         <div class="og-act">${action}</div>
       </article>`;
@@ -1265,7 +1263,7 @@ function allianceResearchHtml() {
     .join("");
   return `<div class="section-title"><h2>Allianzforschung</h2><span class="muted">Boni für alle Mitglieder</span></div>
     ${allianceBoostChips()}
-    <p class="hint">Spenden vom aktuellen Planeten oder — auf dem Allianz-Planeten — einen Forschungsauftrag starten. Boni wirken sofort nach Abschluss für die ganze Allianz.</p>
+    <p class="hint">Ressourcen werden per Transportflug im Allianzlager gesammelt. Forschungsaufträge bezahlen ausschließlich aus diesem gemeinsamen Bestand.</p>
     <div class="og-list">${cards || `<div class="muted">Keine Allianzforschung.</div>`}</div>`;
 }
 
@@ -1501,14 +1499,30 @@ function colonyCityHtml() {
   </section>`;
 }
 
+function alliancePlanetCommandHtml() {
+  const p = state.snap.planet;
+  const ids = ["metal", "helium", "titan", "energy", "crystal", "diamond"];
+  const stocks = ids.map((id) => {
+    const res = state.catalog.resources[id];
+    const cap = p.storage?.[id] || 0;
+    const pct = cap ? Math.min(100, Math.round(((p[id] || 0) / cap) * 100)) : 0;
+    return `<article><i style="color:${res?.color || "#55dfff"}">${esc(res?.short || id.slice(0, 3).toUpperCase())}</i><span><b>${fmt(p[id] || 0)}</b><small>${fmt(cap)} Kapazität</small></span><em><u style="width:${pct}%"></u></em></article>`;
+  }).join("");
+  const fleet = Object.entries(p.ships || {}).filter(([, n]) => n > 0).map(([id, n]) => `<span><img src="/assets/ships/${id}.jpg" alt="">${n} ${esc(state.catalog.ships[id]?.name || id)}</span>`).join("") || `<span class="muted">Noch keine Allianzschiffe stationiert.</span>`;
+  const defenseCount = Object.values(p.defenses || {}).reduce((sum, n) => sum + Number(n || 0), 0);
+  return `<section class="alliance-world"><header class="panel"><em>[${esc(p.allianceTag || "ALLY")}] ALLIANZ-HAUPTQUARTIER</em><h1>${esc(p.name)}</h1><p>${esc(p.systemName)} · gemeinsamer Stützpunkt · kein normaler Kolonieausbau</p></header><div class="alliance-world-grid"><section class="alliance-store panel"><div class="section-title"><h2>Allianzlager</h2><span class="muted">Ressourcen per Transportflug einlagern</span></div><div>${stocks}</div><button class="btn primary" data-view-jump="galaxy">Transport auf der Karte starten</button></section><section class="alliance-fleet panel"><div class="section-title"><h2>Flottenstützpunkt</h2><span class="muted">${p.shipCount || 0} / ${p.shipCap || 0}</span></div><div class="alliance-fleet-list">${fleet}</div><button class="btn primary" data-view-jump="galaxy">Schiffe stationieren</button></section><section class="alliance-world-actions panel"><button data-view-jump="alliance"><i>◎</i><span><b>ALLIANZ</b><small>Boss, Mitglieder und Lagerzugang</small></span></button><button data-view-jump="research"><i>⌬</i><span><b>FORSCHUNG</b><small>Aus dem Allianzlager finanzieren</small></span></button><button data-view-jump="defense"><i>⬡</i><span><b>VERTEIDIGUNG</b><small>${defenseCount} Orbit-Batterien</small></span></button></section></div></section>`;
+}
+
 const views = {
   command() {
     if (!state.snap.planet) return `<p>Kein Planet.</p>`;
+    if (state.snap.planet.isAlliance) return alliancePlanetCommandHtml();
     return colonyCityHtml();
   },
 
   infra() {
     const p = state.snap.planet;
+    if (p.isAlliance) return `<div class="alliance-restricted panel"><h2>Kein Kolonieausbau</h2><p>Der Allianzplanet besitzt ausschließlich Allianzlager, Forschung, Verteidigung und den gemeinsamen Flottenstützpunkt.</p><button class="btn primary" data-view-jump="command">Zum Allianz-Hauptquartier</button></div>`;
     const prev = Object.fromEntries((state.preview?.buildings || []).map((b) => [b.id, b]));
     const runningBuilding = new Set(state.snap.queue.filter((q) => q.kind === "building" && q.planetId === p.id).map((q) => q.itemId));
     const rows = Object.values(state.catalog.buildings)
@@ -1542,6 +1556,7 @@ const views = {
 
   yard() {
     const p = state.snap.planet;
+    if (p.isAlliance) return `<div class="alliance-restricted panel"><h2>Keine Allianzwerft</h2><p>Schiffe werden auf persönlichen Planeten gebaut und anschließend über die Karte am Allianzstützpunkt stationiert.</p><button class="btn primary" data-view-jump="galaxy">Schiffe stationieren</button></div>`;
     const prev = Object.fromEntries((state.preview?.ships || []).map((s) => [s.id, s]));
     const queuedShips = state.snap.queue.filter((q) => q.kind === "ship" && q.planetId === p.id);
     const rows = Object.values(state.catalog.ships)
@@ -1582,9 +1597,10 @@ const views = {
     const rows = Object.values(state.catalog.defenses || {})
       .map((d) => {
         const info = prev[d.id] || { unlocked: false, cost: d.cost, time: d.time, have: p.defenses?.[d.id] || 0 };
+        const unlocked = p.isAlliance || info.unlocked;
         const haveN = p.defenses?.[d.id] || info.have || 0;
         const canBuild = !busy && canAfford(info.cost || {});
-        const action = !info.unlocked
+        const action = !unlocked
           ? `<div class="lock">Voraussetzungen fehlen</div>`
           : `<label class="muted">Anzahl <input data-dqty="${d.id}" type="number" min="1" max="20" value="1" style="width:64px;margin-left:6px"></label>
              <button class="btn primary" data-defense="${d.id}" ${!canBuild ? "disabled" : ""}>Bauen</button>
@@ -1597,7 +1613,7 @@ const views = {
             ${reqHtml(d.requires)}
             ${vsPills(d.vs)}
             <div class="meta"><span>Angriff ${d.attack}</span><span>Hülle ${d.hull + d.shield}</span><span>${esc(d.strongVs || "")}</span></div>
-            ${info.unlocked ? costHtml(info.cost, have(), state.catalog) : ""}
+            ${unlocked ? costHtml(info.cost, have(), state.catalog) : ""}
           </div>
           <div class="og-act">${action}</div>
         </article>`;
@@ -1608,7 +1624,7 @@ const views = {
     const hubBusy = state.snap.queue.some((q) => q.kind === "building" && q.planetId === p.id);
     const hubInfo = (state.preview?.buildings || []).find((b) => b.id === "defense_hub");
     const hubCanBuild = !hubBusy && canAfford(hubInfo?.nextCost || {});
-    const hubCta = hubLvl
+    const hubCta = p.isAlliance ? "" : hubLvl
       ? ""
       : `<article class="og-row panel focus-row">
           <img class="og-art" src="/assets/buildings/defense_hub.jpg" alt="" />
@@ -1836,10 +1852,17 @@ const views = {
   galaxy() {
     const bookmarks = (state.snap.bookmarks || []).map((b) => `<span class="map-bookmark"><button type="button" data-bookmark-focus="${b.planetId}">${esc(b.label || "Gespeicherter Planet")}</button><button type="button" data-bookmark-delete="${b.planetId}" aria-label="Gespeichertes Ziel löschen">×</button></span>`).join("");
     const orbitShips = Object.values(state.snap.planet?.ships || {}).reduce((sum, n) => sum + Number(n || 0), 0);
+    const season = state.snap.sectorSeason;
+    const nextTier = season?.tiers?.find((tier) => !tier.claimed);
+    const seasonPct = nextTier ? Math.min(100, Math.round((season.score / nextTier.score) * 100)) : 100;
+    const seasonPanel = season ? `<section class="map-season panel"><header><span>SEKTOR-SAISON ${esc(season.id)}</span><time>${Math.max(0, Math.ceil((season.end - Date.now()) / 86400000))}T</time></header><strong>${fmt(season.score)} SP</strong><div><i style="width:${seasonPct}%"></i></div><small>${nextTier ? `${fmt(nextTier.score)} SP · Meilenstein ${nextTier.tier}` : "Alle Meilensteine erreicht"}</small>${nextTier?.ready ? `<button type="button" class="btn primary small" data-season-claim="${nextTier.tier}">Abholen</button>` : ""}<details><summary>Wertung</summary><p>${season.combat} Siege · ${season.expeditions} Expeditionen · ${season.colonies} Kolonien · ${fmt(season.bossDamage)} Boss-Schaden</p></details></section>` : "";
     return `<div class="map-wrap"><canvas id="starmap"></canvas>
+      <nav class="map-view-switch panel" aria-label="Karten-Zoom"><button type="button" data-map-view="sector"><span>SEKTOR</span><small>Einfluss</small></button><button type="button" data-map-view="system" class="on"><span>SYSTEME</span><small>Routen</small></button><button type="button" data-map-view="orbit"><span>ORBIT</span><small>Details</small></button></nav>
+      <div class="map-status"><i></i><span id="map-view-title">SYSTEMNETZ</span><small>Alle Systeme sichtbar</small></div>
+      ${seasonPanel}
       <div class="map-tools panel"><div class="map-search-wrap"><span aria-hidden="true">⌕</span><input id="map-search" type="search" autocomplete="off" placeholder="System suchen…"><div id="map-search-results" class="map-search-results" hidden></div></div><select id="planet-focus"><option value="">— Planet springen —</option></select><details class="map-filters"><summary>Filter</summary><div class="map-filters-body"><label><input type="checkbox" data-map-filter="own"> Eigene</label><label><input type="checkbox" data-map-filter="hostile"> Feindlich</label><label><input type="checkbox" data-map-filter="free"> Frei</label><label><input type="checkbox" data-map-filter="special"> Besonderheiten</label></div></details>${bookmarks ? `<div class="map-bookmarks"><b>Gespeicherte Ziele</b>${bookmarks}</div>` : ""}</div>
       <div id="map-raid-banner" class="map-raid-banner hidden" hidden></div>
-      <button type="button" id="map-orbit-fire" class="map-orbit-fire" ${orbitShips ? "" : "disabled"}><i>◎</i><span><b>ORBIT-FEUER</b><small>${orbitShips ? `${orbitShips} Schiffe · 20 Sek. selbst steuern` : "Keine Schiffe am Fokus-Planeten"}</small></span></button>
+      <button type="button" id="map-orbit-fire" class="map-orbit-fire" ${orbitShips ? "" : "disabled"}><i>◎</i><span><b>ORBIT-FEUER</b><small>${orbitShips ? `${orbitShips} Schiffe · 30 Sek. selbst steuern` : "Keine Schiffe am Fokus-Planeten"}</small></span></button>
       <div class="map-legend panel">Ziehen: Schwenken · Rad: Zoom · Klick: System
         <div>Großer Punkt + weißer Ring + Kreuz = dein System · Teal-Puls = dein System · Rotbogen = Remnants · Orange-Ring = Piratenhorst · Goldbogen = Warlord · Cyan-Halo = Nexus-Riss</div></div>
       <div class="map-flight-note">Eigene Flüge: farbige Route mit bewegtem Marker · gestrichelt = Rückflug</div>
@@ -2635,6 +2658,12 @@ function bindCity(root) {
 }
 
 function bindView(root) {
+  root.querySelectorAll("[data-ledger-report]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.openReports.add(String(button.dataset.ledgerReport));
+      setView("reports");
+    });
+  });
   root.querySelectorAll("[data-build]").forEach((b) => {
     b.addEventListener("click", (event) => {
       event.preventDefault();
@@ -2690,20 +2719,6 @@ function bindView(root) {
       act(() => api("/alliances/research", { method: "POST", body: { id: b.dataset.allyTech, planetId: state.snap.planet.id } }))
     )
   );
-  root.querySelectorAll("[data-ally-donate]").forEach((b) =>
-    b.addEventListener("click", () => {
-      const donation = {};
-      root.querySelectorAll(`[data-donate-res="${b.dataset.allyDonate}"]`).forEach((inp) => {
-        donation[inp.dataset.res] = Number(inp.value || 0);
-      });
-      act(() =>
-        api("/alliances/research", {
-          method: "POST",
-          body: { id: b.dataset.allyDonate, donate: true, donation, planetId: state.snap.planet.id },
-        })
-      );
-    })
-  );
   root.querySelectorAll("[data-ally-profile]").forEach((b) =>
     b.addEventListener("click", (ev) => {
       ev.stopPropagation();
@@ -2738,6 +2753,9 @@ function bindView(root) {
   );
   root.querySelectorAll("[data-weekly]").forEach((b) =>
     b.addEventListener("click", () => act(() => api("/quest/weekly", { method: "POST", body: { id: b.dataset.weekly } })))
+  );
+  root.querySelectorAll("[data-commander]").forEach((b) =>
+    b.addEventListener("click", () => act(() => api("/commander/activate", { method: "POST", body: { id: b.dataset.commander } })))
   );
   root.querySelectorAll("[data-recall-fleet]").forEach((b) =>
     b.addEventListener("click", () => {
@@ -3790,7 +3808,7 @@ async function bootAlliance() {
         ${detail.website ? `<p class="muted">${esc(detail.website)}</p>` : ""}
         ${detail.lore ? `<p class="hint">${esc(detail.lore)}</p>` : ""}
         ${detail.mine && detail.bulletin ? `<div class="intel-block"><h4>Internes Bulletin</h4><p>${esc(detail.bulletin)}</p></div>` : ""}
-        ${detail.mine ? allianceDeskHtml(detail) : ""}
+        ${detail.mine ? allianceBossHtml(detail.boss) + allianceDeskHtml(detail) : ""}
         <table class="table"><thead><tr><th></th><th>Commander</th><th>Imperium</th><th>Rang</th><th>Medaillen</th><th>Punkte</th><th></th></tr></thead>
         <tbody>${members}</tbody></table>
         ${detail.perms?.apps && apps ? `<h3 style="font-size:13px">Bewerbungen</h3>${apps}` : ""}
@@ -3819,31 +3837,16 @@ async function bootAlliance() {
       </div>`;
     bindAllianceActivityClicks(host);
     bindJumps(host);
+    host.querySelector("#ally-boss-launch")?.addEventListener("click", () => startAllianceBossGame(detail, async () => {
+      state.allianceFocus = detail.id;
+      await bootAlliance();
+    }));
     host.querySelector("#ally-open-planet")?.addEventListener("click", () => {
       if (detail.planet?.id) jumpTo("command", detail.planet.id);
     });
     host.querySelector("#ally-goto-research")?.addEventListener("click", () => {
       if (detail.planet?.id) jumpTo("research", detail.planet.id);
     });
-    host.querySelectorAll("[data-ally-donate]").forEach((b) =>
-      b.addEventListener("click", () => {
-        const donation = {};
-        host.querySelectorAll(`[data-donate-res="${b.dataset.allyDonate}"]`).forEach((inp) => {
-          donation[inp.dataset.res] = Number(inp.value || 0);
-        });
-        act(() =>
-          api("/alliances/research", {
-            method: "POST",
-            body: { id: b.dataset.allyDonate, donate: true, donation, planetId: state.snap.planet?.id },
-          }).then(async (snap) => {
-            state.snap = snap;
-            state.allianceFocus = detail.id;
-            await bootAlliance();
-            return snap;
-          })
-        );
-      })
-    );
     host.querySelectorAll("[data-planet-access]").forEach((inp) => {
       inp.onchange = () =>
         act(() =>
@@ -4338,6 +4341,19 @@ async function loadReports(filter = "all") {
 let mapBootId = 0;
 
 async function startOrbitFire(planetId, planetName) {
+  const loadArt = (src) => new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(image);
+    image.src = src;
+  });
+  const [backdrop, fighterSprite, frigateSprite, cannonBaseSprite, cannonTurretSprite] = await Promise.all([
+    loadArt("/assets/minigames/orbit-fire-bg-v2.png"),
+    loadArt("/assets/minigames/enemy-interceptor-v1.png"),
+    loadArt("/assets/minigames/enemy-frigate-v1.png"),
+    loadArt("/assets/minigames/cannon-base-v1.png"),
+    loadArt("/assets/minigames/cannon-turret-v1.png"),
+  ]);
   let started;
   try {
     started = await api("/orbit-fire/start", { method: "POST", body: { planetId } });
@@ -4351,7 +4367,7 @@ async function startOrbitFire(planetId, planetName) {
   layer.setAttribute("role", "dialog");
   layer.setAttribute("aria-label", `Orbit-Feuer über ${planetName}`);
   layer.innerHTML = `<canvas class="orbit-canvas"></canvas>
-    <div class="orbit-hud"><b>ORBIT-FEUER</b><span class="orbit-place">${esc(planetName)}</span><strong data-orbit-time>20.0</strong></div>
+    <div class="orbit-hud"><b>ORBIT-FEUER</b><span class="orbit-place">${esc(planetName)}</span><strong data-orbit-time>30.0</strong></div>
     <div class="orbit-battery"><span>BATTERIE</span><i><em data-orbit-battery></em></i></div>
     <div class="orbit-shield"><span>BASIS-SCHILD</span><i><em data-orbit-shield></em></i></div>
     <div class="orbit-score">ABSCHÜSSE <b data-orbit-score>0</b><small data-orbit-combo>COMBO ×1</small></div>
@@ -4378,12 +4394,6 @@ async function startOrbitFire(planetId, planetName) {
   let recoil = 0, muzzleFlash = 0, shake = 0, shotsFired = 0, shotsHit = 0, combo = 1, comboTime = 0, shield = 100;
   let stopped = false, firing = false, dragging = false, last = performance.now(), nextTarget = 0, raf = 0;
   const targets = [], shots = [], enemyShots = [], sparks = [], rings = [];
-  const backdrop = new Image();
-  backdrop.src = "/assets/minigames/orbit-fire-bg-v2.png";
-  const fighterSprite = new Image(); fighterSprite.src = "/assets/minigames/enemy-interceptor-v1.png";
-  const frigateSprite = new Image(); frigateSprite.src = "/assets/minigames/enemy-frigate-v1.png";
-  const cannonBaseSprite = new Image(); cannonBaseSprite.src = "/assets/minigames/cannon-base-v1.png";
-  const cannonTurretSprite = new Image(); cannonTurretSprite.src = "/assets/minigames/cannon-turret-v1.png";
   const resize = () => {
     dpr = Math.min(2, window.devicePixelRatio || 1);
     width = layer.clientWidth; height = layer.clientHeight;
@@ -4393,7 +4403,7 @@ async function startOrbitFire(planetId, planetName) {
   };
   resize(); window.addEventListener("resize", resize);
   const startAt = performance.now();
-  const duration = Number(session.durationMs) || 20_000;
+  const duration = Number(session.durationMs) || 30_000;
   const close = () => {
     stopped = true; cancelAnimationFrame(raf); window.removeEventListener("resize", resize);
     window.removeEventListener("keydown", keyDown); window.removeEventListener("keyup", keyUp);
@@ -4424,8 +4434,8 @@ async function startOrbitFire(planetId, planetName) {
     return { x, y, length, mx: x + Math.cos(aim) * (length - recoil), my: y + Math.sin(aim) * (length - recoil) };
   };
   function shoot() {
-    if (battery < 12 || shotWait > 0) return;
-    battery -= 12; shotWait = .17;
+    if (shotWait > 0) return;
+    shotWait = .16;
     shotsFired++;
     recoil = 18; muzzleFlash = 1; shake = 5;
     const gun = cannon();
@@ -4482,9 +4492,11 @@ async function startOrbitFire(planetId, planetName) {
       state.snap = out;
       paintChrome();
       const result = layer.querySelector(".orbit-result");
-      result.querySelector("small").textContent = `+${out.orbitFire.metal} MET · +${out.orbitFire.crystal} KRI`;
+      const loot = out.orbitFire.loot || {};
+      const lootText = Object.entries(loot).filter(([, amount]) => Number(amount) > 0).map(([id, amount]) => `+${amount} ${state.catalog.resources?.[id]?.short || id.toUpperCase()}`).join(" · ");
+      result.querySelector("small").textContent = lootText || "Keine Beute";
       await new Promise((resolve) => setTimeout(resolve, 1800));
-      close(); setView("command"); toast(`Orbit-Feuer: +${out.orbitFire.metal} MET · +${out.orbitFire.crystal} KRI`);
+      close(); setView("command"); toast(`Orbit-Feuer: ${lootText}`);
     } catch (err) {
       layer.querySelector(".orbit-result small").textContent = err.message || "Belohnung fehlgeschlagen";
       setTimeout(() => { close(); setView("command"); }, 2200);
@@ -4497,9 +4509,11 @@ async function startOrbitFire(planetId, planetName) {
     const elapsed=duration-left,wave=Math.min(4,1+Math.floor(elapsed/5000));waveEl.textContent=wave;
     if (keys.has("ArrowLeft") || keys.has("KeyA")) aim = Math.max(-2.55, aim - dt * 1.8);
     if (keys.has("ArrowRight") || keys.has("KeyD")) aim = Math.min(-.59, aim + dt * 1.8);
-    battery = Math.min(100, battery + dt * 19); batteryEl.style.width = `${battery}%`; shotWait -= dt;
+    const triggerHeld = firing || keys.has("Space");
+    battery = triggerHeld ? Math.max(28, battery - dt * 7) : Math.min(100, battery + dt * 30);
+    batteryEl.style.width = `${battery}%`; shotWait -= dt;
     recoil=Math.max(0,recoil-dt*105);muzzleFlash=Math.max(0,muzzleFlash-dt*8);shake=Math.max(0,shake-dt*28);
-    if (firing || keys.has("Space")) shoot();
+    if (triggerHeld) shoot();
     comboTime-=dt;if(comboTime<=0)combo=1;comboEl.textContent=`COMBO ×${combo}`;accuracyEl.textContent=`${shotsFired?Math.round(shotsHit/shotsFired*100):100}% PRÄZISION`;
     nextTarget -= dt; if (nextTarget <= 0) { spawnTarget(); nextTarget = Math.max(.34,.78-wave*.1) + Math.random() * .25; }
     for (const t of targets) { t.x += t.vx * dt; t.phase += dt * (t.heavy?2.2:4.5);t.y=t.baseY+Math.sin(t.phase)*(t.heavy?6:18);t.flash=Math.max(0,t.flash-dt*5);t.fireIn-=dt;if(t.fireIn<=0){const gun=cannon(),dx=gun.x-t.x,dy=gun.y-t.y,len=Math.hypot(dx,dy)||1;enemyShots.push({x:t.x,y:t.y,vx:dx/len*260,vy:dy/len*260,life:3});t.fireIn=(t.heavy?.8:1.5)+Math.random()*1.2;} }
@@ -4526,6 +4540,52 @@ async function startOrbitFire(planetId, planetName) {
   spawnTarget(true);spawnTarget(true);spawnTarget(true,true);
   shieldEl.style.width="100%";
   raf = requestAnimationFrame(frame);
+}
+
+function allianceBossHtml(boss) {
+  if (!boss) return "";
+  const pct = boss.maxHp ? Math.max(0, Math.round((boss.hp / boss.maxHp) * 100)) : 0;
+  const ranks = (boss.contributors || []).slice(0, 5).map((p, i) => `<li><i>${i + 1}</i><span>${esc(p.name)}</span><b>${fmt(p.damage)}</b></li>`).join("");
+  const returnText = boss.availableAt ? ` · Rückkehr ${new Date(boss.availableAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}` : "";
+  return `<section class="ally-boss panel"><div class="ally-boss-art" aria-hidden="true"><i></i><span></span><em>BOSS · STUFE ${boss.level || 1}</em></div><div class="ally-boss-body"><em>ABYSS-KONTAKT · ${esc(boss.week)}</em><h2>${esc(boss.name)} <small>LV. ${boss.level || 1}</small></h2><p>Nach jeder Vernichtung kehrt er am nächsten Tag mit 55% mehr Grund-HP zurück. Drei Feuerfreigaben pro Commander und Tag.</p><div class="ally-boss-hp"><span style="width:${pct}%"></span><b>${fmt(boss.hp)} / ${fmt(boss.maxHp)} HP</b></div><div class="ally-boss-stats"><span>Dein Beitrag <b>${fmt(boss.mine)}</b></span><span>Versuche <b>${boss.attemptsLeft}/3</b></span></div>${boss.defeated ? `<strong class="ally-boss-down">ZIEL VERNICHTET · BELOHNUNG GEBUCHT${returnText}</strong>` : `<button class="btn primary ally-boss-launch" id="ally-boss-launch" ${boss.attemptsLeft ? "" : "disabled"}>⚡ KAMPF STARTEN</button>`}</div><ol>${ranks}</ol></section>`;
+}
+
+function startAllianceBossGame(detail, onDone) {
+  const wrap = document.createElement("div");
+  wrap.className = "boss-game";
+  wrap.innerHTML = `<canvas></canvas><div class="boss-game-hud"><small>ABYSSALER WELTENBRECHER</small><strong>20.0</strong><i><span></span></i></div><div class="boss-game-score">SCHADENSPUNKTE<b>0</b></div><button class="boss-game-exit" aria-label="Abbrechen">×</button><button class="boss-game-fire"><i></i><b>FEUER</b></button><p>Zielen: Bildschirm bewegen · Halten: Dauerfeuer</p>`;
+  document.body.appendChild(wrap);
+  const canvas = wrap.querySelector("canvas");
+  const ctx = canvas.getContext("2d");
+  const timerEl = wrap.querySelector(".boss-game-hud strong");
+  const scoreEl = wrap.querySelector(".boss-game-score b");
+  const barEl = wrap.querySelector(".boss-game-hud i span");
+  const fireBtn = wrap.querySelector(".boss-game-fire");
+  let w = 0, h = 0, dpr = 1, aimX = 0, aimY = 0, firing = false, score = 0, lastShot = 0, raf = 0, closed = false;
+  const shots = [], sparks = [];
+  const start = performance.now();
+  function resize() { dpr = Math.min(2, devicePixelRatio || 1); w = innerWidth; h = innerHeight; canvas.width = w * dpr; canvas.height = h * dpr; canvas.style.width = `${w}px`; canvas.style.height = `${h}px`; aimX ||= w * .5; aimY ||= h * .38; }
+  resize(); window.addEventListener("resize", resize);
+  const weak = [{ a: 0, r: .13 }, { a: 2.1, r: .18 }, { a: 4.2, r: .22 }];
+  function pointer(e) { aimX = e.clientX; aimY = e.clientY; }
+  wrap.addEventListener("pointermove", pointer); wrap.addEventListener("pointerdown", (e) => { pointer(e); if (!e.target.closest(".boss-game-exit")) firing = true; });
+  wrap.addEventListener("pointerup", () => firing = false); wrap.addEventListener("pointercancel", () => firing = false);
+  fireBtn.addEventListener("pointerdown", (e) => { e.stopPropagation(); firing = true; }); fireBtn.addEventListener("pointerup", (e) => { e.stopPropagation(); firing = false; });
+  function finish(cancel = false) { if (closed) return; closed = true; cancelAnimationFrame(raf); window.removeEventListener("resize", resize); if (cancel) { wrap.remove(); return; } wrap.classList.add("finished"); wrap.insertAdjacentHTML("beforeend", `<div class="boss-game-result"><em>ANGRIFF BEENDET</em><strong>${score}</strong><span>Trefferpunkte übertragen…</span></div>`); api("/alliances/boss/attack", { method: "POST", body: { score } }).then((out) => { wrap.querySelector(".boss-game-result span").textContent = `${fmt(out.result.damage)} Allianz-Schaden`; setTimeout(() => { wrap.remove(); onDone?.(); }, 1500); }).catch((err) => { toast(err.message, true); wrap.remove(); }); }
+  wrap.querySelector(".boss-game-exit").onclick = () => finish(true);
+  function draw(now) {
+    const elapsed = (now - start) / 1000, left = Math.max(0, 20 - elapsed); timerEl.textContent = left.toFixed(1); barEl.style.width = `${left * 5}%`; scoreEl.textContent = score;
+    ctx.setTransform(dpr,0,0,dpr,0,0); const g = ctx.createLinearGradient(0,0,0,h); g.addColorStop(0,"#020714"); g.addColorStop(.55,"#07192a"); g.addColorStop(1,"#02050a"); ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+    for(let i=0;i<90;i++){const x=(i*197.3)%w,y=(i*83.7)%h;ctx.fillStyle=`rgba(150,220,255,${.18+(i%5)/18})`;ctx.fillRect(x,y,i%7?1:2,i%7?1:2);}
+    const bx=w*.5,by=h*.39,br=Math.min(w,h)*.23; ctx.save();ctx.translate(bx,by);ctx.rotate(Math.sin(now/2800)*.035);ctx.shadowColor="#d531ff";ctx.shadowBlur=35;ctx.fillStyle="#101625";ctx.beginPath();for(let i=0;i<16;i++){const a=i*Math.PI/8,r=br*(i%2?1:.78);ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r*.58);}ctx.closePath();ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle="#7a3ca1";ctx.lineWidth=3;ctx.stroke();ctx.fillStyle="#351044";ctx.beginPath();ctx.ellipse(0,0,br*.42,br*.26,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#ff4ff3";ctx.stroke();ctx.restore();
+    for(const q of weak){const a=q.a+now/1700,x=bx+Math.cos(a)*br*q.r*3.1,y=by+Math.sin(a)*br*q.r*1.7;q.x=x;q.y=y;ctx.strokeStyle="#ff665d";ctx.lineWidth=2;ctx.shadowColor="#ff312b";ctx.shadowBlur=14;ctx.beginPath();ctx.arc(x,y,13+4*Math.sin(now/180),0,Math.PI*2);ctx.stroke();ctx.shadowBlur=0;}
+    const gx=w*.5,gy=h*.91;ctx.fillStyle="#163b52";ctx.beginPath();ctx.moveTo(gx-42,gy);ctx.lineTo(gx-19,gy-75);ctx.lineTo(gx+19,gy-75);ctx.lineTo(gx+42,gy);ctx.closePath();ctx.fill();ctx.strokeStyle="#4bdfff";ctx.stroke();ctx.strokeStyle="rgba(75,223,255,.5)";ctx.beginPath();ctx.moveTo(gx,gy-72);ctx.lineTo(aimX,aimY);ctx.stroke();
+    if(firing&&now-lastShot>90){lastShot=now;shots.push({x:gx,y:gy-72,tx:aimX,ty:aimY,t:0});}
+    for(let i=shots.length-1;i>=0;i--){const s=shots[i];s.t+=.12;const p=Math.min(1,s.t),x=s.x+(s.tx-s.x)*p,y=s.y+(s.ty-s.y)*p;ctx.strokeStyle="#67edff";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(s.x+(s.tx-s.x)*Math.max(0,p-.15),s.y+(s.ty-s.y)*Math.max(0,p-.15));ctx.lineTo(x,y);ctx.stroke();if(p>=1){const hit=weak.some(q=>Math.hypot(q.x-s.tx,q.y-s.ty)<30);if(hit){score+=3;sparks.push({x,y,t:1});}shots.splice(i,1);}}
+    for(let i=sparks.length-1;i>=0;i--){const s=sparks[i];s.t-=.06;ctx.fillStyle=`rgba(255,190,80,${s.t})`;ctx.beginPath();ctx.arc(s.x,s.y,28*(1-s.t)+3,0,Math.PI*2);ctx.fill();if(s.t<=0)sparks.splice(i,1);}
+    if(left<=0) finish(); else raf=requestAnimationFrame(draw);
+  }
+  raf=requestAnimationFrame(draw);
 }
 
 async function bootMap() {
@@ -4596,6 +4656,12 @@ async function bootMap() {
         openEmpireProfile(Number(b.dataset.profile));
       })
     );
+  }, ({ mode }) => {
+    if (!stillHere()) return;
+    const names = { sector: "SEKTOR-EINFLUSS", system: "SYSTEMNETZ", orbit: "ORBIT-DETAIL" };
+    const title = $("map-view-title");
+    if (title) title.textContent = names[mode] || names.system;
+    document.querySelectorAll("[data-map-view]").forEach((button) => button.classList.toggle("on", button.dataset.mapView === mode));
   });
   const kick = () => {
     if (!stillHere() || !state.map) return;
@@ -4628,6 +4694,8 @@ async function bootMap() {
   }
   if (!stillHere()) return;
   const root = $("view");
+  root.querySelectorAll("[data-map-view]").forEach((button) => button.addEventListener("click", () => state.map?.setView(button.dataset.mapView)));
+  root.querySelectorAll("[data-season-claim]").forEach((button) => button.addEventListener("click", () => act(() => api("/sector-season/claim", { method: "POST", body: { tier: Number(button.dataset.seasonClaim) } }))));
   const applyMapFilter = () => {
     const filters = { query: root.querySelector("#map-search")?.value || "" };
     root.querySelectorAll("[data-map-filter]").forEach((input) => { filters[input.dataset.mapFilter] = input.checked; });

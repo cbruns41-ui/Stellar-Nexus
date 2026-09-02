@@ -35,6 +35,8 @@ const species = require("./species");
 const fairplay = require("./fairplay");
 const { withTx } = require("./tx");
 const premium = require("./premium");
+const commanders = require("./commanders");
+const sectorSeason = require("./sectorSeason");
 
 function now() {
   return Date.now();
@@ -108,8 +110,13 @@ function addShips(db, planetId, delta) {
 }
 
 function shipCap(db, planetId) {
-  const planet = db.prepare("SELECT empire_id FROM planets WHERE id = ?").get(planetId);
+  const planet = db.prepare("SELECT empire_id, alliance_id FROM planets WHERE id = ?").get(planetId);
   if (!planet?.empire_id) return 0;
+  if (planet.alliance_id) {
+    const members = db.prepare("SELECT COUNT(*) AS n FROM alliance_members WHERE alliance_id=?").get(planet.alliance_id).n;
+    const defenseHub = db.prepare("SELECT level FROM buildings WHERE planet_id=? AND building_id='defense_hub'").get(planetId)?.level || 0;
+    return Math.min(10000, 600 + members * 180 + defenseHub * 120);
+  }
   const shipyard = db
     .prepare("SELECT level FROM buildings WHERE planet_id = ? AND building_id = 'shipyard'")
     .get(planetId);
@@ -227,6 +234,20 @@ function applyStock(planet, stock) {
   planet.data = stock.crystal;
 }
 
+function allianceStorageCap() {
+  return bag({ metal: 500000, helium: 300000, titan: 200000, energy: 500000, crystal: 250000, diamond: 10000 });
+}
+
+function reportShipLosses(body, empireId) {
+  if (!body || typeof body !== "object") return {};
+  if (body.lost && typeof body.lost === "object") return body.lost;
+  if (body.losses && typeof body.losses === "object") return body.losses;
+  const side = body.viewer === "defender" ? body.defenders : body.attackers;
+  const mine = Array.isArray(side) ? side.find((entry) => Number(entry.empireId) === Number(empireId)) : null;
+  if (mine?.lost && typeof mine.lost === "object") return mine.lost;
+  return body.viewer === "defender" ? body.defLost || {} : body.atkLost || {};
+}
+
 function accruePlanet(db, planet) {
   if (!planet || !planet.empire_id) {
     if (planet) {
@@ -249,8 +270,8 @@ function accruePlanet(db, planet) {
     ally: social.allianceBonuses(db, planet.empire_id),
     worldProd: worldEconomy(db).prod,
   };
-  const prod = calcProd(planet, buildings, techs, hub, progress.productionBonus(xp), mods);
-  const cap = calcStorage(buildings.silo || 0, buildings.habitat || 0, spec.storage);
+  const prod = planet.alliance_id ? emptyBag() : calcProd(planet, buildings, techs, hub, progress.productionBonus(xp), mods);
+  const cap = planet.alliance_id ? allianceStorageCap() : calcStorage(buildings.silo || 0, buildings.habitat || 0, spec.storage);
   const cur = stockBag(planet);
   const next = emptyBag();
   for (const k of RESOURCE_IDS) next[k] = Math.min(cap[k], cur[k] + prod[k] * dt);
@@ -275,7 +296,7 @@ function spend(db, planet, cost) {
 
 function credit(db, planet, amount) {
   const buildings = buildingsMap(db, planet.id);
-  const cap = calcStorage(buildings.silo || 0, buildings.habitat || 0, planet.empire_id ? species.bonusesOf(db, planet.empire_id).storage : 0);
+  const cap = planet.alliance_id ? allianceStorageCap() : calcStorage(buildings.silo || 0, buildings.habitat || 0, planet.empire_id ? species.bonusesOf(db, planet.empire_id).storage : 0);
   const next = stockBag(planet);
   for (const k of RESOURCE_IDS) next[k] = Math.min(cap[k], next[k] + (amount[k] || 0));
   writeStock(db, planet.id, next);
@@ -535,13 +556,23 @@ function completeQueue(db, q) {
 }
 
 function addReport(db, empireId, kind, title, body) {
-  db.prepare("INSERT INTO reports(empire_id, kind, title, body, created_at, seen) VALUES(?, ?, ?, ?, ?, 0)").run(
+  const createdAt = now();
+  const inserted = db.prepare("INSERT INTO reports(empire_id, kind, title, body, created_at, seen) VALUES(?, ?, ?, ?, ?, 0)").run(
     empireId,
     kind,
     title,
     JSON.stringify(body),
-    now()
+    createdAt
   );
+  const reportId = Number(inserted.lastInsertRowid);
+  const linkedPlanetId = Number(body?.planetId || body?.originPlanetId || 0);
+  if (linkedPlanetId) {
+    db.prepare("UPDATE fleet_ledger SET cause=?, report_id=? WHERE empire_id=? AND planet_id=? AND report_id IS NULL AND created_at>=?")
+      .run(title, reportId, empireId, linkedPlanetId, createdAt - 5000);
+  } else {
+    db.prepare("UPDATE fleet_ledger SET cause=?, report_id=? WHERE empire_id=? AND report_id IS NULL AND created_at>=?")
+      .run(title, reportId, empireId, createdAt - 1500);
+  }
   const owner = db.prepare("SELECT vip_until FROM empires WHERE id = ?").get(empireId);
   const cap = premium.reportCap(owner || {});
   const extra = db
@@ -551,6 +582,7 @@ function addReport(db, empireId, kind, title, body) {
     const ids = extra.map((r) => r.id);
     db.prepare(`DELETE FROM reports WHERE id IN (${ids.map(() => "?").join(",")})`).run(...ids);
   }
+  return reportId;
 }
 
 function queueBusy(db, kind, empireId, planetId) {
@@ -564,6 +596,7 @@ function queueBusy(db, kind, empireId, planetId) {
 }
 
 function enqueueBuilding(db, empire, planet, buildingId) {
+  if (planet?.alliance_id) throw new Error("Auf dem Allianzplaneten gibt es keinen normalen Kolonieausbau.");
   const spec = BUILDINGS[buildingId];
   if (!spec) throw new Error("Unbekanntes Gebäude.");
   const buildings = buildingsMap(db, planet.id);
@@ -585,6 +618,7 @@ function enqueueBuilding(db, empire, planet, buildingId) {
 }
 
 function enqueueShip(db, empire, planet, shipId, qty) {
+  if (planet?.alliance_id) throw new Error("Der Allianzplanet besitzt keine Werft. Schiffe werden dort stationiert.");
   qty = Math.max(1, Math.min(50, qty | 0));
   const spec = SHIPS[shipId];
   if (!spec) throw new Error("Unbekanntes Schiff.");
@@ -625,7 +659,7 @@ function enqueueDefense(db, empire, planet, defenseId, qty) {
   if (!spec) throw new Error("Unbekannte Verteidigung.");
   const buildings = buildingsMap(db, planet.id);
   const techs = techsMap(db, empire.id);
-  if (!meetsReq(spec.requires, buildings, techs)) throw new Error("Voraussetzungen nicht erfüllt.");
+  if (!planet.alliance_id && !meetsReq(spec.requires, buildings, techs)) throw new Error("Voraussetzungen nicht erfüllt.");
   if (queueBusy(db, "defense", empire.id, planet.id)) throw new Error("Verteidigungszentrum belegt.");
   const cost = scaleBag(spec.cost, qty);
   planet = accruePlanet(db, planet);
@@ -784,7 +818,8 @@ function travelPlan(db, origin, target, ships, techs) {
   const hopMul = 1 + hops * 0.12;
   let sec = (dist / Math.max(0.4, spd)) * 9.2 * hopMul / Math.max(0.5, drive) / Math.max(0.5, beacon);
   const allyTravel = origin.empire_id ? social.allianceBonuses(db, origin.empire_id).travel || 0 : 0;
-  sec *= Math.max(0.55, 1 - (rel.travel || 0) - allyTravel);
+  const fleetCommander = origin.empire_id ? commanders.active(db.prepare("SELECT * FROM empires WHERE id = ?").get(origin.empire_id)) : null;
+  sec *= Math.max(0.55, 1 - (rel.travel || 0) - allyTravel - (fleetCommander?.travel || 0));
   const rawMs = Math.max(1000, sec * 1000);
   const ticks = Math.max(1, Math.ceil(rawMs / TICK_MS));
   const kinds = Object.entries(ships || {}).filter(([, n]) => n > 0).length;
@@ -1092,6 +1127,10 @@ function resolveExpedition(db, fleet, ships, home, empire) {
   if (roll.loot && rel.expedition) {
     for (const k of RESOURCE_IDS) roll.loot[k] = Math.floor((roll.loot[k] || 0) * (1 + rel.expedition));
   }
+  const commander = commanders.active(empire);
+  if (roll.loot && commander.loot) {
+    for (const k of RESOURCE_IDS) roll.loot[k] = Math.floor((roll.loot[k] || 0) * (1 + commander.loot));
+  }
   if ((roll.kind === "rare" || Math.random() < 0.14) && home) {
     const rid = nexus.randomUnownedRelic(db, empire.id);
     if (rid && nexus.grantRelic(db, empire.id, rid)) {
@@ -1237,11 +1276,21 @@ function mergeShips(a, b) {
   return o;
 }
 
-const ORBIT_FIRE_DURATION = 20_000;
+const ORBIT_FIRE_DURATION = 30_000;
+const ORBIT_RESOURCE_SHORT = { metal: "MET", helium: "HEL", titan: "TIT", energy: "EN", crystal: "KRI", diamond: "DIA" };
 
-function orbitFireReward(hits) {
+function orbitFireReward(hits, random = Math.random) {
   const score = Math.max(0, Math.min(40, Math.floor(Number(hits) || 0)));
-  return { hits: score, metal: 50 + score * 4, crystal: 3 + Math.floor(score / 3) };
+  const roll = (min, max) => Math.floor(min + Math.max(0, Math.min(0.999999, Number(random()) || 0)) * (max - min + 1));
+  const loot = {
+    metal: roll(70, 120) + score * 7,
+    helium: roll(35, 70) + score * 4,
+    titan: roll(25, 55) + score * 3,
+    energy: roll(55, 100) + score * 5,
+    crystal: roll(8, 18) + score * 2,
+    diamond: score >= 8 ? roll(0, 1 + Math.floor(score / 14)) : 0,
+  };
+  return { hits: score, loot, ...loot };
 }
 
 function startOrbitFire(db, empire, planet) {
@@ -1253,7 +1302,7 @@ function startOrbitFire(db, empire, planet) {
     "SELECT id FROM orbit_fire_sessions WHERE empire_id = ? AND claimed_at = 0 AND expires_at > ? ORDER BY id DESC LIMIT 1"
   ).get(empire.id, startedAt);
   if (active) db.prepare("UPDATE orbit_fire_sessions SET claimed_at = -1 WHERE id = ?").run(active.id);
-  const expiresAt = startedAt + 60_000;
+  const expiresAt = startedAt + 75_000;
   const row = db.prepare(
     "INSERT INTO orbit_fire_sessions(empire_id, planet_id, started_at, expires_at, claimed_at) VALUES(?,?,?,?,0)"
   ).run(empire.id, planet.id, startedAt, expiresAt);
@@ -1265,16 +1314,18 @@ function claimOrbitFire(db, empire, sessionId, hits) {
   if (!session) throw new Error("Orbit-Feuer-Runde nicht gefunden.");
   if (session.claimed_at) throw new Error("Diese Belohnung wurde bereits abgeholt.");
   const claimedAt = now();
-  if (claimedAt - session.started_at < ORBIT_FIRE_DURATION - 1_500) throw new Error("Die 20 Sekunden sind noch nicht vorbei.");
+  if (claimedAt - session.started_at < ORBIT_FIRE_DURATION - 1_500) throw new Error("Die 30 Sekunden sind noch nicht vorbei.");
   if (claimedAt > session.expires_at) throw new Error("Die Orbit-Feuer-Runde ist abgelaufen.");
   const updated = db.prepare("UPDATE orbit_fire_sessions SET claimed_at = ? WHERE id = ? AND claimed_at = 0").run(claimedAt, session.id);
   if (!updated.changes) throw new Error("Diese Belohnung wurde bereits abgeholt.");
   const planet = db.prepare("SELECT * FROM planets WHERE id = ? AND empire_id = ?").get(session.planet_id, empire.id);
   if (!planet) throw new Error("Kolonie nicht mehr verfügbar.");
   const reward = orbitFireReward(hits);
-  credit(db, accruePlanet(db, planet), bag({ metal: reward.metal, crystal: reward.crystal }));
+  credit(db, accruePlanet(db, planet), bag(reward.loot));
+  const lootText = Object.entries(reward.loot).filter(([, amount]) => amount > 0).map(([id, amount]) => `+${amount} ${ORBIT_RESOURCE_SHORT[id] || id.toUpperCase()}`).join(" · ");
   addReport(db, empire.id, "event", "Orbit-Feuer abgeschlossen", {
-    text: `${reward.hits} Treffer · +${reward.metal} MET · +${reward.crystal} KRI`,
+    text: `${reward.hits} Abschüsse · ${lootText}`,
+    loot: reward.loot,
     jumps: [{ view: "command", planetId: planet.id, label: "Zum Planeten" }],
   });
   return { ...reward, planetId: planet.id };
@@ -1325,11 +1376,14 @@ function resolveAcsAttack(db, fleets) {
     const empire = db.prepare("SELECT * FROM empires WHERE id = ?").get(f.empire_id);
     const techs = techsMap(db, f.empire_id);
     const rel = nexus.relicBonuses(nexus.equippedOf(db, f.empire_id));
+    const commander = commanders.active(empire);
+    const combatTechs = techsWithSpecies(techs, species.bonuses(empire.species), social.allianceBonuses(db, f.empire_id));
+    combatTechs.specAtk = (combatTechs.specAtk || 1) * (1 + (commander.attack || 0));
     return {
       fleet: f,
       empire,
       ships: JSON.parse(f.ships || "{}"),
-      techs: techsWithSpecies(techs, species.bonuses(empire.species), social.allianceBonuses(db, f.empire_id)),
+      techs: combatTechs,
       hullBonus: (rel.hull || 0) + (social.allianceBonuses(db, f.empire_id).hull || 0),
     };
   });
@@ -1841,11 +1895,19 @@ function sendFleet(db, empire, origin, target, mission, shipsWanted, cargo, opts
     const victim = db.prepare("SELECT * FROM empires WHERE id = ?").get(target.empire_id);
     fairplay.assertCanAttack(db, empire, victim);
   }
-  const targetAlly = target.alliance_id && social.canManageAlliancePlanet(db, empire.id, target);
-  const ownOrAllyTarget = target.empire_id === empire.id || targetAlly;
+  const targetAlly = target.alliance_id && social.canUseAlliancePlanet(db, empire.id, target);
+  const targetAllyManage = target.alliance_id && social.canManageAlliancePlanet(db, empire.id, target);
+  const ownTarget = target.empire_id === empire.id && !target.alliance_id;
+  const ownOrAllyTarget = ownTarget || targetAlly;
   if (mission === "deploy" && !ownOrAllyTarget) throw new Error("Stationieren nur auf eigenen oder Allianz-Planeten.");
+  if (mission === "deploy" && target.alliance_id) {
+    const sent = Object.values(ships).reduce((sum, n) => sum + Number(n || 0), 0);
+    const stationed = Object.values(shipsMap(db, target.id)).reduce((sum, n) => sum + Number(n || 0), 0);
+    const cap = shipCap(db, target.id);
+    if (stationed + sent > cap) throw new Error(`Allianz-Flottenlimit erreicht (${stationed}/${cap}).`);
+  }
   if (mission === "transport" && !ownOrAllyTarget) throw new Error("Fracht senden nur zu eigenen oder Allianz-Planeten.");
-  if (mission === "collect" && !ownOrAllyTarget) throw new Error("Rücktransport nur von eigenen oder Allianz-Planeten.");
+  if (mission === "collect" && !(ownTarget || targetAllyManage)) throw new Error("Rücktransport aus dem Allianzlager ist nur mit Lagerzugang möglich.");
   if (mission === "colonize" || mission === "ally_colonize") {
     if ((ships.colony || 0) < 1) throw new Error("Kolonieschiff erforderlich.");
     if (target.empire_id) throw new Error("Planet ist bereits besetzt.");
@@ -1940,6 +2002,8 @@ function sendFleet(db, empire, origin, target, mission, shipsWanted, cargo, opts
   const shipLabel = Object.entries(ships).map(([id, n]) => `${n}× ${SHIPS[id]?.name || id}`).join(", ");
   addReport(db, empire.id, "fleet", `${missionLabel} gestartet`, {
     text: `${shipLabel} · Treibstoff ${fuelNeeded} Helium-3 · Ankunft ${new Date(eta).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`,
+    originPlanetId: origin.id,
+    planetId: origin.id,
     jumps: [
       { view: "fleets", label: "Zur Flotte" },
       { view: "galaxy", label: "Zur Galaxie" },
@@ -1997,8 +2061,6 @@ function enqueueAllianceResearch(db, empire, planet, researchId) {
   if (!social.canManageAlliancePlanet(db, empire.id, planet)) throw new Error("Kein Zugang zum Allianz-Planeten.");
   const def = social.ALLIANCE_RESEARCH[researchId];
   if (!def) throw new Error("Allianzforschung unbekannt.");
-  const buildings = buildingsMap(db, planet.id);
-  if ((buildings.archive || 0) < 1) throw new Error("Kein Forschungsarchiv auf dem Allianz-Planeten.");
   if (queueBusy(db, "ally_research", empire.id, planet.id)) throw new Error("Allianzforschung läuft bereits.");
   db.prepare("INSERT OR IGNORE INTO alliance_research(alliance_id, research_id) VALUES(?, ?)").run(planet.alliance_id, def.id);
   const row = db.prepare("SELECT * FROM alliance_research WHERE alliance_id = ? AND research_id = ?").get(planet.alliance_id, def.id);
@@ -2230,8 +2292,8 @@ function planetView(db, planet, empire) {
     ally: social.allianceBonuses(db, empire.id),
     worldProd: worldEconomy(db).prod,
   };
-  const prod = calcProd(planet, buildings, techs, hub, progress.productionBonus(empire.xp || 0), mods);
-  const cap = calcStorage(buildings.silo || 0, buildings.habitat || 0, race.storage);
+  const prod = planet.alliance_id ? emptyBag() : calcProd(planet, buildings, techs, hub, progress.productionBonus(empire.xp || 0), mods);
+  const cap = planet.alliance_id ? allianceStorageCap() : calcStorage(buildings.silo || 0, buildings.habitat || 0, race.storage);
   const sys = db.prepare("SELECT * FROM systems WHERE id = ?").get(planet.system_id);
   const stationed = shipsMap(db, planet.id);
   const shipCount = Object.values(stationed).reduce((s, n) => s + n, 0);
@@ -2335,6 +2397,36 @@ function snapshot(db, user, planetId) {
         holdMs: f.hold_ms || 0,
       };
     });
+  const fleetColonies = fresh.map((p) => {
+    const ships = shipsMap(db, p.id);
+    return { id: p.id, name: p.name, ships, total: Object.values(ships).reduce((sum, n) => sum + Number(n || 0), 0) };
+  });
+  const fleetAudit = {
+    stationed: fleetColonies.reduce((sum, p) => sum + p.total, 0),
+    inTransit: fleets.reduce((sum, f) => sum + Object.values(f.ships || {}).reduce((n, count) => n + Number(count || 0), 0), 0),
+    colonies: fleetColonies,
+    ledger: db.prepare(`
+      SELECT l.id,l.planet_id AS planetId,l.ship_id AS shipId,l.before_count AS beforeCount,
+             l.after_count AS afterCount,l.cause,l.report_id AS reportId,l.created_at AS createdAt,
+             COALESCE(p.name,'Unbekannter Planet') AS planetName
+      FROM fleet_ledger l LEFT JOIN planets p ON p.id=l.planet_id
+      WHERE l.empire_id=? ORDER BY l.id DESC LIMIT 60
+    `).all(empire.id),
+    recent: db.prepare("SELECT id, kind, title, body, created_at FROM reports WHERE empire_id = ? AND kind IN ('combat','expedition') ORDER BY id DESC LIMIT 8").all(empire.id).map((row) => {
+      let body = {};
+      try { body = JSON.parse(row.body || "{}"); } catch { body = {}; }
+      const losses = reportShipLosses(body, empire.id);
+      return {
+        id: row.id,
+        kind: row.kind,
+        title: row.title,
+        text: body.text || "",
+        createdAt: row.created_at,
+        losses,
+        totalLost: Object.values(losses).reduce((sum, count) => sum + Math.max(0, Number(count || 0)), 0),
+      };
+    }),
+  };
   const unreadReports = db.prepare("SELECT COUNT(*) AS n FROM reports WHERE empire_id = ? AND seen = 0").get(empire.id).n;
   const unreadMail = chat.unreadMail(db, empire.id);
   const unreadChat = chat.unreadChat(db, empire);
@@ -2470,7 +2562,7 @@ function snapshot(db, user, planetId) {
     planet: planetV,
     planets: fresh.map((p) => {
       const b = buildingsMap(db, p.id);
-      const prod = calcProd(
+      const prod = p.alliance_id ? emptyBag() : calcProd(
         p,
         b,
         techs,
@@ -2503,6 +2595,9 @@ function snapshot(db, user, planetId) {
     techs,
     queue,
     fleets,
+    fleetAudit,
+    commanders: commanders.list(empireFresh, progress.commanderLevel(empireFresh.xp || 0)),
+    sectorSeason: sectorSeason.data(db, empireFresh),
     unread,
     relics: {
       catalog: nexus.RELICS,
@@ -2659,7 +2754,9 @@ function sendFleetGroup(db, empire, target, mission, deployments) {
 function spawnRaid(db) {
   const pending = db.prepare("SELECT COUNT(*) AS n FROM raids").get().n;
   if (pending >= 2) return;
-  const cooldown = 38 * 60 * 1000;
+  // NPC raids should create an anticipated return moment, not silently grind a
+  // player's stationed fleet down during an ordinary play session.
+  const cooldown = 6 * 60 * 60 * 1000;
   const shieldMs = pirateShieldWindowMs();
   const busy = new Set(
     db
@@ -2684,7 +2781,7 @@ function spawnRaid(db) {
   const raidLv = pirates.raidLevelFor(db, owner);
   const ships = pirates.raidFleetFor(db, owner, target);
   const kind = raidLv >= 6 && Math.random() < 0.2 ? "echo" : "pirates";
-  const arrives = Date.now() + 40_000 + Math.floor(Math.random() * 50_000);
+  const arrives = Date.now() + 5 * 60_000 + Math.floor(Math.random() * 3 * 60_000);
   db.prepare("INSERT INTO raids(target_planet_id, ships, arrives_at, kind) VALUES(?,?,?,?)").run(
     target.id,
     JSON.stringify(ships),
@@ -3113,6 +3210,9 @@ module.exports = {
   recallFleet,
   assignHome,
   addShips,
+  shipCap,
+  allianceStorageCap,
+  reportShipLosses,
   splitShipSurvivors,
   pickColor,
   buildingsMap,

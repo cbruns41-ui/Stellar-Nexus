@@ -126,42 +126,7 @@ function allianceBonuses(db, empireId) {
 }
 
 function donateAllianceResearch(db, empire, planet, researchId, donation) {
-  const mine = myAlliance(db, empire.id);
-  if (!mine) throw new Error("Du bist in keiner Allianz.");
-  const def = ALLIANCE_RESEARCH[researchId];
-  if (!def) throw new Error("Allianzforschung unbekannt.");
-  const queued = db.prepare("SELECT id FROM queue WHERE kind = 'ally_research' AND item_id = ? AND planet_id IN (SELECT id FROM planets WHERE alliance_id = ?)").get(def.id, mine.id);
-  if (queued) throw new Error("Diese Forschung läuft bereits als Auftrag auf dem Allianz-Planeten.");
-  db.prepare("INSERT OR IGNORE INTO alliance_research(alliance_id, research_id) VALUES(?, ?)").run(mine.id, def.id);
-  const row = db.prepare("SELECT * FROM alliance_research WHERE alliance_id = ? AND research_id = ?").get(mine.id, def.id);
-  if ((row.level || 0) >= def.max) throw new Error("Diese Allianzforschung ist bereits abgeschlossen.");
-  const cost = researchCost(def, row.level || 0);
-  const paid = {};
-  for (const id of ALLIANCE_RESOURCE_IDS) {
-    const requested = Math.max(0, Math.floor(Number(donation?.[id]) || 0));
-    const remaining = Math.max(0, (cost[id] || 0) - Number(row[id] || 0));
-    if (requested > remaining) throw new Error(`Zu viel ${id} für den aktuellen Forschungsfortschritt.`);
-    if (requested > Number(planet[id] || 0)) throw new Error(`Nicht genug ${id} auf diesem Planeten.`);
-    paid[id] = requested;
-  }
-  if (!ALLIANCE_RESOURCE_IDS.some((id) => paid[id] > 0)) throw new Error("Wähle mindestens eine Ressource zum Spenden.");
-  for (const id of ALLIANCE_RESOURCE_IDS) {
-    if (!paid[id]) continue;
-    db.prepare(`UPDATE planets SET ${id} = ${id} - ? WHERE id = ?`).run(paid[id], planet.id);
-    db.prepare(
-      `UPDATE alliance_research SET ${id} = ${id} + ? WHERE alliance_id = ? AND research_id = ?`
-    ).run(paid[id], mine.id, def.id);
-    db.prepare(
-      `INSERT INTO alliance_research_contributions(alliance_id, research_id, level, empire_id, resource_id, amount)
-       VALUES(?,?,?,?,?,?) ON CONFLICT(alliance_id, research_id, level, empire_id, resource_id) DO UPDATE SET amount = amount + excluded.amount`
-    ).run(mine.id, def.id, row.level || 0, empire.id, id, paid[id]);
-  }
-  const fresh = db.prepare("SELECT * FROM alliance_research WHERE alliance_id = ? AND research_id = ?").get(mine.id, def.id);
-  const complete = ALLIANCE_RESOURCE_IDS.every((id) => Number(fresh[id] || 0) >= (cost[id] || 0));
-  if (complete) {
-    db.prepare("UPDATE alliance_research SET level = level + 1, metal = 0, helium = 0, titan = 0, energy = 0, crystal = 0 WHERE alliance_id = ? AND research_id = ?").run(mine.id, def.id);
-  }
-  return { completed: complete, level: (row.level || 0) + (complete ? 1 : 0) };
+  throw new Error("Direktspenden wurden ersetzt: Ressourcen zuerst per Transport in das Allianzlager schicken.");
 }
 
 function canDo(rank, action) {
@@ -201,6 +166,11 @@ function canAccessPlanet(db, empireId, planet) {
   if (!planet) return false;
   if (planet.alliance_id) return canManageAlliancePlanet(db, empireId, planet);
   return planet.empire_id === empireId;
+}
+
+function canUseAlliancePlanet(db, empireId, planet) {
+  if (!planet?.alliance_id) return false;
+  return myAlliance(db, empireId)?.id === planet.alliance_id;
 }
 
 function accessibleAlliancePlanets(db, empireId) {
@@ -763,6 +733,7 @@ module.exports = {
   alliancePlanetRow,
   canManageAlliancePlanet,
   canAccessPlanet,
+  canUseAlliancePlanet,
   accessibleAlliancePlanets,
   setPlanetAccess,
   rehomeAlliancePlanet,
