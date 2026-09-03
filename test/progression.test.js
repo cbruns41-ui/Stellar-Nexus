@@ -11,12 +11,23 @@ const { windowAt, TIERS } = require("../src/sectorSeason");
 const allianceBoss = require("../src/allianceBoss");
 const { shipCap, allianceStorageCap, reportShipLosses, addReport } = require("../src/game");
 const { openDb } = require("../src/db");
+const { canDo } = require("../src/social");
 
 test("commander unlocks and bonuses follow command level", () => {
   const low = commanders.list({ active_commander: "voss" }, 1);
   assert.equal(low.find((c) => c.id === "voss").unlocked, true);
   assert.equal(low.find((c) => c.id === "kael").unlocked, false);
   assert.equal(commanders.active({ active_commander: "nyra" }).loot, 0.12);
+});
+
+test("alliance ranks expose scoped leadership permissions", () => {
+  assert.equal(canDo("leader", "rank"), true);
+  assert.equal(canDo("coleader", "kick"), true);
+  assert.equal(canDo("diplomat", "edit"), true);
+  assert.equal(canDo("diplomat", "rank"), false);
+  assert.equal(canDo("officer", "planet"), true);
+  assert.equal(canDo("officer", "edit"), false);
+  assert.equal(canDo("member", "planet"), false);
 });
 
 test("sector seasons are stable fourteen-day windows with increasing milestones", () => {
@@ -89,9 +100,34 @@ test("defeated alliance boss returns at a stronger level", () => {
     INSERT INTO ships VALUES(1,'fighter',10);
   `);
   const first = allianceBoss.publicBoss(db, 7, 1);
+  assert.ok(first.maxHp >= 15000);
   db.prepare("UPDATE alliance_bosses SET hp=0, defeated_at=1, available_at=1 WHERE alliance_id=7").run();
   const returned = allianceBoss.publicBoss(db, 7, 1);
   assert.equal(returned.level, 2);
   assert.ok(returned.maxHp > first.maxHp);
+  assert.ok(returned.maxHp >= first.maxHp * 1.7);
   assert.equal(returned.defeated, false);
+});
+
+test("local boss test mode revives immediately and removes the attempt cap", () => {
+  const db = new DatabaseSync(":memory:");
+  db.exec(`
+    CREATE TABLE alliance_members(alliance_id INTEGER, empire_id INTEGER);
+    CREATE TABLE empires(id INTEGER PRIMARY KEY, name TEXT);
+    CREATE TABLE planets(id INTEGER PRIMARY KEY, empire_id INTEGER);
+    CREATE TABLE ships(planet_id INTEGER, ship_id TEXT, count INTEGER);
+    CREATE TABLE alliance_bosses(alliance_id INTEGER, week TEXT, hp INTEGER, max_hp INTEGER, defeated_at INTEGER DEFAULT 0, available_at INTEGER DEFAULT 0, level INTEGER DEFAULT 1, UNIQUE(alliance_id,week));
+    CREATE TABLE alliance_boss_hits(alliance_id INTEGER, week TEXT, boss_level INTEGER, empire_id INTEGER, day TEXT, damage INTEGER, created_at INTEGER);
+    INSERT INTO alliance_members VALUES(7,1);
+    INSERT INTO empires VALUES(1,'Tester');
+    INSERT INTO planets VALUES(1,1);
+    INSERT INTO ships VALUES(1,'fighter',10);
+  `);
+  const first = allianceBoss.publicBoss(db, 7, 1);
+  db.prepare("UPDATE alliance_bosses SET hp=0, defeated_at=1, available_at=? WHERE alliance_id=7").run(Date.now() + 86400000);
+  const local = allianceBoss.publicBoss(db, 7, 1, { unlimited: true });
+  assert.equal(local.level, first.level);
+  assert.equal(local.hp, local.maxHp);
+  assert.equal(local.attemptsLeft, null);
+  assert.equal(local.unlimited, true);
 });

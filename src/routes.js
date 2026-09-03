@@ -39,6 +39,15 @@ const commanders = require("./commanders");
 const allianceBoss = require("./allianceBoss");
 const sectorSeason = require("./sectorSeason");
 
+const LOCAL_BOSS_TEST = process.argv.includes("--local-boss-test") || process.env.LOCAL_BOSS_TEST === "1";
+function localBossTest(req) {
+  const address = String(req.socket?.remoteAddress || "");
+  const loopback = address === "127.0.0.1" || address === "::1" || address === "::ffff:127.0.0.1";
+  if (!loopback) return false;
+  const hostname = String(req.hostname || "").toLowerCase().replace(/^\[|\]$/g, "");
+  return LOCAL_BOSS_TEST || hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+}
+
 const DELETE_CONFIRMATIONS = {
   de: "Löschen",
   en: "Delete",
@@ -621,7 +630,7 @@ function attachRoutes(app, db) {
     try {
       const empire = db.prepare("SELECT * FROM empires WHERE user_id = ?").get(req.user.id);
       const alliance = social.getAlliance(db, Number(req.params.id), empire.id);
-      if (alliance.mine) alliance.boss = allianceBoss.publicBoss(db, alliance.id, empire.id);
+      if (alliance.mine) alliance.boss = allianceBoss.publicBoss(db, alliance.id, empire.id, { unlimited: localBossTest(req) });
       res.json({ alliance });
     } catch (err) {
       fail(res, 400, err.message);
@@ -800,6 +809,9 @@ function attachRoutes(app, db) {
     game.tickWorld(db);
     const empire = db.prepare("SELECT * FROM empires WHERE user_id = ?").get(req.user.id);
     const systems = db.prepare("SELECT * FROM systems").all();
+    const planetCounts = Object.fromEntries(
+      db.prepare("SELECT system_id, COUNT(*) AS n FROM planets GROUP BY system_id").all().map((row) => [row.system_id, Number(row.n || 0)])
+    );
     const links = db.prepare("SELECT a, b FROM links").all();
     const ownFlights = db
       .prepare(
@@ -905,6 +917,7 @@ function attachRoutes(app, db) {
         rift: riftId === s.id,
         owners: bySys[s.id] || [],
         fleetCount: Number(stationedBySystem[s.id] || 0),
+        planetCount: planetCounts[s.id] || 0,
       })),
       links,
       flights,
@@ -1006,8 +1019,9 @@ function attachRoutes(app, db) {
       const mine = social.myAlliance(db, empire.id);
       if (!mine) throw new Error("Du bist in keiner Allianz.");
       let result;
-      withTx(db, () => { result = allianceBoss.attack(db, mine.id, empire, req.body?.score); });
-      res.json({ result, boss: allianceBoss.publicBoss(db, mine.id, empire.id) });
+      const unlimited = localBossTest(req);
+      withTx(db, () => { result = allianceBoss.attack(db, mine.id, empire, req.body?.score, { unlimited }); });
+      res.json({ result, boss: allianceBoss.publicBoss(db, mine.id, empire.id, { unlimited }) });
     } catch (err) {
       fail(res, 400, err.message);
     }

@@ -1,7 +1,8 @@
 import { api, getState, getCatalog, getPreview, getGalaxy, getSystem, getReports, getRanks, getEmpire, combatPreview, combatSim, getAlliances, getAlliance, getAllianceActivity } from "./api.js";
 import { esc, fmt, eta, when, costHtml, planetCss, planetGlobeUrl, planetColonyUrl, mediaTag, bindMediaFallbacks, toast, showModal, hideModal, shipList, starfield, resourceIcon, icon, beep, notify, tickEta, ticksOf, tickMsFrom } from "./ui.js?v=2";
-import { createMap, systemHtml } from "./map.js?v=56";
+import { createMap, systemHtml } from "./map.js?v=58";
 import { battleReplayHtml, bindBattleReplays } from "./battle.js?v=2";
+import { startAllianceBossEncounter } from "./alliance-boss-game.js?v=15";
 import { CITY_PLOTS, buildingLevelBand } from "./city.mjs?v=2";
 
 const $ = (id) => document.getElementById(id);
@@ -435,6 +436,8 @@ function closeNavSheet() {
 function openNavSheet() {
   const shell = $("game");
   const backdrop = $("nav-backdrop");
+  const nav = $("nav");
+  if (nav) nav.scrollTop = 0;
   if (shell) shell.classList.add("nav-open");
   show(backdrop);
   $("tabbar")?.querySelector("[data-tab='more']")?.classList.add("on");
@@ -803,6 +806,7 @@ function renderView({ preserveForm = true } = {}) {
     }
     const shell = $("game");
     if (shell) {
+      shell.dataset.view = state.view;
       shell.classList.toggle("view-galaxy", state.view === "galaxy");
       shell.classList.toggle("view-home", state.view === "command");
       shell.classList.toggle("alliance-planet-open", state.view === "command" && !!state.snap?.planet?.isAlliance);
@@ -3861,10 +3865,10 @@ async function bootAlliance() {
       </div>`;
     bindAllianceActivityClicks(host);
     bindJumps(host);
-    host.querySelector("#ally-boss-launch")?.addEventListener("click", () => startAllianceBossGame(detail, async () => {
+    host.querySelector("#ally-boss-launch")?.addEventListener("click", () => startAllianceBossEncounter({ detail, playerScore: state.snap?.empire?.score || 0, api, fmt, toast, onDone: async () => {
       state.allianceFocus = detail.id;
       await bootAlliance();
-    }));
+    }}));
     host.querySelector("#ally-open-planet")?.addEventListener("click", () => {
       if (detail.planet?.id) jumpTo("command", detail.planet.id);
     });
@@ -4571,7 +4575,9 @@ function allianceBossHtml(boss) {
   const pct = boss.maxHp ? Math.max(0, Math.round((boss.hp / boss.maxHp) * 100)) : 0;
   const ranks = (boss.contributors || []).slice(0, 5).map((p, i) => `<li><i>${i + 1}</i><span>${esc(p.name)}</span><b>${fmt(p.damage)}</b></li>`).join("");
   const returnText = boss.availableAt ? ` · Rückkehr ${new Date(boss.availableAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}` : "";
-  return `<section class="ally-boss panel"><div class="ally-boss-art" aria-hidden="true"><i></i><span></span><em>BOSS · STUFE ${boss.level || 1}</em></div><div class="ally-boss-body"><em>ABYSS-KONTAKT · ${esc(boss.week)}</em><h2>${esc(boss.name)} <small>LV. ${boss.level || 1}</small></h2><p>Nach jeder Vernichtung kehrt er am nächsten Tag mit 55% mehr Grund-HP zurück. Drei Feuerfreigaben pro Commander und Tag.</p><div class="ally-boss-hp"><span style="width:${pct}%"></span><b>${fmt(boss.hp)} / ${fmt(boss.maxHp)} HP</b></div><div class="ally-boss-stats"><span>Dein Beitrag <b>${fmt(boss.mine)}</b></span><span>Versuche <b>${boss.attemptsLeft}/3</b></span></div>${boss.defeated ? `<strong class="ally-boss-down">ZIEL VERNICHTET · BELOHNUNG GEBUCHT${returnText}</strong>` : `<button class="btn primary ally-boss-launch" id="ally-boss-launch" ${boss.attemptsLeft ? "" : "disabled"}>⚡ KAMPF STARTEN</button>`}</div><ol>${ranks}</ol></section>`;
+  const attempts = boss.unlimited ? "∞ · LOKALER TEST" : `${boss.attemptsLeft}/3`;
+  const rule = boss.unlimited ? "Lokaler Testmodus: unbegrenzte Feuerfreigaben." : "Drei Feuerfreigaben pro Commander und Tag.";
+  return `<section class="ally-boss panel"><div class="ally-boss-art" aria-hidden="true"><i></i><span></span><em>BOSS · STUFE ${boss.level || 1}</em></div><div class="ally-boss-body"><em>ABYSS-KONTAKT · ${esc(boss.week)}</em><h2>${esc(boss.name)} <small>LV. ${boss.level || 1}</small></h2><p>Allianz-Ziel: Stärke und HP skalieren mit Flottenmacht, Mitgliederzahl und Bosslevel. Nach jeder Vernichtung erhält die nächste Stufe mindestens 70% mehr HP. ${rule}</p><div class="ally-boss-hp"><span style="width:${pct}%"></span><b>${fmt(boss.hp)} / ${fmt(boss.maxHp)} HP</b></div><div class="ally-boss-stats"><span>Dein Beitrag <b>${fmt(boss.mine)}</b></span><span>Versuche <b>${attempts}</b></span></div>${boss.defeated ? `<strong class="ally-boss-down">ZIEL VERNICHTET · BELOHNUNG GEBUCHT${returnText}</strong>` : `<button class="btn primary ally-boss-launch" id="ally-boss-launch" ${boss.unlimited || boss.attemptsLeft ? "" : "disabled"}>⚡ 3D-KAMPF STARTEN</button>`}</div><ol>${ranks}</ol></section>`;
 }
 
 function startAllianceBossGame(detail, onDone) {

@@ -131,13 +131,13 @@ function donateAllianceResearch(db, empire, planet, researchId, donation) {
 
 function canDo(rank, action) {
   const r = rank || "member";
-  if (action === "edit") return r === "leader" || r === "coleader";
+  if (action === "edit") return r === "leader" || r === "coleader" || r === "diplomat";
   if (action === "apps") return r === "leader" || r === "coleader" || r === "diplomat";
   if (action === "kick") return r === "leader" || r === "coleader";
   if (action === "rank") return r === "leader" || r === "coleader";
   if (action === "disband") return r === "leader";
   if (action === "transfer") return r === "leader";
-  if (action === "planet") return r === "leader" || r === "coleader";
+  if (action === "planet") return r === "leader" || r === "coleader" || r === "officer";
   if (action === "planetAccess") return r === "leader" || r === "coleader";
   return false;
 }

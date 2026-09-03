@@ -22,6 +22,12 @@ function fleetPower(db, empireId) {
   return Math.floor(rows.reduce((sum, row) => sum + (SHIPS[row.ship_id]?.attack || 1) * Number(row.n || 0), 0));
 }
 
+function resetLocalBoss(db, boss, unlimited) {
+  if (!unlimited || (!boss.defeated_at && boss.hp > 0)) return boss;
+  db.prepare("UPDATE alliance_bosses SET hp=max_hp, defeated_at=0, available_at=0 WHERE alliance_id=? AND week=?").run(boss.alliance_id, boss.week);
+  return db.prepare("SELECT * FROM alliance_bosses WHERE alliance_id=? AND week=?").get(boss.alliance_id, boss.week);
+}
+
 function ensure(db, allianceId) {
   const week = weekKey();
   let boss = db.prepare("SELECT * FROM alliance_bosses WHERE alliance_id = ? AND week = ?").get(allianceId, week);
@@ -30,26 +36,35 @@ function ensure(db, allianceId) {
     const power = members.reduce((sum, m) => sum + fleetPower(db, m.empire_id), 0);
     const previous = db.prepare("SELECT * FROM alliance_bosses WHERE alliance_id=? ORDER BY rowid DESC LIMIT 1").get(allianceId);
     const level = previous ? Number(previous.level || 1) + (previous.defeated_at ? 1 : 0) : 1;
-    const baseline = Math.max(3000, Math.floor(power * 14 + members.length * 1200));
-    const maxHp = Math.min(25000000, previous?.defeated_at ? Math.max(baseline, Math.floor(previous.max_hp * 1.55 + level * 900)) : baseline);
+    const levelFactor = Math.pow(1.5, Math.max(0, level - 1));
+    const baseline = Math.max(15000, Math.floor((power * 24 + members.length * 6000) * levelFactor));
+    const maxHp = Math.min(25000000, previous?.defeated_at ? Math.max(baseline, Math.floor(previous.max_hp * 1.7 + level * 5000)) : baseline);
     db.prepare("INSERT INTO alliance_bosses(alliance_id, week, hp, max_hp, defeated_at, level) VALUES(?,?,?,?,0,?)").run(allianceId, week, maxHp, maxHp, level);
     boss = db.prepare("SELECT * FROM alliance_bosses WHERE alliance_id = ? AND week = ?").get(allianceId, week);
   }
+  const members = db.prepare("SELECT empire_id FROM alliance_members WHERE alliance_id = ?").all(allianceId);
+  const currentPower = members.reduce((sum, m) => sum + fleetPower(db, m.empire_id), 0);
+  const targetHp = Math.min(25000000, Math.max(15000, Math.floor((currentPower * 24 + members.length * 6000) * Math.pow(1.5, Math.max(0, Number(boss.level || 1) - 1)))));
+  if (!boss.defeated_at && Number(boss.max_hp) < targetHp) {
+    const extra = targetHp - Number(boss.max_hp);
+    db.prepare("UPDATE alliance_bosses SET hp=hp+?, max_hp=? WHERE alliance_id=? AND week=?").run(extra, targetHp, allianceId, boss.week);
+    boss = db.prepare("SELECT * FROM alliance_bosses WHERE alliance_id=? AND week=?").get(allianceId, boss.week);
+  }
   if (boss.defeated_at && boss.available_at && Date.now() >= boss.available_at) {
     const level = Number(boss.level || 1) + 1;
-    const maxHp = Math.min(25000000, Math.floor(Number(boss.max_hp) * 1.55 + level * 900));
+    const maxHp = Math.min(25000000, Math.floor(Number(boss.max_hp) * 1.7 + level * 5000));
     db.prepare("UPDATE alliance_bosses SET level=?, hp=?, max_hp=?, defeated_at=0, available_at=0 WHERE alliance_id=? AND week=?").run(level, maxHp, maxHp, allianceId, week);
     boss = db.prepare("SELECT * FROM alliance_bosses WHERE alliance_id = ? AND week = ?").get(allianceId, week);
   }
   return boss;
 }
 
-function publicBoss(db, allianceId, empireId) {
-  const boss = ensure(db, allianceId);
+function publicBoss(db, allianceId, empireId, options = {}) {
+  const boss = resetLocalBoss(db, ensure(db, allianceId), options.unlimited);
   const attempts = db.prepare("SELECT COUNT(*) AS n FROM alliance_boss_hits WHERE alliance_id = ? AND week = ? AND boss_level=? AND empire_id = ? AND day = ?").get(allianceId, boss.week, boss.level || 1, empireId, dayKey()).n;
   const contributors = db.prepare(`SELECT h.empire_id AS empireId, e.name, SUM(h.damage) AS damage FROM alliance_boss_hits h JOIN empires e ON e.id = h.empire_id WHERE h.alliance_id = ? AND h.week = ? AND h.boss_level=? GROUP BY h.empire_id, e.name ORDER BY damage DESC LIMIT 8`).all(allianceId, boss.week, boss.level || 1);
   const mine = contributors.find((x) => x.empireId === empireId)?.damage || 0;
-  return { week: boss.week, level: boss.level || 1, name: "Abyssaler Weltenbrecher", hp: boss.hp, maxHp: boss.max_hp, defeated: !!boss.defeated_at, defeatedAt: boss.defeated_at || 0, availableAt: boss.available_at || 0, attemptsLeft: Math.max(0, 3 - attempts), mine, contributors };
+  return { week: boss.week, level: boss.level || 1, name: "Abyssaler Weltenbrecher", hp: boss.hp, maxHp: boss.max_hp, defeated: !!boss.defeated_at, defeatedAt: boss.defeated_at || 0, availableAt: boss.available_at || 0, attemptsLeft: options.unlimited ? null : Math.max(0, 3 - attempts), unlimited: !!options.unlimited, mine, contributors };
 }
 
 function rewardContributors(db, boss) {
@@ -64,18 +79,18 @@ function rewardContributors(db, boss) {
   }
 }
 
-function attack(db, allianceId, empire, score = 0) {
+function attack(db, allianceId, empire, score = 0, options = {}) {
   const member = db.prepare("SELECT 1 FROM alliance_members WHERE alliance_id = ? AND empire_id = ?").get(allianceId, empire.id);
   if (!member) throw new Error("Du gehörst nicht zu dieser Allianz.");
-  const boss = ensure(db, allianceId);
+  const boss = resetLocalBoss(db, ensure(db, allianceId), options.unlimited);
   if (boss.defeated_at || boss.hp <= 0) throw new Error("Der Allianz-Boss ist diese Woche bereits besiegt.");
   const used = db.prepare("SELECT COUNT(*) AS n FROM alliance_boss_hits WHERE alliance_id=? AND week=? AND boss_level=? AND empire_id=? AND day=?").get(allianceId, boss.week, boss.level || 1, empire.id, dayKey()).n;
-  if (used >= 3) throw new Error("Heute sind bereits drei Angriffe geflogen.");
+  if (!options.unlimited && used >= 3) throw new Error("Heute sind bereits drei Angriffe geflogen.");
   const power = fleetPower(db, empire.id);
   if (power <= 0) throw new Error("Du brauchst stationierte Kampfschiffe.");
   const skill = Math.max(0, Math.min(250, Math.floor(Number(score) || 0)));
   const skillMul = .78 + skill / 500;
-  const damage = Math.max(1, Math.min(Math.ceil(boss.max_hp * .18), Math.floor(power * (2.4 + Math.random() * .8) * skillMul)));
+  const damage = Math.max(1, Math.min(Math.ceil(boss.max_hp * .1), Math.floor(power * (2.15 + Math.random() * 1.15) * skillMul)));
   const hp = Math.max(0, boss.hp - damage);
   const defeatedAt = hp === 0 ? Date.now() : 0;
   db.prepare("INSERT INTO alliance_boss_hits(alliance_id,week,boss_level,empire_id,day,damage,created_at) VALUES(?,?,?,?,?,?,?)").run(allianceId, boss.week, boss.level || 1, empire.id, dayKey(), damage, Date.now());

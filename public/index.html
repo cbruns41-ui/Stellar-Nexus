@@ -19,7 +19,7 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Sora:wght@400;500;600;700&family=Tektur:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/css/style.css?v=60" />
+  <link rel="stylesheet" href="/css/style.css?v=95" />
   </head>
   <body class="land">
     <canvas id="stars" aria-hidden="true"></canvas>
@@ -264,6 +264,16 @@
       <nav class="nav" id="nav">
         <div class="nav-sheet-handle" aria-hidden="true"></div>
         <div class="nav-section">
+          <span class="nav-group">Kommando</span>
+          <button data-view="alliance">Allianz <i data-badge="alliance" hidden></i></button>
+          <button data-view="reports">Funk <i data-badge="reports" hidden></i></button>
+          <button data-view="chat">Chat <i data-badge="chat" hidden></i></button>
+          <button data-view="activity">Einsatz <i data-badge="activity" hidden></i></button>
+          <button data-view="nexus">Nexus <i data-badge="nexus" hidden></i></button>
+          <button data-view="sim">Simulator</button>
+          <button data-view="progress">Orden</button>
+        </div>
+        <div class="nav-section">
           <span class="nav-group">Bauen</span>
           <button data-view="infra">Gebäude <i data-badge="infra" hidden></i></button>
           <button data-view="yard">Werft <i data-badge="yard" hidden></i></button>
@@ -271,15 +281,6 @@
           <button data-view="defense">Verteidigung <i data-badge="defense" hidden></i></button>
           <button data-view="tree">Tech-Tree</button>
           <button data-view="economy">Rohstoffe <i data-badge="economy" hidden></i></button>
-        </div>
-        <div class="nav-section">
-          <span class="nav-group">Kommando</span>
-          <button data-view="reports">Funk <i data-badge="reports" hidden></i></button>
-          <button data-view="chat">Chat <i data-badge="chat" hidden></i></button>
-          <button data-view="activity">Einsatz <i data-badge="activity" hidden></i></button>
-          <button data-view="nexus">Nexus <i data-badge="nexus" hidden></i></button>
-          <button data-view="sim">Simulator</button>
-          <button data-view="progress">Orden</button>
         </div>
         <div class="nav-section">
           <span class="nav-group">Reich</span>
@@ -351,6 +352,6 @@
         });
     </script>
     <script src="/js/pwa.js?v=1"></script>
-    <script type="module" src="/js/app.js?v=66"></script>
+    <script type="module" src="/js/app.js?v=127"></script>
   </body>
 </html>

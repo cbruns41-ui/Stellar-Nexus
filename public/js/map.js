@@ -8,6 +8,9 @@ export function createMap(canvas, onSelect, onViewChange) {
   let filter = { query: "", own: false, hostile: false, free: false, special: false };
   let highlightSystemId = null;
   let lastViewMode = "";
+  const backdropArt = new Image();
+  backdropArt.decoding = "async";
+  backdropArt.src = "/assets/map/starfield-nebula-v1.png";
 
   function viewMode() {
     if (cam.scale < 0.72) return "sector";
@@ -177,6 +180,18 @@ export function createMap(canvas, onSelect, onViewChange) {
     base.addColorStop(1, "#02040b");
     ctx.fillStyle = base;
     ctx.fillRect(0, 0, w, h);
+
+    if (backdropArt.complete && backdropArt.naturalWidth) {
+      const scale = Math.max(w / backdropArt.naturalWidth, h / backdropArt.naturalHeight);
+      const dw = backdropArt.naturalWidth * scale;
+      const dh = backdropArt.naturalHeight * scale;
+      const px = ((cam.x - 1500) * .018) % Math.max(1, dw - w + 80);
+      const py = ((cam.y - 1500) * .012) % Math.max(1, dh - h + 80);
+      ctx.save();
+      ctx.globalAlpha = .82;
+      ctx.drawImage(backdropArt, (w - dw) / 2 - px, (h - dh) / 2 - py, dw, dh);
+      ctx.restore();
+    }
 
     const clouds = [
       [.2, .28, .42, "rgba(18,104,168,.15)"],
@@ -435,14 +450,13 @@ export function createMap(canvas, onSelect, onViewChange) {
         ctx.lineTo(s.x, s.y + m);
         ctx.stroke();
       }
-      const sectorLabel = mode === "sector" && (isOwn || s.isHub || danger >= 2);
-      const systemLabel = mode === "system" && (isOwn || s.isHub || danger || selected);
-      if ((hover && hover.id === s.id) || selected || sectorLabel || systemLabel || (mode === "orbit" && (isOwn || s.isHub))) {
+      {
         ctx.fillStyle = "#e8f6ff";
-        ctx.font = `600 ${12 / cam.scale}px Sora, sans-serif`;
+        ctx.font = `600 ${Math.max(9 / cam.scale, 10)}px Sora, sans-serif`;
         ctx.shadowColor = "#020610";
-        ctx.shadowBlur = 8 / cam.scale;
-        ctx.fillText(s.warlord ? s.name + "  †" : s.name, s.x + 12 / cam.scale, s.y - 9 / cam.scale);
+        ctx.shadowBlur = Math.max(5, 8 / cam.scale);
+        const label = `${s.warlord ? s.name + "  †" : s.name}${s.planetCount ? ` · ${s.planetCount}` : ""}`;
+        ctx.fillText(label, s.x + 12 / cam.scale, s.y - 9 / cam.scale);
         ctx.shadowBlur = 0;
       }
       if (data.self?.homeSystemId === s.id) {
