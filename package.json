@@ -8,7 +8,7 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "test": "node --test",
-    "check": "node --check public/js/app.js && node --check public/js/map.js"
+    "check": "node --check public/js/app.js && node --check public/js/map.js && node --check public/js/battle.js && node --check public/js/ui.js"
   },
   "engines": {
     "node": "22.x"

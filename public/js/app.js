@@ -112,16 +112,39 @@ function renderResources() {
   if (!el) return;
   if (!p) {
     el.innerHTML = "";
+    delete el.dataset.signature;
     return;
   }
+  const models = resourceIds().map((k) => {
+    const def = state.catalog.resources[k];
+    const value = liveRes(k);
+    const cap = typeof p.storage === "object" ? p.storage[k] : p.storage;
+    const prod = p.production[k] || 0;
+    const pct = Math.min(100, Math.round((value / Math.max(1, cap)) * 100));
+    return { k, def, value, cap, prod, pct, full: pct >= 92 };
+  });
+  const structure = JSON.stringify([p.id, models.map((m) => [m.k, m.cap, m.prod]), !!state.snap.empire.nexDailyReady]);
+  if (el.dataset.signature === structure) {
+    for (const model of models) {
+      const card = el.querySelector(`[data-k="${model.k}"]`);
+      if (!card) continue;
+      card.classList.toggle("full", model.full);
+      card.title = `${model.def.name}: ${fmt(model.value)} / ${fmt(model.cap)} · +${fmt(model.prod)}/h`;
+      const value = card.querySelector("b");
+      if (value) { value.textContent = fmt(model.value); value.style.color = model.full ? "var(--danger)" : model.def.color; }
+      const fill = card.querySelector(".fill");
+      if (fill) fill.style.width = `${model.pct}%`;
+    }
+    const nex = el.querySelector('[data-k="nex"] b');
+    if (nex) nex.textContent = fmt(state.snap.empire.nex || 0);
+    const clock = $("clock");
+    if (clock) clock.textContent = new Date().toLocaleTimeString("de-DE");
+    return;
+  }
+  el.dataset.signature = structure;
   el.innerHTML = resourceIds()
     .map((k) => {
-      const def = state.catalog.resources[k];
-      const v = liveRes(k);
-      const cap = typeof p.storage === "object" ? p.storage[k] : p.storage;
-      const prod = p.production[k] || 0;
-      const pct = Math.min(100, Math.round((v / Math.max(1, cap)) * 100));
-      const full = pct >= 92;
+      const { def, value: v, cap, prod, pct, full } = models.find((model) => model.k === k);
       return `<div class="res${full ? " full" : ""}" data-k="${k}" title="${esc(def.name)}: ${fmt(v)} / ${fmt(cap)} · +${fmt(prod)}/h">
         <img class="res-art" src="/assets/resources/${k}.jpg" alt="" />
         <div class="res-meta">
@@ -782,6 +805,7 @@ function renderView({ preserveForm = true } = {}) {
     if (shell) {
       shell.classList.toggle("view-galaxy", state.view === "galaxy");
       shell.classList.toggle("view-home", state.view === "command");
+      shell.classList.toggle("alliance-planet-open", state.view === "command" && !!state.snap?.planet?.isAlliance);
     }
     if (draft) restoreViewForm(draft);
     bindView(v);

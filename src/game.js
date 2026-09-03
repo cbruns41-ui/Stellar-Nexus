@@ -565,6 +565,22 @@ function addReport(db, empireId, kind, title, body) {
     createdAt
   );
   const reportId = Number(inserted.lastInsertRowid);
+  const partyRows = body?.viewer === "defender" ? body?.defenders : body?.attackers;
+  if (kind === "combat" && Array.isArray(partyRows)) {
+    for (const party of partyRows.filter((entry) => Number(entry.empireId) === Number(empireId) && entry.originPlanetId)) {
+      for (const [shipId, lost] of Object.entries(party.lost || {})) {
+        if (!Number(lost)) continue;
+        db.prepare("INSERT INTO fleet_ledger(empire_id,planet_id,ship_id,before_count,after_count,cause,report_id,created_at) VALUES(?,?,?,?,?,?,?,?)")
+          .run(empireId, party.originPlanetId, shipId, Number(party.ships?.[shipId] || lost), Number(party.left?.[shipId] || 0), title, reportId, createdAt);
+      }
+    }
+  } else if (kind === "expedition" && body?.originPlanetId) {
+    for (const [shipId, lost] of Object.entries(body.lost || {})) {
+      if (!Number(lost)) continue;
+      db.prepare("INSERT INTO fleet_ledger(empire_id,planet_id,ship_id,before_count,after_count,cause,report_id,created_at) VALUES(?,?,?,?,?,?,?,?)")
+        .run(empireId, body.originPlanetId, shipId, Number(body.deployed?.[shipId] || lost), Math.max(0, Number(body.deployed?.[shipId] || lost) - Number(lost)), title, reportId, createdAt);
+    }
+  }
   const linkedPlanetId = Number(body?.planetId || body?.originPlanetId || 0);
   if (linkedPlanetId) {
     db.prepare("UPDATE fleet_ledger SET cause=?, report_id=? WHERE empire_id=? AND planet_id=? AND report_id IS NULL AND created_at>=?")
@@ -1160,6 +1176,8 @@ function resolveExpedition(db, fleet, ships, home, empire) {
     loot: roll.loot,
     shipsGain: roll.shipsGain || {},
     lost: roll.ships || {},
+    deployed: ships,
+    originPlanetId: fleet.origin_planet_id,
     kind: roll.kind,
   });
   launchReturn(db, fleet, left, roll.loot || emptyBag());
@@ -1532,6 +1550,7 @@ function resolveAcsAttack(db, fleets) {
     lost: g.lost,
     left: g.survivors,
     loot: g.loot,
+    originPlanetId: g.fleet.origin_planet_id,
   }));
   const names = [...new Set(attackers.map((a) => a.name))];
   const acs = groups.length > 1;
@@ -1704,6 +1723,7 @@ function resolveIntercept(db, fleets) {
     lost: g.lost,
     left: g.survivors,
     loot: {},
+    originPlanetId: g.fleet.origin_planet_id,
   }));
   const defenders = defenderGroups.map((g) => ({
     empireId: g.empire.id,
@@ -1712,6 +1732,7 @@ function resolveIntercept(db, fleets) {
     lost: g.lost,
     left: g.survivors,
     loot: {},
+    originPlanetId: g.fleet?.origin_planet_id || 0,
   }));
   const names = [...new Set(attackers.map((a) => a.name))];
   const defNames = [...new Set(defenders.map((d) => d.name))];
@@ -2407,9 +2428,9 @@ function snapshot(db, user, planetId) {
     colonies: fleetColonies,
     ledger: db.prepare(`
       SELECT l.id,l.planet_id AS planetId,l.ship_id AS shipId,l.before_count AS beforeCount,
-             l.after_count AS afterCount,l.cause,l.report_id AS reportId,l.created_at AS createdAt,
+             l.after_count AS afterCount,l.cause,CASE WHEN r.id IS NULL THEN NULL ELSE l.report_id END AS reportId,l.created_at AS createdAt,
              COALESCE(p.name,'Unbekannter Planet') AS planetName
-      FROM fleet_ledger l LEFT JOIN planets p ON p.id=l.planet_id
+      FROM fleet_ledger l LEFT JOIN planets p ON p.id=l.planet_id LEFT JOIN reports r ON r.id=l.report_id
       WHERE l.empire_id=? ORDER BY l.id DESC LIMIT 60
     `).all(empire.id),
     recent: db.prepare("SELECT id, kind, title, body, created_at FROM reports WHERE empire_id = ? AND kind IN ('combat','expedition') ORDER BY id DESC LIMIT 8").all(empire.id).map((row) => {
@@ -3210,6 +3231,7 @@ module.exports = {
   recallFleet,
   assignHome,
   addShips,
+  addReport,
   shipCap,
   allianceStorageCap,
   reportShipLosses,

@@ -356,6 +356,10 @@ img.res-ico { width: 16px; height: 16px; object-fit: cover; border-radius: 4px; 
   background: linear-gradient(90deg, rgba(62, 232, 196, 0.14), transparent);
 }
 .nav button.on { box-shadow: inset 3px 0 0 var(--cyan); }
+.nav-alliance-entry { grid-template-columns:1fr; }
+.nav-alliance-entry button { display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;border-color:rgba(85,229,209,.5);background:linear-gradient(105deg,rgba(11,74,82,.72),rgba(7,20,32,.92));color:#dffefa;box-shadow:inset 3px 0 0 #55e5d1,0 0 20px rgba(85,229,209,.08); }
+.nav-alliance-entry button span { font:700 13px var(--display);letter-spacing:.06em; }
+.nav-alliance-entry button small { color:#75a9ad;font-size:9px;text-transform:none; }
 .nav-help {
   grid-column: 1 / -1;
   display: block;
@@ -2788,6 +2792,17 @@ button.linkish {
   box-shadow: 0 8px 18px rgba(0,0,0,0.45);
   pointer-events: auto;
 }
+.shell.view-home.alliance-planet-open .view {
+  display:block;
+  min-height:0;
+  overflow-x:hidden;
+  overflow-y:auto;
+  overscroll-behavior-y:contain;
+  -webkit-overflow-scrolling:touch;
+  touch-action:pan-y;
+}
+.shell.view-home.alliance-planet-open .dock { display:none; }
+.shell.view-home.alliance-planet-open .alliance-world { min-height:max-content;padding-bottom:calc(24px + env(safe-area-inset-bottom,0px)); }
 .city-plot:not(.selected) { pointer-events: none; }
 .city-plot .city-plot-main,
 .city-plot.selected .city-building-actions,
@@ -3848,6 +3863,8 @@ body[data-mode="play"] .tabbar button.on { color: #59e8ff; text-shadow: 0 0 12px
 }
 @media (pointer: coarse) {
   body[data-mode="play"] button,.sys-planet-acts .btn,.map-view-switch button { min-height:44px; }
+  body[data-mode="play"] input,body[data-mode="play"] select,body[data-mode="play"] textarea { min-height:44px; }
   .nav button { min-height:54px; }
   .fleet-ledger summary { min-height:52px; }
+  .sys-panel .sys-actions .btn.primary,.group-fleet-sheet .group-launch { position:relative;z-index:2; }
 }

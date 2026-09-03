@@ -9,7 +9,7 @@ const path = require("node:path");
 const commanders = require("../src/commanders");
 const { windowAt, TIERS } = require("../src/sectorSeason");
 const allianceBoss = require("../src/allianceBoss");
-const { shipCap, allianceStorageCap, reportShipLosses } = require("../src/game");
+const { shipCap, allianceStorageCap, reportShipLosses, addReport } = require("../src/game");
 const { openDb } = require("../src/db");
 
 test("commander unlocks and bonuses follow command level", () => {
@@ -62,10 +62,12 @@ test("database triggers journal every ship stock mutation", () => {
     const planetId = Number(db.prepare("SELECT id FROM planets WHERE empire_id IS NULL LIMIT 1").get().id);
     db.prepare("UPDATE planets SET empire_id=? WHERE id=?").run(empireId,planetId);
     db.prepare("INSERT INTO ships(planet_id,ship_id,count) VALUES(?,?,?)").run(planetId,"fighter",8);
+    const reportId = addReport(db, empireId, "build", "8 Jäger fertig", { planetId, text: "Werftauftrag abgeschlossen." });
     db.prepare("UPDATE ships SET count=5 WHERE planet_id=? AND ship_id='fighter'").run(planetId);
     db.prepare("DELETE FROM ships WHERE planet_id=? AND ship_id='fighter'").run(planetId);
     const rows = db.prepare("SELECT before_count AS beforeCount,after_count AS afterCount FROM fleet_ledger WHERE empire_id=? ORDER BY id").all(empireId);
-    assert.deepEqual(rows, [{ beforeCount: 0, afterCount: 8 }, { beforeCount: 8, afterCount: 5 }, { beforeCount: 5, afterCount: 0 }]);
+    assert.deepEqual(rows.map((row) => ({ ...row })), [{ beforeCount: 0, afterCount: 8 }, { beforeCount: 8, afterCount: 5 }, { beforeCount: 5, afterCount: 0 }]);
+    assert.equal(Number(db.prepare("SELECT report_id FROM fleet_ledger WHERE empire_id=? ORDER BY id LIMIT 1").get(empireId).report_id), reportId);
   } finally {
     db.close();
     fs.rmSync(dir, { recursive: true, force: true });
