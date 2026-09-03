@@ -4332,3 +4332,67 @@ body[data-mode="play"] .tabbar button.on { background:linear-gradient(180deg,rgb
   .shell.view-home .city-side .city-orders::after{box-shadow:none;border-radius:50%}
   .shell.view-home .city-tut{max-width:calc(100% - 16px);bottom:8px}
 }
+
+/* Mobile-first interface pass: readable economy, uncropped navigation and art-led cards. */
+.map-search-toggle{display:none}
+@media(max-width:760px){
+  body[data-mode="play"]{--top:54px;--tabs:66px}
+  body[data-mode="play"] .shell{height:100dvh;min-height:100dvh;grid-template-rows:54px minmax(0,1fr) auto 66px}
+  body[data-mode="play"] .topbar{position:relative;z-index:20;overflow:visible}
+  body[data-mode="play"] .resources{flex:1 1 auto;display:flex!important;max-width:calc(100vw - 52px);overflow:visible!important}
+  body[data-mode="play"] .resources .res-primary{display:grid;flex:1 1 0;min-width:0;max-width:92px}
+  body[data-mode="play"] .resources .res-secondary{display:none}
+  body[data-mode="play"] .resources.expanded{position:absolute;left:5px;right:5px;top:49px;z-index:30;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:8px;border:1px solid rgba(72,203,255,.48);border-radius:0 0 12px 12px;background:rgba(2,10,18,.98);box-shadow:0 18px 38px rgba(0,0,0,.72)}
+  body[data-mode="play"] .resources.expanded .res{display:grid;max-width:none;min-width:0}
+  body[data-mode="play"] .resources.expanded .resource-toggle{position:absolute;right:7px;bottom:-39px}
+  body[data-mode="play"] .resource-toggle{display:grid;place-items:center;flex:0 0 34px;width:34px;height:38px;min-height:38px;border-radius:5px;font-size:18px}
+  body[data-mode="play"] .res{clip-path:none;border-radius:5px}
+  body[data-mode="play"] .res-meta{min-width:0}
+  body[data-mode="play"] .res b{overflow:hidden;font-size:clamp(9px,2.8vw,12px);text-overflow:ellipsis}
+  body[data-mode="play"] .tabbar{position:relative;z-index:40;height:66px;min-height:66px;padding:0 4px calc(4px + env(safe-area-inset-bottom,0px));overflow:visible}
+  body[data-mode="play"] .tabbar button{height:58px;min-height:58px;min-width:0;padding:5px 2px 4px;font-size:10px;line-height:1;overflow:visible;clip-path:none}
+  body[data-mode="play"] .tabbar svg{display:block;flex:0 0 auto;width:24px;height:24px;margin-bottom:3px}
+
+  .shell.view-galaxy .map-search-toggle{position:absolute;z-index:8;left:7px;top:7px;display:grid;place-items:center;width:44px;height:44px;padding:0;border:1px solid rgba(72,211,255,.62);border-radius:50%;background:rgba(2,15,25,.9);color:#77eaff;font-size:25px;box-shadow:0 8px 24px rgba(0,0,0,.48),inset 0 0 16px rgba(55,207,255,.1);backdrop-filter:blur(10px)}
+  .shell.view-galaxy .map-status{left:58px;top:8px}
+  .shell.view-galaxy .map-tools{top:58px!important;z-index:9;padding:9px!important;border-radius:10px!important}
+  .shell.view-galaxy .map-tools.open{display:grid!important}
+  .shell.view-galaxy .map-search-wrap input{min-height:46px;font-size:16px}
+
+  body[data-mode="play"] .og-list{display:grid;grid-template-columns:1fr;gap:12px}
+  body[data-mode="play"] .og-row{display:flex!important;flex-direction:column;gap:0;margin:0!important;padding:0!important;overflow:hidden;border-radius:13px!important}
+  body[data-mode="play"] .og-row>.og-art,
+  body[data-mode="play"] .og-row>video.og-art,
+  body[data-mode="play"] .og-row>.og-art-ship{display:block;width:100%!important;height:auto!important;min-height:0!important;aspect-ratio:16/8.5!important;object-fit:cover!important;object-position:center 42%;border-radius:0}
+  body[data-mode="play"] .og-row>video.og-art-ship{object-fit:contain!important;background:radial-gradient(circle,#0c2a3d,#02070d 72%)}
+  body[data-mode="play"] .og-row .og-body{width:100%;padding:12px 12px 8px!important}
+  body[data-mode="play"] .og-row .og-body h3{margin:0 0 5px;font-size:16px}
+  body[data-mode="play"] .og-row .og-body p{font-size:12px;line-height:1.45}
+  body[data-mode="play"] .og-row .og-act{display:grid;grid-column:auto!important;width:100%;gap:7px;padding:4px 12px 13px!important}
+  body[data-mode="play"] .og-row .og-act .btn{width:100%;min-height:48px}
+  body[data-mode="play"] .og-row .meta{display:flex;overflow-x:auto;padding-bottom:3px;white-space:nowrap}
+  body[data-mode="play"] .section-title{align-items:flex-start;gap:4px}
+  body[data-mode="play"] .section-title h2{font-size:19px}
+  body[data-mode="play"] .section-title>span{font-size:10px;text-align:right}
+  body[data-mode="play"] .view:not(:has(.map-wrap)):not(:has(.city-view)){padding:9px 8px calc(18px + env(safe-area-inset-bottom,0px));overflow-x:hidden}
+  body[data-mode="play"] .tree-row{grid-template-columns:1fr 1fr}
+  body[data-mode="play"] .tree-node img{display:block;width:100%;aspect-ratio:16/10;object-fit:cover}
+  body[data-mode="play"] .force-card,.species-card{overflow:hidden}
+  body[data-mode="play"] .force-art,.species-card>img{width:100%;height:auto;aspect-ratio:16/9;object-fit:cover}
+}
+
+/* Approved colony direction: grounded buildings, readable foundations, nearly full-screen playfield. */
+.city-map{isolation:isolate}
+.city-vista{filter:saturate(1.12) contrast(1.04)}
+.city-plot::before{content:"";position:absolute;z-index:-1;left:50%;bottom:19px;width:82%;height:24%;transform:translateX(-50%);border:1px solid rgba(75,218,255,.42);background:radial-gradient(ellipse,rgba(35,177,221,.18),rgba(3,16,25,.46) 68%);clip-path:polygon(18% 0,82% 0,100% 50%,82% 100%,18% 100%,0 50%);box-shadow:0 0 18px rgba(41,195,238,.14)}
+.city-plot.built .city-building-art{bottom:23px;transform:translateX(-50%);transform-origin:50% 100%;filter:drop-shadow(0 15px 10px rgba(0,0,0,.72)) saturate(1.1)}
+.city-plot.built .city-plot-main>b,.city-plot.built .city-plot-main>span{opacity:0;transition:opacity .16s}
+.city-plot.built.selected .city-plot-main>b,.city-plot.built.selected .city-plot-main>span,.city-plot.built:focus-within .city-plot-main>b,.city-plot.built:focus-within .city-plot-main>span{opacity:1}
+.city-plot.selected::before{border-color:#64eaff;box-shadow:0 0 25px rgba(53,216,255,.48)}
+@media(max-width:760px){
+  .city-map{width:1680px}
+  .city-plot-main{min-width:44px;min-height:44px}
+  .city-building-actions{position:fixed;left:50%;top:auto;bottom:75px;z-index:20;width:min(94vw,430px);transform:translateX(-50%);display:grid;grid-template-columns:minmax(0,1fr) 72px;padding:7px;border-radius:12px;background:rgba(2,11,19,.97)}
+  .city-upgrade{width:100%;min-width:0;min-height:48px}
+  .city-info{min-height:48px}
+}

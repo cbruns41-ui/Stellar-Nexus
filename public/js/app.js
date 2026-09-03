@@ -84,6 +84,12 @@ function resourceIds() {
   return state.catalog?.resourceIds || ["metal", "helium", "titan", "energy", "crystal", "diamond"];
 }
 
+function chromeResourceIds() {
+  const ids = resourceIds();
+  const primary = ["metal", "energy", "crystal"].filter((id) => ids.includes(id));
+  return [...primary, ...ids.filter((id) => !primary.includes(id))];
+}
+
 function have() {
   const p = state.snap?.planet;
   const out = {};
@@ -143,10 +149,10 @@ function renderResources() {
     return;
   }
   el.dataset.signature = structure;
-  el.innerHTML = resourceIds()
-    .map((k) => {
+  el.innerHTML = chromeResourceIds()
+    .map((k, index) => {
       const { def, value: v, cap, prod, pct, full } = models.find((model) => model.k === k);
-      return `<div class="res${full ? " full" : ""}" data-k="${k}" title="${esc(def.name)}: ${fmt(v)} / ${fmt(cap)} · +${fmt(prod)}/h">
+      return `<div class="res ${index < 3 ? "res-primary" : "res-secondary"}${full ? " full" : ""}" data-k="${k}" title="${esc(def.name)}: ${fmt(v)} / ${fmt(cap)} · +${fmt(prod)}/h">
         <img class="res-art" src="/assets/resources/${k}.jpg" alt="" />
         <div class="res-meta">
           <em>${esc(def.short || def.name)}</em>
@@ -158,17 +164,23 @@ function renderResources() {
     })
     .join("");
   const e = state.snap.empire;
-  el.innerHTML += `<div class="res nex" data-k="nex" data-goto="nexus" title="Nex — Premium-Währung für Spezieswechsel und Spezialangebote">
+  el.innerHTML += `<div class="res nex res-secondary" data-k="nex" data-goto="nexus" title="Nex — Premium-Währung für Spezieswechsel und Spezialangebote">
       <img class="res-art" src="/assets/nex.jpg" alt="" />
       <div class="res-meta">
         <em>Nex</em>
         <b>${fmt(e.nex || 0)}</b>
         <small>${e.nexDailyReady ? "Tagesbonus bereit" : "Premium"}</small>
       </div>
-    </div>`;
+    </div><button type="button" class="resource-toggle" aria-expanded="false" aria-label="Weitere Ressourcen anzeigen" title="Weitere Ressourcen">⌄</button>`;
   const clock = $("clock");
   if (clock) clock.textContent = new Date().toLocaleTimeString("de-DE");
   el.querySelector("[data-goto]")?.addEventListener("click", () => setView("nexus"));
+  el.querySelector(".resource-toggle")?.addEventListener("click", () => {
+    const expanded = el.classList.toggle("expanded");
+    const toggle = el.querySelector(".resource-toggle");
+    toggle?.setAttribute("aria-expanded", String(expanded));
+    if (toggle) toggle.textContent = expanded ? "⌃" : "⌄";
+  });
 }
 
 function renderDock() {
@@ -1508,7 +1520,7 @@ function colonyCityHtml() {
           </div>`
         : "";
   const biome = /^(terran|ocean|desert|ice|lava|gas|ruin)$/.test(p.type) ? p.type : "terran";
-  const cityArt = `/assets/colony/base-${biome}-v3.png?v=2`;
+  const cityArt = `/assets/colony/base-grid-v4.png?v=1`;
   const vista = `<img class="city-vista" src="${cityArt}" alt="" draggable="false" />`;
   return `<section class="city-view biome-${biome}">
     <div class="city-stage" id="city-stage">
@@ -1885,10 +1897,11 @@ const views = {
     const seasonPct = nextTier ? Math.min(100, Math.round((season.score / nextTier.score) * 100)) : 100;
     const seasonPanel = season ? `<section class="map-season panel"><header><span>SEKTOR-SAISON ${esc(season.id)}</span><time>${Math.max(0, Math.ceil((season.end - Date.now()) / 86400000))}T</time></header><strong>${fmt(season.score)} SP</strong><div><i style="width:${seasonPct}%"></i></div><small>${nextTier ? `${fmt(nextTier.score)} SP · Meilenstein ${nextTier.tier}` : "Alle Meilensteine erreicht"}</small>${nextTier?.ready ? `<button type="button" class="btn primary small" data-season-claim="${nextTier.tier}">Abholen</button>` : ""}<details><summary>Wertung</summary><p>${season.combat} Siege · ${season.expeditions} Expeditionen · ${season.colonies} Kolonien · ${fmt(season.bossDamage)} Boss-Schaden</p></details></section>` : "";
     return `<div class="map-wrap"><canvas id="starmap"></canvas>
+      <button type="button" class="map-search-toggle" aria-expanded="false" aria-controls="map-tools" aria-label="System suchen" title="System suchen">⌕</button>
       <nav class="map-view-switch panel" aria-label="Karten-Zoom"><button type="button" data-map-view="sector"><span>SEKTOR</span><small>Einfluss</small></button><button type="button" data-map-view="system" class="on"><span>SYSTEME</span><small>Routen</small></button><button type="button" data-map-view="orbit"><span>ORBIT</span><small>Details</small></button></nav>
       <div class="map-status"><i></i><span id="map-view-title">SYSTEMNETZ</span><small>Alle Systeme sichtbar</small></div>
       ${seasonPanel}
-      <div class="map-tools panel"><div class="map-search-wrap"><span aria-hidden="true">⌕</span><input id="map-search" type="search" autocomplete="off" placeholder="System suchen…"><div id="map-search-results" class="map-search-results" hidden></div></div><select id="planet-focus"><option value="">— Planet springen —</option></select><details class="map-filters"><summary>Filter</summary><div class="map-filters-body"><label><input type="checkbox" data-map-filter="own"> Eigene</label><label><input type="checkbox" data-map-filter="hostile"> Feindlich</label><label><input type="checkbox" data-map-filter="free"> Frei</label><label><input type="checkbox" data-map-filter="special"> Besonderheiten</label></div></details>${bookmarks ? `<div class="map-bookmarks"><b>Gespeicherte Ziele</b>${bookmarks}</div>` : ""}</div>
+      <div class="map-tools panel" id="map-tools"><div class="map-search-wrap"><span aria-hidden="true">⌕</span><input id="map-search" type="search" autocomplete="off" placeholder="System suchen…"><div id="map-search-results" class="map-search-results" hidden></div></div><select id="planet-focus"><option value="">— Planet springen —</option></select><details class="map-filters"><summary>Filter</summary><div class="map-filters-body"><label><input type="checkbox" data-map-filter="own"> Eigene</label><label><input type="checkbox" data-map-filter="hostile"> Feindlich</label><label><input type="checkbox" data-map-filter="free"> Frei</label><label><input type="checkbox" data-map-filter="special"> Besonderheiten</label></div></details>${bookmarks ? `<div class="map-bookmarks"><b>Gespeicherte Ziele</b>${bookmarks}</div>` : ""}</div>
       <div id="map-raid-banner" class="map-raid-banner hidden" hidden></div>
       <button type="button" id="map-orbit-fire" class="map-orbit-fire" ${orbitShips ? "" : "disabled"}><i>◎</i><span><b>ORBIT-FEUER</b><small>${orbitShips ? `${orbitShips} Schiffe · 30 Sek. selbst steuern` : "Keine Schiffe am Fokus-Planeten"}</small></span></button>
       <div class="map-legend panel">Ziehen: Schwenken · Rad: Zoom · Klick: System
@@ -2593,7 +2606,8 @@ function bindCity(root) {
     }
     const focusId = TUTORIAL[tutorialIndex()]?.plot || "command";
     const rec = CITY_PLOTS.find((p) => p.id === focusId) || CITY_PLOTS[0];
-    cam.scale = clampScale(Math.max(minScale() * 3.15, 1.05));
+    const mobile = matchMedia("(max-width: 760px)").matches;
+    cam.scale = clampScale(mobile ? minScale() * 1.75 : Math.max(minScale() * 2.35, 0.9));
     centerOn(rec.x, rec.y);
     cam.ready = true;
   };
@@ -4724,6 +4738,14 @@ async function bootMap() {
   }
   if (!stillHere()) return;
   const root = $("view");
+  const searchToggle = root.querySelector(".map-search-toggle");
+  const mapTools = root.querySelector("#map-tools");
+  searchToggle?.addEventListener("click", () => {
+    const open = mapTools?.classList.toggle("open") || false;
+    searchToggle.setAttribute("aria-expanded", String(open));
+    searchToggle.textContent = open ? "×" : "⌕";
+    if (open) requestAnimationFrame(() => root.querySelector("#map-search")?.focus());
+  });
   root.querySelectorAll("[data-map-view]").forEach((button) => button.addEventListener("click", () => state.map?.setView(button.dataset.mapView)));
   root.querySelectorAll("[data-season-claim]").forEach((button) => button.addEventListener("click", () => act(() => api("/sector-season/claim", { method: "POST", body: { tier: Number(button.dataset.seasonClaim) } }))));
   const applyMapFilter = () => {

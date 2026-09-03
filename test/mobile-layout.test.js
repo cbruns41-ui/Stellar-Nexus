@@ -36,6 +36,23 @@ test("mobile layout contract covers primary game surfaces", () => {
   assert.match(css, /body\[data-mode="play"\] input/);
 });
 
+test("mobile chrome exposes three resources, an expander and map search toggle", () => {
+  assert.match(app, /\["metal", "energy", "crystal"\]/);
+  assert.match(app, /index < 3 \? "res-primary" : "res-secondary"/);
+  assert.match(app, /class="resource-toggle"/);
+  assert.match(app, /class="map-search-toggle"/);
+  assert.match(app, /mapTools\?\.classList\.toggle\("open"\)/);
+  assert.match(css, /\.resources\.expanded \.res/);
+  assert.match(css, /\.shell\.view-galaxy \.map-search-toggle/);
+});
+
+test("mobile catalog cards are image-first and the colony uses the grounded base plate", () => {
+  assert.match(css, /flex-direction:column/);
+  assert.match(css, /\.og-row>\.og-art/);
+  assert.match(app, /base-grid-v4\.png/);
+  assert.equal(fs.existsSync(path.join(root, "public", "assets", "colony", "base-grid-v4.png")), true);
+});
+
 test("star map uses cinematic art and labels every detailed system", () => {
   assert.match(bossGame3d, /alliance-war-titan-v1\.png/);
   assert.match(fs.readFileSync(path.join(root, "public", "js", "map.js"), "utf8"), /starfield-nebula-v1\.png/);

@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE = "sn-shell-v47";
+const CACHE = "sn-shell-v48";
 const PRECACHE = [
   "/",
   "/manifest.json",
