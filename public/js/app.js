@@ -1456,6 +1456,7 @@ function colonyCityHtml() {
       q ? "busy" : "",
       `level-${buildingLevelBand(lvl)}`,
       `size-${plot.size || "small"}`,
+      Number.isFinite(plot.mx) && Number.isFinite(plot.my) ? "scene-landmark" : "",
       plot.zone === "def" ? "def" : "",
       plot.id === "defense_hub" ? "hub" : "",
     ]
@@ -1476,7 +1477,7 @@ function colonyCityHtml() {
               : "Bauen";
     const selected = state.cityBuilding === plot.id;
     const canUpgrade = !!plot.building && unlocked && !q && !info?.max && canAfford(info?.nextCost || {});
-    return `<div class="${cls}${selected ? " selected" : ""}" style="left:${plot.x}%;top:${plot.y}%;z-index:${selected ? 900 : 300 + Math.round(plot.y)}">
+    return `<div class="${cls}${selected ? " selected" : ""}" style="left:${plot.x}%;top:${plot.y}%;--mobile-x:${plot.mx ?? plot.x}%;--mobile-y:${plot.my ?? plot.y}%;z-index:${selected ? 900 : 300 + Math.round(plot.y)}">
         ${rec ? `<i class="city-arrow">↑</i>` : ""}
         <button type="button" class="city-plot-main" data-city-building="${plot.id}"${!unlocked ? ` data-city-lock="${esc(need || "Noch gesperrt")}"` : ""}>
           ${lvl > 0 ? `<img class="city-building-art" src="/assets/colony/buildings/${plot.art || "utility"}.png" alt="" draggable="false" />` : `<i class="city-empty-site" aria-hidden="true">＋</i>`}
@@ -1520,8 +1521,8 @@ function colonyCityHtml() {
           </div>`
         : "";
   const biome = /^(terran|ocean|desert|ice|lava|gas|ruin)$/.test(p.type) ? p.type : "terran";
-  const cityArt = `/assets/colony/base-grid-v4.png?v=1`;
-  const vista = `<img class="city-vista" src="${cityArt}" alt="" draggable="false" />`;
+  const cityArt = `/assets/colony/base-desktop-v5.png?v=1`;
+  const vista = `<picture class="city-vista-frame"><source media="(max-width:760px)" srcset="/assets/colony/base-mobile-v5.png?v=1"><img class="city-vista" src="${cityArt}" alt="" draggable="false" /></picture>`;
   return `<section class="city-view biome-${biome}">
     <div class="city-stage" id="city-stage">
       <div class="city-map" id="city-map">
@@ -2607,7 +2608,7 @@ function bindCity(root) {
     const focusId = TUTORIAL[tutorialIndex()]?.plot || "command";
     const rec = CITY_PLOTS.find((p) => p.id === focusId) || CITY_PLOTS[0];
     const mobile = matchMedia("(max-width: 760px)").matches;
-    cam.scale = clampScale(mobile ? minScale() * 1.75 : Math.max(minScale() * 2.35, 0.9));
+    cam.scale = clampScale(1);
     centerOn(rec.x, rec.y);
     cam.ready = true;
   };

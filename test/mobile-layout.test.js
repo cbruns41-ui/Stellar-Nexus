@@ -49,8 +49,10 @@ test("mobile chrome exposes three resources, an expander and map search toggle",
 test("mobile catalog cards are image-first and the colony uses the grounded base plate", () => {
   assert.match(css, /flex-direction:column/);
   assert.match(css, /\.og-row>\.og-art/);
-  assert.match(app, /base-grid-v4\.png/);
-  assert.equal(fs.existsSync(path.join(root, "public", "assets", "colony", "base-grid-v4.png")), true);
+  assert.match(app, /base-desktop-v5\.png/);
+  assert.match(app, /base-mobile-v5\.png/);
+  assert.equal(fs.existsSync(path.join(root, "public", "assets", "colony", "base-desktop-v5.png")), true);
+  assert.equal(fs.existsSync(path.join(root, "public", "assets", "colony", "base-mobile-v5.png")), true);
 });
 
 test("star map uses cinematic art and labels every detailed system", () => {

@@ -4396,3 +4396,39 @@ body[data-mode="play"] .tabbar button.on { background:linear-gradient(180deg,rgb
   .city-upgrade{width:100%;min-width:0;min-height:48px}
   .city-info{min-height:48px}
 }
+
+/* Portrait colony scene: the approved composition is a separate mobile art direction. */
+.city-vista-frame{display:block;width:100%;height:auto;pointer-events:none}
+.shell.view-home .city-map{width:100%}
+.shell.view-home .city-plot:not(.scene-landmark){display:none}
+.shell.view-home .city-plot.scene-landmark::before,
+.shell.view-home .city-plot.scene-landmark .city-building-art,
+.shell.view-home .city-plot.scene-landmark .city-empty-site{display:none!important}
+.shell.view-home .city-plot.scene-landmark .city-plot-main{border:1px solid transparent;background:transparent}
+.shell.view-home .city-plot.scene-landmark.selected .city-plot-main{border-color:#5de7ff;background:radial-gradient(ellipse,transparent 54%,rgba(40,206,255,.17));box-shadow:0 0 24px rgba(39,198,245,.34)}
+@media(max-width:760px){
+  .shell.view-home .city-stage{background:#02060b}
+  .shell.view-home .city-map{width:100%;height:auto}
+  .shell.view-home .city-vista-frame,.shell.view-home .city-vista{display:block;width:100%;height:auto;aspect-ratio:943/1672;object-fit:cover}
+  .shell.view-home .city-vista{filter:saturate(1.08) contrast(1.04)}
+  .shell.view-home .city-plot{left:var(--mobile-x)!important;top:var(--mobile-y)!important;display:none;min-width:0;border:0;background:transparent;box-shadow:none;filter:none}
+  .shell.view-home .city-plot.scene-landmark{display:block}
+  .shell.view-home .city-plot.scene-landmark .city-plot-main{width:74px;height:74px;min-width:74px;min-height:74px;padding:0;border:1px solid transparent;border-radius:50%;background:transparent}
+  .shell.view-home .city-plot.scene-landmark.size-medium .city-plot-main{width:92px;height:84px}
+  .shell.view-home .city-plot.scene-landmark.size-large .city-plot-main{width:124px;height:104px}
+  .shell.view-home .city-plot.scene-landmark.size-capital .city-plot-main{width:188px;height:158px}
+  .shell.view-home .city-plot.scene-landmark::before{display:none}
+  .shell.view-home .city-plot.scene-landmark .city-building-art,
+  .shell.view-home .city-plot.scene-landmark .city-empty-site{display:none!important}
+  .shell.view-home .city-plot.scene-landmark.selected .city-plot-main{border-color:#5de7ff;background:radial-gradient(ellipse,transparent 54%,rgba(40,206,255,.19));box-shadow:0 0 0 2px rgba(59,210,255,.12),0 0 24px rgba(39,198,245,.38)}
+  .shell.view-home .city-plot.scene-landmark .city-plot-main>b,
+  .shell.view-home .city-plot.scene-landmark .city-plot-main>span{position:absolute;left:50%;top:calc(100% + 3px);z-index:3;display:none;width:max-content;max-width:160px;transform:translateX(-50%);padding:4px 8px;border:1px solid rgba(79,216,255,.52);border-radius:4px;background:rgba(2,15,25,.94);color:#e7faff;font-size:10px;line-height:1.15;text-shadow:0 1px 4px #000}
+  .shell.view-home .city-plot.scene-landmark .city-plot-main>span{top:calc(100% + 27px);color:#71ddf7;font-size:8px}
+  .shell.view-home .city-plot.scene-landmark.selected .city-plot-main>b,
+  .shell.view-home .city-plot.scene-landmark.selected .city-plot-main>span{display:block;opacity:1}
+  .shell.view-home .city-atmosphere{opacity:.38;mix-blend-mode:screen}
+  .shell.view-home .city-side{inset:0;display:block;width:auto;height:auto;pointer-events:none}
+  .shell.view-home .city-side button{position:absolute;top:27%;pointer-events:auto}
+  .shell.view-home .city-side .city-orders{left:0;right:auto;border-radius:0 11px 11px 0}
+  .shell.view-home .city-side .city-planet-info{left:auto;right:0;border-radius:11px 0 0 11px}
+}
