@@ -12,7 +12,9 @@ const css = fs.readFileSync(path.join(root, "public", "css", "style.css"), "utf8
 const app = fs.readFileSync(path.join(root, "public", "js", "app.js"), "utf8");
 const bossGame = fs.readFileSync(path.join(root, "public", "js", "alliance-boss-game.js"), "utf8");
 const bossGame3d = fs.readFileSync(path.join(root, "public", "js", "alliance-boss-3d.js"), "utf8");
+const city3d = fs.readFileSync(path.join(root, "public", "js", "city-3d.js"), "utf8");
 const routes = fs.readFileSync(path.join(root, "src", "routes.js"), "utf8");
+const { BUILDINGS } = require("../src/catalog");
 
 test("alliance is the first item inside the command menu", () => {
   for (const shell of [html, landingHtml]) {
@@ -38,21 +40,53 @@ test("mobile layout contract covers primary game surfaces", () => {
 
 test("mobile chrome exposes three resources, an expander and map search toggle", () => {
   assert.match(app, /\["metal", "energy", "crystal"\]/);
-  assert.match(app, /index < 3 \? "res-primary" : "res-secondary"/);
+  assert.match(app, /RESOURCE_VIEWS = new Set\(\["command", "infra", "research", "yard"\]\)/);
+  assert.match(app, /res-primary/);
+  assert.match(app, /res-secondary/);
+  assert.match(app, /class="res-more"/);
   assert.match(app, /class="resource-toggle"/);
   assert.match(app, /class="map-search-toggle"/);
   assert.match(app, /mapTools\?\.classList\.toggle\("open"\)/);
-  assert.match(css, /\.resources\.expanded \.res/);
-  assert.match(css, /\.shell\.view-galaxy \.map-search-toggle/);
+  assert.doesNotMatch(app, /map-view-switch/);
+  assert.doesNotMatch(app, /data-map-view="sector"/);
+  assert.match(app, /tree-hide-owned/);
+  assert.match(app, /Bekannte ausblenden/);
+  assert.match(css, /\.resources\.expanded \.res-more/);
+  assert.match(css, /\.shell:not\(\.show-resources\) #resources/);
+  assert.match(css, /\.map-view-switch \{ display: none !important; \}/);
+  assert.match(css, /\.map-search-toggle/);
+  assert.match(css, /right: 10px;/);
+  assert.match(css, /\.tree-hide-known/);
+  assert.match(css, /\.tree\.hide-owned \.tree-node\.owned/);
 });
 
-test("mobile catalog cards are image-first and the colony uses the grounded base plate", () => {
+test("mobile catalog cards are image-first and the colony uses an isometric planet diorama", () => {
   assert.match(css, /flex-direction:column/);
   assert.match(css, /\.og-row>\.og-art/);
-  assert.match(app, /base-desktop-v5\.png/);
-  assert.match(app, /base-mobile-v5\.png/);
-  assert.equal(fs.existsSync(path.join(root, "public", "assets", "colony", "base-desktop-v5.png")), true);
-  assert.equal(fs.existsSync(path.join(root, "public", "assets", "colony", "base-mobile-v5.png")), true);
+  assert.match(app, /id="city-actions"/);
+  assert.match(app, /Schiffe produzieren/);
+  assert.match(app, /class="city-view diorama/);
+  assert.match(app, /empty-pad-iso\.png/);
+  assert.match(app, /base-iso-planet\.jpg/);
+  assert.match(app, /base-iso-planet-mobile\.jpg/);
+  assert.match(app, /buildings-iso\/\$\{plot\.id\}\.png/);
+  assert.match(css, /\.city-view\.diorama/);
+  assert.match(css, /\.city-empty-pad/);
+  assert.match(css, /\.city-actions/);
+  assert.equal(fs.existsSync(path.join(root, "public", "assets", "colony", "base-iso-planet.jpg")), true);
+  assert.equal(fs.existsSync(path.join(root, "public", "assets", "colony", "base-iso-planet-mobile.jpg")), true);
+  assert.equal(fs.existsSync(path.join(root, "public", "assets", "colony", "empty-pad-iso.png")), true);
+  const buildingArt = fs.readdirSync(path.join(root, "public", "assets", "colony", "buildings-iso")).filter((name) => name.endsWith(".png"));
+  for (const id of Object.keys(BUILDINGS)) assert.ok(buildingArt.includes(`${id}.png`), `missing colony sprite for ${id}`);
+});
+
+test("funk splits messages, combat reports and spy reports", () => {
+  assert.match(app, /data-news="messages"/);
+  assert.match(app, /data-news="combat"/);
+  assert.match(app, /data-news="spy"/);
+  assert.match(app, /function reportChannel/);
+  assert.match(app, /kind === "combat"\) return "combat"/);
+  assert.match(app, /kind === "spy"\) return "spy"/);
 });
 
 test("star map uses cinematic art and labels every detailed system", () => {

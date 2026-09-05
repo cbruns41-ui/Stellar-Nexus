@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE = "sn-shell-v50";
+const CACHE = "sn-shell-v61";
 const PRECACHE = [
   "/",
   "/manifest.json",
@@ -34,6 +34,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api/")) return;
+  if (url.pathname.startsWith("/unity-colony/")) return;
 
   event.respondWith(
     fetch(req)

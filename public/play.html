@@ -15,7 +15,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Sora:wght@400;500;600;700&family=Tektur:wght@500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/css/style.css?v=98" />
+    <link rel="stylesheet" href="/css/style.css?v=112" />
   </head>
   <body data-mode="play">
     <canvas id="stars" aria-hidden="true"></canvas>
@@ -77,6 +77,10 @@
       <div id="nav-backdrop" class="nav-backdrop hidden" hidden></div>
 
       <div id="alert-strip" class="alert-strip hidden" hidden></div>
+      <div id="colony-unity-layer" class="colony-unity-layer hidden" hidden>
+        <canvas id="colony-unity-canvas" tabindex="-1" aria-label="3D-Kolonie"></canvas>
+        <div id="colony-unity-loading">Lade Basis…</div>
+      </div>
       <main id="view" class="view"><p class="muted" style="padding:24px">Verbinde mit dem Nexus…</p></main>
       <aside class="dock" id="dock"></aside>
       <nav class="tabbar" id="tabbar">
@@ -100,6 +104,6 @@
 
     <script src="/js/play-boot.js?v=21"></script>
     <script src="/js/pwa.js?v=2"></script>
-    <script type="module" src="/js/app.js?v=130"></script>
+    <script type="module" src="/js/app.js?v=147"></script>
   </body>
 </html>

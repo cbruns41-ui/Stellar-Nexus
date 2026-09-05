@@ -3,7 +3,9 @@ import { esc, fmt, eta, when, costHtml, planetCss, planetGlobeUrl, planetColonyU
 import { createMap, systemHtml } from "./map.js?v=58";
 import { battleReplayHtml, bindBattleReplays } from "./battle.js?v=2";
 import { startAllianceBossEncounter } from "./alliance-boss-game.js?v=15";
-import { CITY_PLOTS, buildingLevelBand } from "./city.mjs?v=2";
+import { CITY_PLOTS, buildingLevelBand } from "./city.mjs?v=6";
+import { createCity3D } from "./city-3d.js?v=5";
+import { setUnityColonyVisible } from "./colony-unity.js?v=4";
 
 const $ = (id) => document.getElementById(id);
 
@@ -16,12 +18,13 @@ const state = {
   map: null,
   chatChannel: "global",
   mailPeer: null,
-  newsTab: "reports",
+  newsTab: "messages",
   openReports: new Set(),
   highlightBuilding: null,
   cityBuilding: null,
   citySheet: null,
-  cityCam: { x: 0, y: 0, scale: 1, ready: false, planetId: 0 },
+  cityScene: null,
+  cityCam: { x: 0, y: 0, scale: 1, tilt: 0, ready: false, planetId: 0 },
   colonizeMode: null, // { sourcePlanetId, targetSystemId, targetPlanetId } bei Kolonie-Auswahl
   ignoredIncoming: new Set(),
   lastInteractionAt: 0,
@@ -32,7 +35,7 @@ const TUTORIAL = [
   {
     id: "move",
     title: "Schau dir deine Kolonie an",
-    text: "Zieh die Stadt mit dem Finger oder der Maus. Zoome per Zwei-Finger-Geste oder Mausrad.",
+    text: "Zieh nach oben oder unten, um die Ansicht zu kippen. Zoome per Zwei-Finger-Geste oder Mausrad.",
   },
   {
     id: "mine",
@@ -84,10 +87,40 @@ function resourceIds() {
   return state.catalog?.resourceIds || ["metal", "helium", "titan", "energy", "crystal", "diamond"];
 }
 
+const RESOURCE_VIEWS = new Set(["command", "infra", "research", "yard"]);
+
 function chromeResourceIds() {
   const ids = resourceIds();
   const primary = ["metal", "energy", "crystal"].filter((id) => ids.includes(id));
   return [...primary, ...ids.filter((id) => !primary.includes(id))];
+}
+
+function applyResourceChrome() {
+  const shell = $("game");
+  const show = RESOURCE_VIEWS.has(state.view);
+  shell?.classList.toggle("show-resources", show);
+  if (show) return;
+  const el = $("resources");
+  if (!el?.classList.contains("expanded")) return;
+  el.classList.remove("expanded");
+  const toggle = el.querySelector(".resource-toggle");
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.textContent = "⌄";
+  }
+}
+
+function resourceCardHtml(model, extraClass) {
+  const { k, def, value: v, cap, prod, pct, full } = model;
+  return `<div class="res ${extraClass}${full ? " full" : ""}" data-k="${k}" title="${esc(def.name)}: ${fmt(v)} / ${fmt(cap)} · +${fmt(prod)}/h">
+        <img class="res-art" src="/assets/resources/${k}.jpg" alt="" />
+        <div class="res-meta">
+          <em>${esc(def.short || def.name)}</em>
+          <b style="color:${full ? "var(--danger)" : def.color}">${fmt(v)}</b>
+          <small>${prod > 0 ? `+${fmt(prod)}/h` : "kein Gebäude"}</small>
+        </div>
+        <i class="fill" style="width:${pct}%;background:${def.color}"></i>
+      </div>`;
 }
 
 function have() {
@@ -149,38 +182,42 @@ function renderResources() {
     return;
   }
   el.dataset.signature = structure;
-  el.innerHTML = chromeResourceIds()
-    .map((k, index) => {
-      const { def, value: v, cap, prod, pct, full } = models.find((model) => model.k === k);
-      return `<div class="res ${index < 3 ? "res-primary" : "res-secondary"}${full ? " full" : ""}" data-k="${k}" title="${esc(def.name)}: ${fmt(v)} / ${fmt(cap)} · +${fmt(prod)}/h">
-        <img class="res-art" src="/assets/resources/${k}.jpg" alt="" />
-        <div class="res-meta">
-          <em>${esc(def.short || def.name)}</em>
-          <b style="color:${full ? "var(--danger)" : def.color}">${fmt(v)}</b>
-          <small>${prod > 0 ? `+${fmt(prod)}/h` : "kein Gebäude"}</small>
-        </div>
-        <i class="fill" style="width:${pct}%;background:${def.color}"></i>
-      </div>`;
-    })
-    .join("");
+  const ids = chromeResourceIds();
+  const primary = ids.slice(0, 3).map((k) => resourceCardHtml(models.find((model) => model.k === k), "res-primary")).join("");
+  const secondary = ids.slice(3).map((k) => resourceCardHtml(models.find((model) => model.k === k), "res-secondary")).join("");
   const e = state.snap.empire;
-  el.innerHTML += `<div class="res nex res-secondary" data-k="nex" data-goto="nexus" title="Nex — Premium-Währung für Spezieswechsel und Spezialangebote">
+  el.innerHTML = `${primary}<button type="button" class="resource-toggle" aria-expanded="false" aria-label="Weitere Ressourcen anzeigen" title="Weitere Ressourcen">⌄</button>
+    <div class="res-more">${secondary}<div class="res nex res-secondary" data-k="nex" data-goto="nexus" title="Nex — Premium-Währung für Spezieswechsel und Spezialangebote">
       <img class="res-art" src="/assets/nex.jpg" alt="" />
       <div class="res-meta">
         <em>Nex</em>
         <b>${fmt(e.nex || 0)}</b>
         <small>${e.nexDailyReady ? "Tagesbonus bereit" : "Premium"}</small>
       </div>
-    </div><button type="button" class="resource-toggle" aria-expanded="false" aria-label="Weitere Ressourcen anzeigen" title="Weitere Ressourcen">⌄</button>`;
+    </div></div>`;
   const clock = $("clock");
   if (clock) clock.textContent = new Date().toLocaleTimeString("de-DE");
+  applyResourceChrome();
   el.querySelector("[data-goto]")?.addEventListener("click", () => setView("nexus"));
-  el.querySelector(".resource-toggle")?.addEventListener("click", () => {
+  el.querySelector(".resource-toggle")?.addEventListener("click", (ev) => {
+    ev.stopPropagation();
     const expanded = el.classList.toggle("expanded");
     const toggle = el.querySelector(".resource-toggle");
     toggle?.setAttribute("aria-expanded", String(expanded));
     if (toggle) toggle.textContent = expanded ? "⌃" : "⌄";
   });
+  if (!el.dataset.outsideBound) {
+    el.dataset.outsideBound = "1";
+    document.addEventListener("click", (ev) => {
+      if (!el.classList.contains("expanded") || el.contains(ev.target)) return;
+      el.classList.remove("expanded");
+      const toggle = el.querySelector(".resource-toggle");
+      if (toggle) {
+        toggle.setAttribute("aria-expanded", "false");
+        toggle.textContent = "⌄";
+      }
+    });
+  }
 }
 
 function renderDock() {
@@ -494,6 +531,8 @@ function setView(name, opts = {}) {
     shell.classList.toggle("view-galaxy", state.view === "galaxy");
     shell.classList.toggle("view-home", state.view === "command");
   }
+  applyResourceChrome();
+  setUnityColonyVisible(false);
   if (name !== "command") state.citySheet = null;
   closeNavSheet();
   renderView({ preserveForm: false });
@@ -810,6 +849,10 @@ function renderView({ preserveForm = true } = {}) {
       state.map.destroy();
       state.map = null;
     }
+    if (state.cityScene && state.cityScene.kind !== "unity") {
+      state.cityScene.destroy();
+      state.cityScene = null;
+    }
     const fn = views[state.view] || views.command;
     v.innerHTML = fn();
     if (!preserveForm) {
@@ -823,6 +866,8 @@ function renderView({ preserveForm = true } = {}) {
       shell.classList.toggle("view-home", state.view === "command");
       shell.classList.toggle("alliance-planet-open", state.view === "command" && !!state.snap?.planet?.isAlliance);
     }
+    applyResourceChrome();
+    setUnityColonyVisible(false);
     if (draft) restoreViewForm(draft);
     bindView(v);
     bindMediaFallbacks(v);
@@ -1362,6 +1407,28 @@ function plotNeedText(buildingId, buildings) {
   return "Gesperrt";
 }
 
+function unityColonyState() {
+  const p = state.snap?.planet;
+  if (!p) return { selected: "", plots: [] };
+  const previewById = Object.fromEntries((state.preview?.buildings || []).map((building) => [building.id, building]));
+  return {
+    selected: state.cityBuilding || "",
+    plots: CITY_PLOTS.map((plot) => {
+      const info = plot.building ? previewById[plot.building] : null;
+      const lvl = plot.building ? p.buildings?.[plot.building] || 0 : 0;
+      const q = (state.snap.queue || []).find((item) => item.kind === "building" && item.itemId === plot.building && item.planetId === p.id);
+      return {
+        id: plot.id,
+        level: lvl,
+        locked: plot.building ? info?.unlocked === false : false,
+        busy: !!q,
+        name: plot.short,
+        size: plot.size || "mini",
+      };
+    }),
+  };
+}
+
 function recommendedPlotId() {
   const next = state.snap?.nextAction;
   const blob = `${next?.title || ""} ${next?.text || ""} ${next?.view || ""}`;
@@ -1480,14 +1547,17 @@ function colonyCityHtml() {
     return `<div class="${cls}${selected ? " selected" : ""}" style="left:${plot.x}%;top:${plot.y}%;--mobile-x:${plot.mx ?? plot.x}%;--mobile-y:${plot.my ?? plot.y}%;z-index:${selected ? 900 : 300 + Math.round(plot.y)}">
         ${rec ? `<i class="city-arrow">↑</i>` : ""}
         <button type="button" class="city-plot-main" data-city-building="${plot.id}"${!unlocked ? ` data-city-lock="${esc(need || "Noch gesperrt")}"` : ""}>
-          ${lvl > 0 ? `<img class="city-building-art" src="/assets/colony/buildings/${plot.art || "utility"}.png" alt="" draggable="false" />` : `<i class="city-empty-site" aria-hidden="true">＋</i>`}
+          ${lvl > 0
+            ? `<img class="city-building-art" src="/assets/colony/buildings-iso/${plot.id}.png?v=1" alt="${esc(plot.short)}" draggable="false" />`
+            : `<img class="city-empty-pad" src="/assets/colony/empty-pad-iso.png?v=2" alt="" draggable="false" />`}
           <b>${esc(plot.short)}</b>
           <span>Level ${lvl}${q ? ` · ${eta(q.completesAt - Date.now())}` : ""}</span>
         </button>
-        ${selected ? `<div class="city-building-actions">
+        <div class="city-building-actions${selected ? "" : " hidden"}" data-city-panel="${plot.id}" ${selected ? "" : "hidden"}>
           ${plot.building && unlocked && !info?.max ? `<button type="button" class="city-upgrade" data-build="${plot.building}" ${!canUpgrade ? "disabled" : ""}>${lvl ? `Auf Level ${lvl + 1}` : "Gebäude bauen"}</button>` : ""}
           <button type="button" class="city-info" data-open-infra="${plot.building}">Info</button>
-        </div>` : ""}
+          ${plot.id === "shipyard" && lvl > 0 ? `<button type="button" class="city-produce" data-view-jump="yard">Schiffe produzieren</button>` : ""}
+        </div>
       </div>`;
   }).join("");
   const tutHtml = tut
@@ -1521,16 +1591,17 @@ function colonyCityHtml() {
           </div>`
         : "";
   const biome = /^(terran|ocean|desert|ice|lava|gas|ruin)$/.test(p.type) ? p.type : "terran";
-  const cityArt = `/assets/colony/base-desktop-v5.png?v=1`;
-  const vista = `<picture class="city-vista-frame"><source media="(max-width:760px)" srcset="/assets/colony/base-mobile-v5.png?v=1"><img class="city-vista" src="${cityArt}" alt="" draggable="false" /></picture>`;
-  return `<section class="city-view biome-${biome}">
+  const vista = `<picture class="city-vista-frame"><source media="(max-width:760px)" srcset="/assets/colony/base-iso-planet-mobile.jpg?v=2"><img class="city-vista" src="/assets/colony/base-iso-planet.jpg?v=2" alt="" draggable="false" /></picture>`;
+  return `<section class="city-view diorama biome-${biome}">
     <div class="city-stage" id="city-stage">
+      <div class="city-tilt" id="city-tilt">
       <div class="city-map" id="city-map">
         ${vista}
-        <div class="city-atmosphere" aria-hidden="true"></div>
         ${plots}
       </div>
+      </div>
     </div>
+    <div class="city-actions" id="city-actions" hidden></div>
     <div class="city-side">
       <button type="button" class="city-orders" data-city-sheet="quests" title="Aufträge öffnen"><span aria-hidden="true">▤</span><b>AUFTRÄGE</b></button>
       <button type="button" class="city-planet-info" data-city-sheet="planet" title="Planet-Informationen" aria-label="Planet-Informationen">i</button>
@@ -1757,15 +1828,18 @@ const views = {
         return `<section class="tree-col"><h2>${esc(col.title)}</h2>${tiers}</section>`;
       })
       .join("");
-    return `<div class="section-title"><h2>Technologie-Tree</h2>
-        <span class="muted">was du wofür brauchst · <button type="button" class="btn ghost small" data-view-jump="command">Kolonie</button></span></div>
+    const hideOwned = (() => {
+      try { return localStorage.getItem("sn-tree-hide-owned") === "1"; } catch { return false; }
+    })();
+    return `<div class="section-title tree-head"><h2>Technologie-Tree</h2>
+        <label class="tree-hide-known"><input type="checkbox" id="tree-hide-owned" ${hideOwned ? "checked" : ""}><span>Bekannte ausblenden</span></label></div>
       <div class="tree-legend">
         <span class="lg ready">verfügbar</span>
         <span class="lg owned">im Besitz</span>
         <span class="lg locked">gesperrt</span>
       </div>
       <p class="hint">Von oben nach unten. Rot = fehlt noch, Grün = erfüllt. „gibt frei“ zeigt, was die Stufe entsperrt. Klick öffnet Gebäude, Forschung, Werft oder Verteidigung.</p>
-      <div class="tree">${html}</div>`;
+      <div class="tree${hideOwned ? " hide-owned" : ""}">${html}</div>`;
   },
 
   nexus() {
@@ -1899,7 +1973,6 @@ const views = {
     const seasonPanel = season ? `<section class="map-season panel"><header><span>SEKTOR-SAISON ${esc(season.id)}</span><time>${Math.max(0, Math.ceil((season.end - Date.now()) / 86400000))}T</time></header><strong>${fmt(season.score)} SP</strong><div><i style="width:${seasonPct}%"></i></div><small>${nextTier ? `${fmt(nextTier.score)} SP · Meilenstein ${nextTier.tier}` : "Alle Meilensteine erreicht"}</small>${nextTier?.ready ? `<button type="button" class="btn primary small" data-season-claim="${nextTier.tier}">Abholen</button>` : ""}<details><summary>Wertung</summary><p>${season.combat} Siege · ${season.expeditions} Expeditionen · ${season.colonies} Kolonien · ${fmt(season.bossDamage)} Boss-Schaden</p></details></section>` : "";
     return `<div class="map-wrap"><canvas id="starmap"></canvas>
       <button type="button" class="map-search-toggle" aria-expanded="false" aria-controls="map-tools" aria-label="System suchen" title="System suchen">⌕</button>
-      <nav class="map-view-switch panel" aria-label="Karten-Zoom"><button type="button" data-map-view="sector"><span>SEKTOR</span><small>Einfluss</small></button><button type="button" data-map-view="system" class="on"><span>SYSTEME</span><small>Routen</small></button><button type="button" data-map-view="orbit"><span>ORBIT</span><small>Details</small></button></nav>
       <div class="map-status"><i></i><span id="map-view-title">SYSTEMNETZ</span><small>Alle Systeme sichtbar</small></div>
       ${seasonPanel}
       <div class="map-tools panel" id="map-tools"><div class="map-search-wrap"><span aria-hidden="true">⌕</span><input id="map-search" type="search" autocomplete="off" placeholder="System suchen…"><div id="map-search-results" class="map-search-results" hidden></div></div><select id="planet-focus"><option value="">— Planet springen —</option></select><details class="map-filters"><summary>Filter</summary><div class="map-filters-body"><label><input type="checkbox" data-map-filter="own"> Eigene</label><label><input type="checkbox" data-map-filter="hostile"> Feindlich</label><label><input type="checkbox" data-map-filter="free"> Frei</label><label><input type="checkbox" data-map-filter="special"> Besonderheiten</label></div></details>${bookmarks ? `<div class="map-bookmarks"><b>Gespeicherte Ziele</b>${bookmarks}</div>` : ""}</div>
@@ -2108,25 +2181,26 @@ const views = {
 
   reports() {
     const mailN = state.snap.unreadMail || 0;
-    const news = state.newsTab || "reports";
+    const news = state.newsTab || "messages";
+    const hints = {
+      messages: "Bauten, Forschung, Flotten und Ereignisse.",
+      combat: "Nur Kampfberichte. Die Sequenz spielt oben, die Zahlen darunter.",
+      spy: "Nur Spionageberichte von Sonden.",
+    };
     return `<div class="section-title">
-        <h2>Nachrichten</h2>
+        <h2>Funk</h2>
         <div class="filters" id="news-tabs">
-          <button class="tab ${news === "reports" ? "on" : ""}" data-news="reports" type="button">Berichte</button>
+          <button class="tab ${news === "messages" ? "on" : ""}" data-news="messages" type="button">Nachrichten</button>
+          <button class="tab ${news === "combat" ? "on" : ""}" data-news="combat" type="button">Kampfberichte</button>
+          <button class="tab ${news === "spy" ? "on" : ""}" data-news="spy" type="button">Spionageberichte</button>
           <button class="tab ${news === "mail" ? "on" : ""}" data-news="mail" type="button">Postfach${mailN ? ` (${mailN})` : ""}</button>
         </div>
       </div>
       <div id="news-reports" ${news === "mail" ? "hidden" : ""}>
         <div class="row" style="gap:8px;margin-bottom:10px">
-          <div class="filters" id="report-filters">
-            <button class="tab on" data-filter="all" type="button">Alle</button>
-            <button class="tab" data-filter="combat" type="button">Kampf</button>
-            <button class="tab" data-filter="spy" type="button">Spionage</button>
-            <button class="tab" data-filter="expedition" type="button">Expedition</button>
-          </div>
           <button class="btn small" id="mark-read">Alle gelesen</button>
         </div>
-        <p class="hint">Kampfberichte spielen die Sequenz ab, darunter stehen die Zahlen. Klick auf die Kopfzeile öffnet den Bericht.</p>
+        <p class="hint">${hints[news] || hints.messages}</p>
         <div id="report-list" class="report-list muted">Lade Kanal…</div>
       </div>
       <div id="news-mail" ${news === "mail" ? "" : "hidden"}>
@@ -2521,10 +2595,24 @@ function bindCity(root) {
       renderView({ preserveForm: false });
     })
   );
-  const selectCityBuilding = (id) => {
+  const paintCitySelection = (id, syncScene = true) => {
     if (tutorialActive() && TUTORIAL[tutorialIndex()]?.id === "move") setTutorialIndex(1);
-    state.cityBuilding = state.cityBuilding === id ? null : id;
-    renderView({ preserveForm: false });
+    state.cityBuilding = id || null;
+    root.querySelectorAll(".city-plot").forEach((plot) => plot.classList.toggle("selected", plot.classList.contains(`building-${id}`)));
+    root.querySelectorAll("[data-city-panel]").forEach((panel) => {
+      const shown = panel.dataset.cityPanel === id;
+      panel.hidden = !shown;
+      panel.classList.toggle("hidden", !shown);
+    });
+    root.querySelectorAll("[data-city-building]").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.cityBuilding === id)));
+    paintCityDock(root, id);
+    root.querySelectorAll(".city-commander, .city-quest").forEach((el) => {
+      el.hidden = !!id;
+    });
+    if (syncScene) state.cityScene?.setSelected(id || null);
+  };
+  const selectCityBuilding = (id) => {
+    paintCitySelection(state.cityBuilding === id ? null : id);
   };
   root.querySelectorAll("[data-city-building]").forEach((b) =>
     b.addEventListener("click", (event) => {
@@ -2543,9 +2631,42 @@ function bindCity(root) {
       renderView({ preserveForm: false });
     })
   );
+  paintCityDock(root, state.cityBuilding);
+  bootFallbackCity();
+
+  function bootFallbackCity() {
+  const viewEl = root.querySelector(".city-view");
+  viewEl?.classList.remove("is-unity");
+  viewEl?.classList.add("diorama");
+  setUnityColonyVisible(false);
   const stage = root.querySelector("#city-stage");
   const map = root.querySelector("#city-map");
   if (!stage || !map) return;
+  const canvas = root.querySelector("#city-webgl");
+  if (canvas) {
+    try {
+      const previewById = Object.fromEntries((state.preview?.buildings || []).map((building) => [building.id, building]));
+      const scenePlots = CITY_PLOTS.map((plot) => ({
+        ...plot,
+        locked: plot.building ? previewById[plot.building]?.unlocked === false : false,
+        recommended: plot.id === (TUTORIAL[tutorialIndex()]?.plot || recommendedPlotId()),
+      }));
+      state.cityScene = createCity3D(canvas, {
+        plots: scenePlots,
+        buildings: p.buildings || {},
+        selectedId: state.cityBuilding,
+        onReady: () => root.querySelector(".city-view")?.classList.add("is-webgl"),
+        onSelect: (id) => paintCitySelection(id, false),
+        onInteract: () => {
+          if (tutorialActive() && TUTORIAL[tutorialIndex()]?.id === "move") setTutorialIndex(1);
+        },
+      });
+      return;
+    } catch (error) {
+      console.warn("3D-Kolonie nicht verfügbar, nutze Fallback.", error);
+      canvas.hidden = true;
+    }
+  }
   const cam = state.cityCam;
   if (cam.planetId !== p.id) {
     cam.planetId = p.id;
@@ -2556,6 +2677,7 @@ function bindCity(root) {
   let dragging = false;
   let moved = false;
   let lastDist = 0;
+  let lastMid = null;
   const mapSize = () => {
     const w = map.offsetWidth || 2640;
     const h = map.offsetHeight || w;
@@ -2578,8 +2700,15 @@ function bindCity(root) {
     if (mh <= sh) cam.y = (sh - mh) / 2;
     else cam.y = Math.min(0, Math.max(sh - mh, cam.y));
   };
+  if (cam.level !== 3) {
+    cam.tilt = 0;
+    cam.level = 3;
+    cam.ready = false;
+  }
+  const tiltBox = root.querySelector("#city-tilt");
   const apply = () => {
     map.style.transform = `translate(${cam.x}px, ${cam.y}px) scale(${cam.scale})`;
+    if (tiltBox) tiltBox.style.transform = `rotateX(${cam.tilt}deg)`;
   };
   const zoomAt = (cx, cy, next) => {
     const s = clampScale(next);
@@ -2589,6 +2718,10 @@ function bindCity(root) {
     cam.scale = s;
     clampCam();
     apply();
+  };
+  const zoomCentered = (next) => {
+    const { sw, sh } = viewSize();
+    zoomAt(sw / 2, sh / 2, next);
   };
   const centerOn = (px, py) => {
     const { w, h } = mapSize();
@@ -2609,7 +2742,7 @@ function bindCity(root) {
     const rec = CITY_PLOTS.find((p) => p.id === focusId) || CITY_PLOTS[0];
     const mobile = matchMedia("(max-width: 760px)").matches;
     cam.scale = clampScale(1);
-    centerOn(rec.x, rec.y);
+    centerOn(50, 54);
     cam.ready = true;
   };
   const media = map.querySelector(".city-vista, video, img");
@@ -2628,6 +2761,7 @@ function bindCity(root) {
     if (pts.size === 2) {
       const [a, b] = [...pts.values()];
       lastDist = Math.hypot(a.x - b.x, a.y - b.y);
+      lastMid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
       dragging = false;
     }
   });
@@ -2638,11 +2772,18 @@ function bindCity(root) {
     if (pts.size === 2) {
       const [a, b] = [...pts.values()];
       const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
       if (lastDist > 0) {
-        const rect = stage.getBoundingClientRect();
-        zoomAt((a.x + b.x) / 2 - rect.left, (a.y + b.y) / 2 - rect.top, cam.scale * (dist / lastDist));
+        zoomCentered(cam.scale * (dist / lastDist));
+      }
+      if (lastMid) {
+        cam.x += mid.x - lastMid.x;
+        cam.y += mid.y - lastMid.y;
+        clampCam();
+        apply();
       }
       lastDist = dist;
+      lastMid = mid;
       moved = true;
       return;
     }
@@ -2661,7 +2802,7 @@ function bindCity(root) {
       }
     }
     cam.x += dx;
-    cam.y += dy;
+    cam.tilt = Math.max(0, Math.min(42, cam.tilt - dy * 0.14));
     clampCam();
     apply();
   });
@@ -2671,7 +2812,10 @@ function bindCity(root) {
       renderView({ preserveForm: false });
     }
     pts.delete(e.pointerId);
-    if (pts.size < 2) lastDist = 0;
+    if (pts.size < 2) {
+      lastDist = 0;
+      lastMid = null;
+    }
     if (pts.size === 0) dragging = false;
   };
   stage.addEventListener("pointerup", endPtr);
@@ -2690,17 +2834,68 @@ function bindCity(root) {
     "wheel",
     (e) => {
       e.preventDefault();
-      const rect = stage.getBoundingClientRect();
-      const cx = e.clientX - rect.left;
-      const cy = e.clientY - rect.top;
-      zoomAt(cx, cy, cam.scale * (e.deltaY < 0 ? 1.14 : 0.86));
+      zoomCentered(cam.scale * (e.deltaY < 0 ? 1.14 : 0.86));
     },
     { passive: false }
   );
   stage.addEventListener("contextmenu", (e) => e.preventDefault());
+  }
+}
+
+function paintCityDock(root, id) {
+  const dock = root.querySelector("#city-actions");
+  if (!dock) return;
+  const p = state.snap?.planet;
+  const plot = CITY_PLOTS.find((item) => item.id === id);
+  if (!p || !plot?.building) {
+    dock.hidden = true;
+    dock.innerHTML = "";
+    return;
+  }
+  const prev = Object.fromEntries((state.preview?.buildings || []).map((b) => [b.id, b]));
+  const info = prev[plot.building];
+  const lvl = p.buildings?.[plot.building] || 0;
+  const unlocked = info ? !!info.unlocked : true;
+  const q = (state.snap.queue || []).find((item) => item.kind === "building" && item.itemId === plot.building && item.planetId === p.id);
+  const need = !unlocked ? plotNeedText(plot.building, p.buildings || {}) || "Noch gesperrt" : "";
+  const canUpgrade = unlocked && !q && !info?.max && canAfford(info?.nextCost || {});
+  const upgradeLabel = !unlocked ? "Gesperrt" : lvl ? "Upgrade" : "Bauen";
+  const lvlLabel = !unlocked ? need : q ? "Im Bau" : lvl ? `Lv. ${lvl}` : "Bauplatz";
+  dock.hidden = false;
+  dock.innerHTML = `
+    <button type="button" class="city-upgrade" data-build="${plot.building}" ${!unlocked || !plot.building || info?.max || q || !canUpgrade ? "disabled" : ""}>
+      <i>⇧</i><b>${upgradeLabel}</b><small>${esc(lvlLabel)}</small>
+    </button>
+    <button type="button" class="city-info" data-open-infra="${plot.building}" data-view-jump="${plot.view || "infra"}">
+      <i>i</i><b>Info</b><small>${esc(plot.short)}</small>
+    </button>
+    ${plot.id === "shipyard" && lvl > 0 ? `<button type="button" class="city-produce" data-view-jump="yard"><i>➤</i><b>Produzieren</b><small>Schiffe</small></button>` : `<span class="city-actions-spacer"></span>`}`;
+  dock.querySelectorAll("[data-build]").forEach((b) =>
+    b.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      b.disabled = true;
+      act(() => api("/build", { method: "POST", body: { id: b.dataset.build, planetId: p.id } }));
+    })
+  );
+  dock.querySelectorAll("[data-open-infra]").forEach((b) =>
+    b.addEventListener("click", () => {
+      if (b.dataset.openInfra) state.highlightBuilding = b.dataset.openInfra;
+      setView(b.dataset.viewJump || "infra", { routed: true });
+    })
+  );
+  dock.querySelectorAll("[data-view-jump]").forEach((b) => {
+    if (b.dataset.openInfra) return;
+    b.addEventListener("click", () => setView(b.dataset.viewJump));
+  });
 }
 
 function bindView(root) {
+  const hideOwned = root.querySelector("#tree-hide-owned");
+  hideOwned?.addEventListener("change", () => {
+    try { localStorage.setItem("sn-tree-hide-owned", hideOwned.checked ? "1" : "0"); } catch { /* ignore */ }
+    root.querySelector(".tree")?.classList.toggle("hide-owned", hideOwned.checked);
+  });
   root.querySelectorAll("[data-ledger-report]").forEach((button) => {
     button.addEventListener("click", () => {
       state.openReports.add(String(button.dataset.ledgerReport));
@@ -2947,10 +3142,10 @@ function bindNews(root) {
       root.querySelectorAll("#news-tabs .tab").forEach((t) => t.classList.toggle("on", t === tab));
       const reportsBox = root.querySelector("#news-reports");
       const mailBox = root.querySelector("#news-mail");
-      if (reportsBox) reportsBox.hidden = state.newsTab !== "reports";
+      if (reportsBox) reportsBox.hidden = state.newsTab === "mail";
       if (mailBox) mailBox.hidden = state.newsTab !== "mail";
       if (state.newsTab === "mail") bootMail();
-      else loadReports();
+      else loadReports(state.newsTab);
     };
   });
   const mark = root.querySelector("#mark-read");
@@ -2958,17 +3153,11 @@ function bindNews(root) {
     mark.onclick = async () => {
       await api("/reports/read", { method: "POST", body: {} });
       await refresh();
-      if (state.newsTab === "reports") loadReports();
+      if (state.newsTab !== "mail") loadReports(state.newsTab);
     };
-    root.querySelectorAll("#report-filters .tab").forEach((tab) => {
-      tab.onclick = () => {
-        root.querySelectorAll("#report-filters .tab").forEach((t) => t.classList.toggle("on", t === tab));
-        loadReports(tab.dataset.filter);
-      };
-    });
   }
   if (state.newsTab === "mail") bootMail();
-  else loadReports();
+  else loadReports(state.newsTab);
 }
 
 async function loadRanks() {
@@ -4300,14 +4489,25 @@ function renderGenericReport(r) {
   </details>`;
 }
 
-async function loadReports(filter = "all") {
+function reportChannel(kind) {
+  if (kind === "combat") return "combat";
+  if (kind === "spy") return "spy";
+  return "messages";
+}
+
+async function loadReports(filter = "messages") {
   const host = $("report-list");
   if (!host) return;
+  const channel = filter === "all" ? "messages" : filter;
   const { reports } = await getReports();
-  const list = reports.filter((r) => (filter === "all" ? true : r.kind === filter));
+  const list = reports.filter((r) => reportChannel(r.kind) === channel);
   if (!list.length) {
-    host.innerHTML = `<div class="empty panel"><p>Keine ${filter === "combat" ? "Kampfberichte" : filter === "spy" ? "Spionageberichte" : "Berichte"}.</p>
-      <p class="muted">Sende eine Sonde (Spionage) oder eine Kampfgruppe (Angriff) über die Sternenkarte.</p></div>`;
+    const empty = channel === "combat"
+      ? ["Keine Kampfberichte.", "Sende eine Kampfgruppe über die Sternenkarte."]
+      : channel === "spy"
+        ? ["Keine Spionageberichte.", "Sende eine Sonde über die Sternenkarte."]
+        : ["Keine Nachrichten.", "Bauten, Forschung, Flotten und Ereignisse erscheinen hier."];
+    host.innerHTML = `<div class="empty panel"><p>${empty[0]}</p><p class="muted">${empty[1]}</p></div>`;
     return;
   }
   host.innerHTML = list
