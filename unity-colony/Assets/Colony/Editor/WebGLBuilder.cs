@@ -24,7 +24,8 @@ namespace Colony.Editor
             PlayerSettings.SplashScreen.showUnityLogo = false;
             PlayerSettings.SplashScreen.overlayOpacity = 0f;
             PlayerSettings.SplashScreen.backgroundColor = new Color(0.01f, 0.02f, 0.05f, 1f);
-            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
+            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Brotli;
+            PlayerSettings.WebGL.decompressionFallback = true;
             PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.FullWithoutStacktrace;
             PlayerSettings.WebGL.dataCaching = false;
             PlayerSettings.WebGL.template = "APPLICATION:Minimal";
@@ -32,19 +33,23 @@ namespace Colony.Editor
             PinResourceShaders();
 
             var dest = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "public", "unity-colony"));
-            if (Directory.Exists(dest)) Directory.Delete(dest, true);
+            // Build in place; never delete the user's existing WebGL output.
+            var workspace = Path.GetFullPath(Path.Combine(Application.dataPath, "..", ".."));
+            if (!dest.StartsWith(workspace + Path.DirectorySeparatorChar, System.StringComparison.OrdinalIgnoreCase))
+                throw new System.Exception("WebGL destination must stay within the workspace.");
             Directory.CreateDirectory(dest);
 
-            var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+            using (new LegacyResourceScope())
             {
-                scenes = new[] { ScenePath },
-                locationPathName = dest,
-                target = BuildTarget.WebGL,
-                options = BuildOptions.None
-            });
-            if (report.summary.result != BuildResult.Succeeded)
-            {
-                throw new System.Exception("WebGL build failed: " + report.summary.result);
+                var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+                {
+                    scenes = new[] { ScenePath },
+                    locationPathName = dest,
+                    target = BuildTarget.WebGL,
+                    options = BuildOptions.None
+                });
+                if (report.summary.result != BuildResult.Succeeded)
+                    throw new System.Exception("WebGL build failed: " + report.summary.result);
             }
             Debug.Log("Colony WebGL written to " + dest);
         }
@@ -66,13 +71,13 @@ namespace Colony.Editor
             camGo.tag = "MainCamera";
             var cam = camGo.AddComponent<Camera>();
             cam.clearFlags = CameraClearFlags.SolidColor;
-            cam.backgroundColor = new Color(0.035f, 0.025f, 0.03f);
+            cam.backgroundColor = new Color(0.01f, 0.02f, 0.05f);
             cam.orthographic = true;
-            cam.orthographicSize = 13.2f;
+            cam.orthographicSize = 8.4f;
             cam.nearClipPlane = 0.1f;
-            cam.farClipPlane = 80f;
-            cam.transform.position = new Vector3(0f, 40f, 0.8f);
-            cam.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+            cam.farClipPlane = 40f;
+            cam.transform.position = new Vector3(0f, 0f, -20f);
+            cam.transform.rotation = Quaternion.identity;
             camGo.AddComponent<AudioListener>();
             camGo.AddComponent<ColonyCamera>();
             PinResourceShaders();
@@ -83,7 +88,7 @@ namespace Colony.Editor
 
         static void PinResourceShaders()
         {
-            foreach (var name in new[] { "ColonyLit", "ColonyUnlit", "ColonySky", "ColonySprite", "ColonyGround", "ColonyDeck", "ColonyPad" })
+            foreach (var name in new[] { "ColonyLit", "ColonyUnlit", "ColonySky", "ColonySprite", "ColonyGround", "ColonyDeck", "ColonyPad", "ColonyTrail", "ColonySurface" })
             {
                 var shader = Resources.Load<Shader>(name) ?? Shader.Find("Colony/" + name.Replace("Colony", ""));
                 if (shader == null) shader = Shader.Find("Colony/Lit");
@@ -92,6 +97,14 @@ namespace Colony.Editor
                 go.name = "ShaderPin-" + name;
                 go.transform.position = new Vector3(0f, -800f, 0f);
                 go.GetComponent<MeshRenderer>().sharedMaterial = new Material(shader);
+            }
+            var unlitTex = Shader.Find("Unlit/Texture");
+            if (unlitTex != null)
+            {
+                var pin = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                pin.name = "ShaderPin-UnlitTexture";
+                pin.transform.position = new Vector3(0f, -810f, 0f);
+                pin.GetComponent<MeshRenderer>().sharedMaterial = new Material(unlitTex);
             }
         }
     }

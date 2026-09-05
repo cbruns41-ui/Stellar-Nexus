@@ -1,139 +1,87 @@
-const BUILD_URL = "/unity-colony/Build";
-const PRODUCT = "unity-colony";
-
-let instance = null;
-let bootPromise = null;
-let listeners = { onReady: null, onSelect: null };
-
+const BUILD_URL = "/unity-colony/Build", PRODUCT = "unity-colony", VERSION = "living-3";
+let instance = null, bootPromise = null, pendingState = null, selected = "", visible = false;
+let listeners = {}, resizeObserver = null;
+const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+function send(method, value) { if (instance) instance.SendMessage("ColonyRoot", method, value); }
 function loadScript(src) {
   return new Promise((resolve, reject) => {
-    if (document.querySelector(`script[src="${src}"]`)) {
-      resolve();
-      return;
-    }
+    if (typeof window.createUnityInstance === "function") return resolve();
     const el = document.createElement("script");
-    el.src = src;
-    el.async = true;
-    el.onload = () => resolve();
-    el.onerror = () => reject(new Error("Unity-Loader nicht geladen."));
-    document.head.appendChild(el);
+    el.src = src; el.onload = resolve;
+    el.onerror = () => { el.remove(); reject(new Error("Unity-Loader konnte nicht geladen werden.")); };
+    document.head.append(el);
   });
 }
-
-function sendState(state) {
-  if (!instance || !state) return;
-  try {
-    instance.SendMessage("ColonyRoot", "ApplyState", JSON.stringify(state));
-  } catch (err) {
-    console.warn("Unity ApplyState", err);
-  }
+function sync() {
+  if (pendingState) send("ApplyState", JSON.stringify(pendingState));
+  send("SetSelected", selected);
+  send("SetVisible", visible && !document.hidden ? "1" : "0");
+  send("SetMotion", motion.matches ? "0" : "1");
 }
-
-function api() {
-  return {
-    kind: "unity",
-    setSelected(id) {
-      try { instance?.SendMessage("ColonyRoot", "SetSelected", id || ""); } catch { /* ignore */ }
-    },
-    setData(next) { sendState(next); },
-    destroy() { /* persistent WebGL instance */ },
-  };
-}
-
-export function unityColonyAvailable() {
-  return typeof createUnityInstance === "function" || !!instance;
-}
-
+const scene = {
+  kind: "unity",
+  setSelected(id) { selected = id || ""; send("SetSelected", selected); },
+  setData(data) { pendingState = data; selected = data.selected || ""; if (instance) send("ApplyState", JSON.stringify(data)); },
+  camera(action) { send("CameraAction", action); },
+  focus(id) { send("FocusBuilding", id); },
+  destroy() { setUnityColonyVisible(false); listeners = {}; },
+};
+window.stellarNexusColony = {
+  onReady() { /* Loader resolves after Awake; sync happens below. */ },
+  onSelect(id) { if (visible) { selected = id || ""; listeners.onSelect?.(selected); } },
+  onFrame(frame) { if (visible) listeners.onFrame?.(frame); },
+};
+document.addEventListener("visibilitychange", () => send("SetVisible", visible && !document.hidden ? "1" : "0"));
+motion.addEventListener("change", () => send("SetMotion", motion.matches ? "0" : "1"));
+export function unityColonyAvailable() { return !!instance; }
 export async function createColonyUnity(canvas, options = {}) {
-  listeners = {
-    onReady: options.onReady || null,
-    onSelect: options.onSelect || null,
+  listeners = options; pendingState = options.state; selected = options.selectedId || "";
+  canvas.onkeydown = event => {
+    if (!visible) return;
+    const action = { "+": "in", "=": "in", "-": "out", "Home": "home" }[event.key];
+    if (action) { event.preventDefault(); scene.camera(action); }
+    if (event.key === "Escape") { scene.setSelected(""); listeners.onSelect?.(""); }
   };
-  window.stellarNexusColony = {
-    onReady() {
-      listeners.onReady?.();
-      if (options.state) sendState(options.state);
-      if (options.selectedId) {
-        try { instance?.SendMessage("ColonyRoot", "SetSelected", options.selectedId); } catch { /* ignore */ }
-      }
-    },
-    onSelect(id) {
-      listeners.onSelect?.(id || null);
-    },
-  };
-
-  if (instance) {
-    sendState(options.state);
-    if (options.selectedId != null) {
-      try { instance.SendMessage("ColonyRoot", "SetSelected", options.selectedId || ""); } catch { /* ignore */ }
-    }
-    return api();
-  }
-  if (bootPromise) {
-    await bootPromise;
-    sendState(options.state);
-    return api();
-  }
-
-  bootPromise = (async () => {
-    await loadScript(`${BUILD_URL}/${PRODUCT}.loader.js`);
-    if (typeof createUnityInstance !== "function") throw new Error("createUnityInstance fehlt.");
+  if (!instance && !bootPromise) {
     const loading = document.getElementById("colony-unity-loading");
-    fitUnityCanvas(canvas);
-    instance = await createUnityInstance(canvas, {
-      dataUrl: `${BUILD_URL}/${PRODUCT}.data`,
-      frameworkUrl: `${BUILD_URL}/${PRODUCT}.framework.js`,
-      codeUrl: `${BUILD_URL}/${PRODUCT}.wasm`,
-      streamingAssetsUrl: "/unity-colony/StreamingAssets",
-      companyName: "Stellar Nexus",
-      productName: "Colony",
-      productVersion: "1.0.0",
-      devicePixelRatio: Math.min(window.devicePixelRatio || 1, 1.5),
-      matchWebGLToCanvasSize: true,
-    }, (progress) => {
-      if (loading) loading.textContent = `Lade Basis… ${Math.round(progress * 100)}%`;
-    });
-    if (loading) loading.hidden = true;
-    fitUnityCanvas(canvas);
-    if (typeof ResizeObserver === "function") {
-      new ResizeObserver(() => fitUnityCanvas(canvas)).observe(canvas.parentElement || canvas);
-    }
-    window.addEventListener("resize", () => fitUnityCanvas(canvas));
-    if (options.state) sendState(options.state);
-    if (options.selectedId) {
-      try { instance.SendMessage("ColonyRoot", "SetSelected", options.selectedId); } catch { /* ignore */ }
-    }
-    listeners.onReady?.();
-    return instance;
-  })();
-
-  try {
-    await bootPromise;
-    return api();
-  } catch (err) {
-    bootPromise = null;
-    instance = null;
-    throw err;
+    if (loading) { loading.hidden = false; loading.textContent = "Basis wird geladen …"; }
+    bootPromise = (async () => {
+      await loadScript(`${BUILD_URL}/${PRODUCT}.loader.js?v=${VERSION}`);
+      fitUnityCanvas(canvas);
+      instance = await window.createUnityInstance(canvas, {
+        dataUrl: `${BUILD_URL}/${PRODUCT}.data.unityweb?v=${VERSION}`,
+        frameworkUrl: `${BUILD_URL}/${PRODUCT}.framework.js.unityweb?v=${VERSION}`,
+        codeUrl: `${BUILD_URL}/${PRODUCT}.wasm.unityweb?v=${VERSION}`,
+        streamingAssetsUrl: "/unity-colony/StreamingAssets",
+        companyName: "Stellar Nexus", productName: "Colony", productVersion: VERSION,
+        devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+        matchWebGLToCanvasSize: true,
+      }, progress => { if (loading) loading.textContent = `Basis wird geladen · ${Math.round(progress * 100)} %`; });
+      resizeObserver?.disconnect();
+      resizeObserver = new ResizeObserver(() => fitUnityCanvas(canvas));
+      resizeObserver.observe(canvas.parentElement);
+      if (loading) loading.hidden = true;
+      return instance;
+    })().catch(error => { bootPromise = null; instance = null; throw error; });
   }
+  if (bootPromise) await bootPromise;
+  sync();
+  return scene;
 }
-
 export function setUnityColonyVisible(show) {
+  visible = show;
   const layer = document.getElementById("colony-unity-layer");
-  if (!layer) return;
-  layer.hidden = !show;
-  layer.classList.toggle("hidden", !show);
+  if (layer) { layer.hidden = !show; layer.classList.toggle("hidden", !show); }
+  document.getElementById("game")?.classList.toggle("unity-active", show);
+  send("SetVisible", show && !document.hidden ? "1" : "0");
 }
-
 export function resizeUnityColony() {
   const canvas = document.getElementById("colony-unity-canvas");
   if (canvas) fitUnityCanvas(canvas);
 }
-
 function fitUnityCanvas(canvas) {
-  const layer = canvas?.parentElement;
-  if (!canvas || !layer) return;
-  const w = Math.max(2, layer.clientWidth || layer.offsetWidth || 0);
-  const h = Math.max(2, layer.clientHeight || layer.offsetHeight || 0);
-  canvas.style.width = `${w}px`;
-  canvas.style.height = `${h}px`;
+  if (!canvas?.parentElement) return;
+  const { clientWidth, clientHeight } = canvas.parentElement;
+  canvas.style.width = `${Math.max(2, clientWidth)}px`;
+  canvas.style.height = `${Math.max(2, clientHeight)}px`;
 }

@@ -5,75 +5,72 @@ namespace Colony
     public class ColonyCamera : MonoBehaviour
     {
         public bool Dragging { get; private set; }
-
-        float _size = 13.2f;
-        Vector3 _target = new Vector3(0f, 0f, 0.8f);
-        Vector3 _last;
+        DioramaWorld _world;
         Camera _cam;
+        float _size, _targetSize;
+        Vector2 _look, _last, _press;
+        bool _pressed, _pinched;
+        int _width, _height;
 
-        void Awake()
-        {
-            _cam = GetComponent<Camera>();
-            if (_cam != null)
-            {
-                _cam.orthographic = true;
-                _cam.nearClipPlane = 0.1f;
-                _cam.farClipPlane = 80f;
+        public void Bind(DioramaWorld world) { _world=world; _cam=GetComponent<Camera>(); FramePlaza(); }
+        public void FramePlaza() {
+            if (_world==null) return;
+            _look = _world.UvToLocal(new Vector2(.50f,.55f));
+            _size = _targetSize = _world.Mobile ? 6.9f : Mathf.Min(10f,_world.Width/(2f*_cam.aspect));
+            ApplyCamera();
+        }
+        public void Focus(Vector3 anchor) { _look = anchor; ApplyCamera(); }
+        public void Zoom(float factor) { _targetSize *= factor; }
+        public void ClearDrag() { Dragging=false; }
+        void Update() {
+            if (_world==null || !ColonyRoot.Instance.Visible) return;
+            if(_width!=Screen.width || _height!=Screen.height) {
+                _width=Screen.width; _height=Screen.height;
+                _targetSize=Mathf.Min(_targetSize,MaxSize());
             }
-        }
-
-        void LateUpdate()
-        {
             HandleInput();
-            _size = Mathf.Clamp(_size, 7f, 20f);
-            _target.x = Mathf.Clamp(_target.x, -11f, 11f);
-            _target.z = Mathf.Clamp(_target.z, -11f, 11f);
-            if (_cam) _cam.orthographicSize = _size;
-            transform.position = new Vector3(_target.x, 40f, _target.z);
-            transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+            _targetSize=Mathf.Clamp(_targetSize,2.8f,MaxSize());
+            _size=Mathf.Lerp(_size,_targetSize,1-Mathf.Exp(-18f*Time.unscaledDeltaTime));
+            ApplyCamera();
         }
-
-        void HandleInput()
-        {
-            float scroll = Input.mouseScrollDelta.y;
-            if (Mathf.Abs(scroll) > 0.01f) _size *= scroll > 0 ? 0.9f : 1.11f;
-
-            if (Input.touchCount >= 2)
-            {
-                var a = Input.GetTouch(0);
-                var b = Input.GetTouch(1);
-                var prevA = a.position - a.deltaPosition;
-                var prevB = b.position - b.deltaPosition;
-                float prev = Vector2.Distance(prevA, prevB);
-                float now = Vector2.Distance(a.position, b.position);
-                if (prev > 1f) _size *= prev / Mathf.Max(1f, now);
-                Dragging = true;
+        float MaxSize() => Mathf.Min(10f,_world.Width/(2f*Mathf.Max(.1f,_cam.aspect)));
+        void ApplyCamera() {
+            float maxX=Mathf.Max(0,_world.Width*.5f-_size*_cam.aspect);
+            float maxY=Mathf.Max(0,_world.Height*.5f-_size);
+            _look.x=Mathf.Clamp(_look.x,-maxX,maxX);
+            _look.y=Mathf.Clamp(_look.y,-maxY,maxY);
+            transform.position=new Vector3(_look.x,_look.y,-20);
+            transform.rotation=Quaternion.identity;
+            _cam.orthographic=true; _cam.orthographicSize=_size;
+        }
+        void HandleInput() {
+            float scroll=Input.mouseScrollDelta.y;
+            if(Mathf.Abs(scroll)>.01f) _targetSize*=Mathf.Pow(.87f,scroll);
+            if(Input.touchCount>=2) {
+                var a=Input.GetTouch(0); var b=Input.GetTouch(1);
+                float distance=Vector2.Distance(a.position,b.position);
+                float before=Vector2.Distance(a.position-a.deltaPosition,b.position-b.deltaPosition);
+                if(before>4) _targetSize*=before/Mathf.Max(4,distance);
+                Pan((a.deltaPosition+b.deltaPosition)*.5f);
+                _pinched=true; Dragging=true; _pressed=false;
                 return;
             }
-
-            if (Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(2))
-            {
-                _last = Input.mousePosition;
-                Dragging = false;
+            if(_pinched) {
+                if(Input.touchCount==0 && !Input.GetMouseButton(0)) { _pinched=false; Dragging=false; }
+                return;
             }
-            if (Input.GetMouseButton(0) || Input.GetMouseButton(2))
-            {
-                Vector3 now = Input.mousePosition;
-                Vector3 delta = now - _last;
-                if (delta.sqrMagnitude > 16f) Dragging = true;
-                if (Dragging && _cam != null)
-                {
-                    float world = _size * 2f / Mathf.Max(1f, Screen.height);
-                    _target.x -= delta.x * world;
-                    _target.z -= delta.y * world;
-                }
-                _last = now;
+            Vector2 pointer=Input.mousePosition;
+            if(Input.GetMouseButtonDown(0)) { _press=_last=pointer; _pressed=true; Dragging=false; }
+            if(_pressed && Input.GetMouseButton(0)) {
+                if(Vector2.Distance(pointer,_press)>8f) Dragging=true;
+                if(Dragging) Pan(pointer-_last);
+                _last=pointer;
+            }
+            if(_pressed && Input.GetMouseButtonUp(0)) {
+                if(!Dragging) ColonyRoot.Instance.Tap(pointer);
+                _pressed=false;
             }
         }
-
-        public void ClearDrag()
-        {
-            Dragging = false;
-        }
+        void Pan(Vector2 delta) { _look-=delta*(_size*2f/Mathf.Max(1,Screen.height)); }
     }
 }

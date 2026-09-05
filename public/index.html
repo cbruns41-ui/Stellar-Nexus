@@ -2,7 +2,7 @@
 <html lang="de">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#03050a" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -19,7 +19,8 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Sora:wght@400;500;600;700&family=Tektur:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/css/style.css?v=112" />
+    <link rel="stylesheet" href="/css/style.css?v=115" />
+    <link rel="stylesheet" href="/css/colony.css?v=5" />
   </head>
   <body class="land">
     <canvas id="stars" aria-hidden="true"></canvas>
@@ -298,7 +299,7 @@
 
       <div id="alert-strip" class="alert-strip hidden" hidden></div>
       <div id="colony-unity-layer" class="colony-unity-layer hidden" hidden>
-        <canvas id="colony-unity-canvas" tabindex="-1" aria-label="3D-Kolonie"></canvas>
+        <canvas id="colony-unity-canvas" tabindex="0" aria-label="Planetenbasis – verschieben, zoomen und Gebäude auswählen"></canvas>
         <div id="colony-unity-loading">Lade Basis…</div>
       </div>
       <main id="view" class="view"></main>
@@ -356,6 +357,6 @@
         });
     </script>
     <script src="/js/pwa.js?v=1"></script>
-    <script type="module" src="/js/app.js?v=147"></script>
+    <script type="module" src="/js/app.js?v=158"></script>
   </body>
 </html>

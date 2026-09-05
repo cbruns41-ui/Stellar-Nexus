@@ -35,7 +35,7 @@ namespace Colony
         public static Transform Building(string id, string size, Transform parent)
         {
             float d = PlotLayout.Radius(size) * 2.08f;
-            var t = Cutout(id, d, parent);
+            var t = Cutout("Top/" + id, d, parent);
             t.localPosition = new Vector3(0f, 0.08f, 0f);
             return t;
         }
@@ -43,9 +43,80 @@ namespace Colony
         public static Transform Pad(string size, Transform parent)
         {
             float d = PlotLayout.Radius(size) * 2.15f;
-            var t = Cutout("pad", d, parent);
+            var t = Cutout("Top/pad", d, parent);
             t.localPosition = new Vector3(0f, 0.03f, 0f);
             return t;
+        }
+
+        public static Transform IsoSticker(string id, string size, Transform parent, float plateWidth)
+        {
+            Ensure();
+            float w = PlotLayout.SpriteScale(size) * plateWidth;
+            var go = new GameObject("iso-" + id);
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = Vector3.zero;
+            go.transform.localRotation = Quaternion.identity;
+            go.transform.localScale = new Vector3(w, w, 1f);
+            go.AddComponent<MeshFilter>().sharedMesh = StickerQuad();
+            var rend = go.AddComponent<MeshRenderer>();
+            var mat = new Material(_sprite);
+            var tex = Resources.Load<Texture2D>("Iso/" + id);
+            if (tex != null)
+            {
+                tex.wrapMode = TextureWrapMode.Clamp;
+                tex.filterMode = FilterMode.Bilinear;
+                mat.SetTexture("_MainTex", tex);
+            }
+            if (mat.HasProperty("_Cutoff")) mat.SetFloat("_Cutoff", 0.08f);
+            if (mat.HasProperty("_Color")) mat.SetColor("_Color", Color.white);
+            rend.sharedMaterial = mat;
+            rend.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            rend.receiveShadows = false;
+            return go.transform;
+        }
+
+        public static Transform LifeBillboard(string resource, Transform parent, float width, float height, bool cutout = true)
+        {
+            Ensure();
+            var go = new GameObject(resource);
+            go.transform.SetParent(parent, false);
+            go.transform.localScale = new Vector3(width, height, 1f);
+            go.AddComponent<MeshFilter>().sharedMesh = Quad();
+            var rend = go.AddComponent<MeshRenderer>();
+            var mat = new Material(_sprite);
+            var tex = Resources.Load<Texture2D>(resource);
+            if (tex != null)
+            {
+                tex.wrapMode = TextureWrapMode.Clamp;
+                tex.filterMode = FilterMode.Bilinear;
+                mat.SetTexture("_MainTex", tex);
+            }
+            if (mat.HasProperty("_Cutoff")) mat.SetFloat("_Cutoff", cutout ? 0.12f : 0.02f);
+            if (mat.HasProperty("_Color")) mat.SetColor("_Color", Color.white);
+            rend.sharedMaterial = mat;
+            rend.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            rend.receiveShadows = false;
+            return go.transform;
+        }
+
+        public static Transform HoloPad(string size, Transform parent, float plateWidth)
+        {
+            Ensure();
+            float w = PlotLayout.Radius(size) * plateWidth * 1.55f;
+            var go = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            go.name = "holo-pad";
+            go.transform.SetParent(parent, false);
+            Object.Destroy(go.GetComponent<Collider>());
+            go.transform.localPosition = new Vector3(0f, 0f, -0.02f);
+            go.transform.localRotation = Quaternion.identity;
+            go.transform.localScale = new Vector3(w, w * 0.46f, 1f);
+            var rend = go.GetComponent<MeshRenderer>();
+            var sh = Resources.Load<Shader>("ColonyPad") ?? Shader.Find("Colony/Pad");
+            var mat = new Material(sh != null ? sh : _sprite);
+            rend.sharedMaterial = mat;
+            rend.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            rend.receiveShadows = false;
+            return go.transform;
         }
 
         public static void Tint(Transform t, Color color)
@@ -66,7 +137,7 @@ namespace Colony
             go.AddComponent<MeshFilter>().sharedMesh = Quad();
             var rend = go.AddComponent<MeshRenderer>();
             var mat = new Material(_sprite);
-            var tex = Resources.Load<Texture2D>("Top/" + resource);
+            var tex = Resources.Load<Texture2D>(resource);
             if (tex != null)
             {
                 tex.wrapMode = TextureWrapMode.Clamp;
@@ -105,6 +176,26 @@ namespace Colony
             _quad.RecalculateNormals();
             _quad.RecalculateBounds();
             return _quad;
+        }
+
+        static Mesh _sticker;
+
+        static Mesh StickerQuad()
+        {
+            if (_sticker != null) return _sticker;
+            _sticker = new Mesh { name = "iso-sticker" };
+            _sticker.vertices = new[]
+            {
+                new Vector3(-0.5f, -0.28f, 0f),
+                new Vector3(0.5f, -0.28f, 0f),
+                new Vector3(-0.5f, 0.72f, 0f),
+                new Vector3(0.5f, 0.72f, 0f)
+            };
+            _sticker.uv = new[] { new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, 1), new Vector2(1, 1) };
+            _sticker.triangles = new[] { 0, 2, 1, 2, 3, 1 };
+            _sticker.RecalculateNormals();
+            _sticker.RecalculateBounds();
+            return _sticker;
         }
     }
 }

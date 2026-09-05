@@ -10,152 +10,94 @@ namespace Colony
     public class ColonyRoot : MonoBehaviour
     {
         public static ColonyRoot Instance { get; private set; }
-
+        public bool Visible { get; private set; } = true;
+        public bool Motion { get; private set; } = true;
+        public IReadOnlyDictionary<string, PlotView> Plots => _plots;
         readonly Dictionary<string, PlotView> _plots = new Dictionary<string, PlotView>();
         ColonyCamera _cam;
-        string _selected = "";
-        bool _ready;
-
+        DioramaWorld _world;
+        string _selected="", _planet="";
+        float _nextFrame;
+        FrameDto _frame;
 #if UNITY_WEBGL && !UNITY_EDITOR
         [DllImport("__Internal")] static extern void SN_NotifyReady();
         [DllImport("__Internal")] static extern void SN_NotifySelect(string id);
+        [DllImport("__Internal")] static extern void SN_NotifyFrame(string json);
 #endif
-
-        void Awake()
-        {
-            Instance = this;
-            try
-            {
-                Mats.Ensure();
-                EnsureCamera();
-                SpaceEnvironment.Build(transform);
-                foreach (var spec in PlotLayout.All)
-                    _plots[spec.Id] = PlotView.Spawn(transform, spec);
-                foreach (var plot in _plots.Values)
-                    plot.Apply(0, false, false, false);
-                _ready = true;
-                NotifyReady();
-            }
-            catch (Exception err)
-            {
-                Debug.LogError("Colony Awake failed: " + err);
-            }
-        }
-
-        void EnsureCamera()
-        {
-            var cam = Camera.main;
-            if (cam == null)
-            {
-                var go = new GameObject("Main Camera");
-                cam = go.AddComponent<Camera>();
-                go.tag = "MainCamera";
-                go.AddComponent<AudioListener>();
-            }
-            cam.clearFlags = CameraClearFlags.SolidColor;
-            cam.backgroundColor = new Color(0.035f, 0.025f, 0.03f);
-            cam.orthographic = true;
-            cam.orthographicSize = 13.2f;
-            cam.nearClipPlane = 0.1f;
-            cam.farClipPlane = 80f;
-            cam.transform.position = new Vector3(0f, 40f, 0f);
-            cam.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
-            _cam = cam.GetComponent<ColonyCamera>() ?? cam.gameObject.AddComponent<ColonyCamera>();
-        }
-
-        void Update()
-        {
-            if (!_ready) return;
-            if (!Input.GetMouseButtonUp(0)) return;
-            if (_cam != null && _cam.Dragging)
-            {
-                _cam.ClearDrag();
-                return;
-            }
-            var ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-            if (!Physics.Raycast(ray, out var hit, 200f))
-            {
-                Select("");
-                return;
-            }
-            var plot = hit.collider.GetComponentInParent<PlotView>();
-            if (plot == null)
-            {
-                Select("");
-                return;
-            }
-            Select(plot.Id == _selected ? "" : plot.Id);
-        }
-
-        public void ApplyState(string json)
-        {
-            if (string.IsNullOrEmpty(json)) return;
-            try
-            {
-                var data = JsonUtility.FromJson<StateDto>(json);
-                if (data?.plots == null) return;
-                _selected = data.selected ?? "";
-                var seen = new HashSet<string>();
-                foreach (var row in data.plots)
-                {
-                    if (row == null || !_plots.TryGetValue(row.id, out var plot)) continue;
-                    seen.Add(row.id);
-                    plot.Apply(row.level, row.locked, row.busy, row.id == _selected);
-                }
-                foreach (var kv in _plots)
-                {
-                    if (!seen.Contains(kv.Key)) kv.Value.Apply(0, false, false, false);
-                }
-            }
-            catch (Exception err)
-            {
-                Debug.LogWarning("Colony ApplyState: " + err.Message);
-            }
-        }
-
-        public void SetSelected(string id)
-        {
-            Select(id ?? "", false);
-        }
-
-        void Select(string id, bool notify = true)
-        {
-            _selected = id ?? "";
-            foreach (var kv in _plots)
-                kv.Value.Apply(kv.Value.Level, kv.Value.Locked, kv.Value.Busy, kv.Key == _selected);
-            if (notify) NotifySelect(_selected);
-        }
-
-        void NotifyReady()
-        {
+        void Awake() {
+            Instance=this;
+            Application.targetFrameRate=60;
+            QualitySettings.vSyncCount=0;
+#if UNITY_WEBGL && !UNITY_EDITOR
+            WebGLInput.captureAllKeyboardInput=false;
+#endif
+            _world=DioramaWorld.Build(transform);
+            var camera=Camera.main;
+            camera.clearFlags=CameraClearFlags.SolidColor;
+            camera.backgroundColor=new Color(.025f,.028f,.032f);
+            _cam=camera.GetComponent<ColonyCamera>();
+            _cam.Bind(_world);
+            Physics.queriesHitBackfaces=true;
+            foreach(var spec in PlotLayout.All) _plots[spec.Id]=PlotView.Spawn(_world,_world.Root,spec);
+            _frame=new FrameDto { anchors=new AnchorDto[_plots.Count] };
+            int i=0;
+            foreach(var p in _plots.Values) _frame.anchors[i++]=new AnchorDto { id=p.Id };
 #if UNITY_WEBGL && !UNITY_EDITOR
             SN_NotifyReady();
 #endif
         }
-
-        void NotifySelect(string id)
-        {
+        void LateUpdate() {
+            if(!Visible || Time.unscaledTime<_nextFrame) return;
+            _nextFrame=Time.unscaledTime+.08f;
+            int i=0;
+            foreach(var plot in _plots.Values) {
+                var point=Camera.main.WorldToViewportPoint(plot.Anchor);
+                var a=_frame.anchors[i++];
+                a.x=point.x; a.y=1-point.y;
+                a.visible=point.x>-.02f && point.x<1.02f && point.y>.01f && point.y<.97f;
+            }
 #if UNITY_WEBGL && !UNITY_EDITOR
-            SN_NotifySelect(id ?? "");
+            SN_NotifyFrame(JsonUtility.ToJson(_frame));
 #endif
         }
-
-        [Serializable]
-        class StateDto
-        {
-            public PlotDto[] plots;
-            public string selected;
+        public void Tap(Vector2 screen) {
+            if(!Visible) return;
+            string id="";
+            if(Physics.Raycast(Camera.main.ScreenPointToRay(screen),out var hit,100f)) {
+                var plot=hit.collider.GetComponent<PlotView>();
+                if(plot) id=plot.Id;
+            }
+            Select(id==_selected ? "" : id,true);
         }
-
-        [Serializable]
-        class PlotDto
-        {
-            public string id;
-            public int level;
-            public bool locked;
-            public bool busy;
-            public string name;
-            public string size;
+        public void ApplyState(string json) {
+            if(string.IsNullOrEmpty(json)) return;
+            try {
+                var data=JsonUtility.FromJson<StateDto>(json);
+                if(data?.plots==null) return;
+                if(_planet!=data.planetId) { _planet=data.planetId; _cam.FramePlaza(); }
+                _selected=data.selected ?? "";
+                foreach(var row in data.plots)
+                    if(row!=null && _plots.TryGetValue(row.id,out var plot))
+                        plot.Apply(row.level,row.locked,row.busy,row.id==_selected,row.active,row.idle);
+            } catch(Exception e) { Debug.LogWarning("Colony state: "+e.Message); }
         }
+        public void SetSelected(string id) => Select(id,false);
+        public void FocusBuilding(string id) {
+            if(_plots.TryGetValue(id,out var p)) { _cam.Focus(p.Anchor); Select(id,true); }
+        }
+        public void SetVisible(string value) { Visible=value=="1"; Application.targetFrameRate=Visible?60:5; }
+        public void SetMotion(string value) { Motion=value=="1"; Shader.SetGlobalFloat("_ColonyMotion",Motion?1:0); }
+        public void CameraAction(string action) { if(action=="home") _cam.FramePlaza(); else _cam.Zoom(action=="in"?.8f:1.25f); }
+        void Select(string id,bool notify) {
+            _selected=id ?? "";
+            foreach(var p in _plots.Values) p.Apply(p.Level,p.Locked,p.Busy,p.Id==_selected,p.Active,p.Idle);
+#if UNITY_WEBGL && !UNITY_EDITOR
+            if(notify) SN_NotifySelect(_selected);
+#endif
+        }
+        [Serializable] class StateDto { public PlotDto[] plots; public string selected,planetId; }
+        [Serializable] class PlotDto { public string id; public int level; public bool locked,busy,active,idle; }
+        [Serializable] class FrameDto { public AnchorDto[] anchors; }
+        [Serializable] class AnchorDto { public string id; public float x,y; public bool visible; }
     }
 }

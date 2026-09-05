@@ -25,3 +25,7 @@ unity-colony/Temp/
 unity-colony/Logs/
 unity-colony/obj/
 unity-colony/UserSettings/
+unity-colony/Assets/Colony/BuildArchive/
+unity-colony/Assets/Colony/BuildArchive.meta
+tmp/colony-chrome/
+tmp/colony-review/

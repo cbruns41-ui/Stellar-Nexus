@@ -4852,14 +4852,17 @@ body[data-mode="play"] .resources .res-more .res-meta { display: grid; gap: 1px;
   pointer-events: auto;
   background: #02060d;
   perspective: 1400px;
-  perspective-origin: 50% 42%;
+  perspective-origin: 50% 55%;
+  isolation: isolate;
+  contain: paint;
   touch-action: none;
+  overscroll-behavior: none;
 }
-.city-view.diorama .city-tilt {
-  width: 100%;
-  height: 100%;
-  transform-origin: 50% 50%;
-  transform-style: preserve-3d;
+.city-view.diorama .city-world {
+  width: max-content;
+  height: auto;
+  transform-origin: 50% 62%;
+  will-change: transform;
 }
 .city-view.diorama .city-map {
   position: relative;
@@ -4870,7 +4873,8 @@ body[data-mode="play"] .resources .res-more .res-meta { display: grid; gap: 1px;
   will-change: transform;
 }
 .city-view.diorama .city-vista-frame,
-.city-view.diorama .city-vista {
+.city-view.diorama .city-vista,
+.city-view.diorama video.city-vista {
   display: block !important;
   width: 100%;
   height: auto;
@@ -4904,14 +4908,18 @@ body[data-mode="play"] .resources .res-more .res-meta { display: grid; gap: 1px;
   background: transparent;
 }
 .city-view.diorama .city-building-art,
-.city-view.diorama .city-plot.scene-landmark .city-building-art {
-  display: block !important;
-  width: clamp(76px, 9.5vw, 148px);
-  height: auto;
-  object-fit: contain;
-  pointer-events: none;
-  filter: drop-shadow(0 14px 12px rgba(0,0,0,.7));
+.city-view.diorama .city-pad,
+.city-view.diorama .city-empty-pad { display: none !important; }
+.city-view.diorama .city-plot .city-plot-main {
+  width: clamp(56px, 7vw, 92px);
+  height: clamp(56px, 7vw, 92px);
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 50%;
+  background: transparent;
 }
+.city-view.diorama .city-plot.size-capital .city-plot-main { width: clamp(88px, 11vw, 140px); height: clamp(72px, 9vw, 110px); }
+.city-view.diorama .city-plot.size-large .city-plot-main { width: clamp(72px, 9vw, 120px); height: clamp(64px, 8vw, 100px); }
 .city-view.diorama .city-plot.size-capital .city-building-art { width: clamp(108px, 12.5vw, 176px); }
 .city-view.diorama .city-plot.size-large .city-building-art { width: clamp(88px, 10.5vw, 148px); }
 .city-view.diorama .city-plot.size-mini .city-building-art,
@@ -4920,20 +4928,50 @@ body[data-mode="play"] .resources .res-more .res-meta { display: grid; gap: 1px;
 .city-view.diorama .city-empty-hit { display: none !important; }
 .shell.view-home .city-view.diorama .city-empty-pad,
 .shell.view-home .city-view.diorama .city-plot.scene-landmark .city-empty-pad,
+.shell.view-home .city-view.diorama .city-pad,
 .shell.view-home .city-view.diorama .city-building-art,
 .shell.view-home .city-view.diorama .city-plot.scene-landmark .city-building-art {
   display: block !important;
 }
-.city-view.diorama .city-empty-pad {
+.city-view.diorama .city-pad {
+  position: relative;
+  display: grid;
+  place-items: center;
   width: clamp(48px, 5.6vw, 78px);
+}
+.city-view.diorama .city-empty-pad {
+  display: block;
+  width: 100%;
   height: auto;
   pointer-events: none;
   filter: drop-shadow(0 10px 10px rgba(0,0,0,.62));
+  animation: city-pad-pulse 2.8s ease-in-out infinite;
 }
-.city-view.diorama .city-plot.size-capital .city-empty-pad { width: clamp(64px, 7.5vw, 104px); }
-.city-view.diorama .city-plot.size-large .city-empty-pad { width: clamp(56px, 6.6vw, 92px); }
-.city-view.diorama .city-plot.size-mini .city-empty-pad,
-.city-view.diorama .city-plot.size-micro .city-empty-pad { width: clamp(42px, 5vw, 68px); }
+.city-view.diorama .city-pad-ring {
+  position: absolute;
+  left: 50%;
+  top: 62%;
+  z-index: 1;
+  width: 92%;
+  aspect-ratio: 1;
+  border: 1.5px solid rgba(92, 228, 255, .78);
+  border-radius: 50%;
+  pointer-events: none;
+  box-shadow: 0 0 12px rgba(70, 214, 255, .4);
+  transform: translate(-50%, -50%) rotateX(66deg);
+  animation: city-pad-spin 5.6s linear infinite;
+}
+.city-view.diorama .city-pad-ring.alt {
+  width: 118%;
+  border-color: rgba(70, 200, 255, .38);
+  box-shadow: 0 0 16px rgba(60, 200, 255, .22);
+  animation-duration: 8.4s;
+  animation-direction: reverse;
+}
+.city-view.diorama .city-plot.size-capital .city-pad { width: clamp(64px, 7.5vw, 104px); }
+.city-view.diorama .city-plot.size-large .city-pad { width: clamp(56px, 6.6vw, 92px); }
+.city-view.diorama .city-plot.size-mini .city-pad,
+.city-view.diorama .city-plot.size-micro .city-pad { width: clamp(42px, 5vw, 68px); }
 .city-view.diorama .city-plot.selected .city-empty-pad,
 .city-view.diorama .city-plot.selected .city-building-art {
   filter: drop-shadow(0 0 18px rgba(80,235,255,.9)) drop-shadow(0 14px 12px rgba(0,0,0,.7));
@@ -4973,13 +5011,34 @@ body[data-mode="play"] .resources .res-more .res-meta { display: grid; gap: 1px;
 .city-view.diorama .city-plot.selected .city-plot-main > span { top: calc(100% + 22px); font-size: 10px; color: #7adfff; }
 @media (max-width: 760px) {
   .city-view.diorama .city-map { width: 100%; max-width: none; }
+  .city-view.diorama .city-world { transform-origin: 50% 72%; }
   .city-view.diorama .city-plot { left: var(--mobile-x) !important; top: var(--mobile-y) !important; }
   .shell.view-home .city-view.diorama .city-plot.scene-landmark .city-building-art,
-  .shell.view-home .city-view.diorama .city-plot.scene-landmark .city-empty-pad {
+  .shell.view-home .city-view.diorama .city-plot.scene-landmark .city-empty-pad,
+  .shell.view-home .city-view.diorama .city-plot.scene-landmark .city-pad {
     display: block !important;
   }
   .shell.view-home .city-view.diorama .city-vista-frame,
   .shell.view-home .city-view.diorama .city-vista {
     aspect-ratio: auto;
   }
+}
+
+@keyframes city-pad-spin {
+  to { transform: translate(-50%, -50%) rotateX(66deg) rotateZ(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .city-pad-ring { animation: none !important; }
+}
+
+.shell.view-home,
+.shell.view-home .view,
+.shell.view-home .city-view {
+  touch-action: none;
+  overscroll-behavior: none;
+}
+body[data-mode="play"] .topbar,
+body[data-mode="play"] .tabbar {
+  position: relative;
+  z-index: 80;
 }

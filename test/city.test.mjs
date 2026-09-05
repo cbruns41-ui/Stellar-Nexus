@@ -13,11 +13,13 @@ test("the command nexus remains the single capital in the centre", () => {
   assert.equal(capitals.length, 1);
   assert.equal(capitals[0].id, "command");
   assert.ok(Math.abs(capitals[0].x - 50) <= 2);
-  assert.ok(Math.abs(capitals[0].y - 54) <= 2);
+  assert.ok(capitals[0].y >= 45 && capitals[0].y <= 49);
+  assert.ok(Math.abs(capitals[0].mx - 50) <= 2);
+  assert.equal(capitals[0].my, capitals[0].y);
 });
 
 test("building level bands progress predictably", () => {
-  assert.equal(buildingLevelBand(0), "empty");
+  assert.equal(buildingLevelBand(0), "dormant");
   assert.equal(buildingLevelBand(1), "starter");
   assert.equal(buildingLevelBand(3), "developed");
   assert.equal(buildingLevelBand(8), "advanced");

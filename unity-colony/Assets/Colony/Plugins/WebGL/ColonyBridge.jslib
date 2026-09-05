@@ -1,4 +1,9 @@
 mergeInto(LibraryManager.library, {
+  SN_NotifyFrame: function (jsonPtr) {
+    if (typeof window !== "undefined" && window.stellarNexusColony && window.stellarNexusColony.onFrame) {
+      window.stellarNexusColony.onFrame(JSON.parse(UTF8ToString(jsonPtr)));
+    }
+  },
   SN_NotifyReady: function () {
     if (typeof window !== "undefined" && window.stellarNexusColony && typeof window.stellarNexusColony.onReady === "function") {
       window.stellarNexusColony.onReady();

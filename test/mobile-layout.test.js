@@ -60,24 +60,23 @@ test("mobile chrome exposes three resources, an expander and map search toggle",
   assert.match(css, /\.tree\.hide-owned \.tree-node\.owned/);
 });
 
-test("mobile catalog cards are image-first and the colony uses an isometric planet diorama", () => {
+test("mobile catalog cards are image-first and the colony boots the Unity diorama", () => {
   assert.match(css, /flex-direction:column/);
   assert.match(css, /\.og-row>\.og-art/);
-  assert.match(app, /id="city-actions"/);
+  const hud = fs.readFileSync(path.join(root, "public/js/colony-hud.mjs"), "utf8");
+  assert.match(hud, /id="city-actions"/);
   assert.match(app, /Schiffe produzieren/);
   assert.match(app, /class="city-view diorama/);
-  assert.match(app, /empty-pad-iso\.png/);
-  assert.match(app, /base-iso-planet\.jpg/);
-  assert.match(app, /base-iso-planet-mobile\.jpg/);
-  assert.match(app, /buildings-iso\/\$\{plot\.id\}\.png/);
+  assert.match(app, /bootUnityCity\(\)/);
+  assert.match(app, /createColonyUnity\(canvas/);
+  assert.match(hud, /data-colony-marker/);
+  assert.doesNotMatch(app, /city-sky-ship/);
+  assert.doesNotMatch(app, /empty-pad-iso\.png/);
+  assert.doesNotMatch(app, /buildings-iso\/\$\{plot\.id\}\.png/);
   assert.match(css, /\.city-view\.diorama/);
-  assert.match(css, /\.city-empty-pad/);
   assert.match(css, /\.city-actions/);
-  assert.equal(fs.existsSync(path.join(root, "public", "assets", "colony", "base-iso-planet.jpg")), true);
-  assert.equal(fs.existsSync(path.join(root, "public", "assets", "colony", "base-iso-planet-mobile.jpg")), true);
-  assert.equal(fs.existsSync(path.join(root, "public", "assets", "colony", "empty-pad-iso.png")), true);
-  const buildingArt = fs.readdirSync(path.join(root, "public", "assets", "colony", "buildings-iso")).filter((name) => name.endsWith(".png"));
-  for (const id of Object.keys(BUILDINGS)) assert.ok(buildingArt.includes(`${id}.png`), `missing colony sprite for ${id}`);
+  assert.match(html, /maximum-scale=1/);
+  assert.equal(fs.existsSync(path.join(root, "public", "assets", "colony", "colony-approved.png")), true);
 });
 
 test("funk splits messages, combat reports and spy reports", () => {
