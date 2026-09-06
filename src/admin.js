@@ -22,7 +22,7 @@ function stats(db) {
     pirates: db.prepare("SELECT COUNT(*) AS n FROM systems WHERE IFNULL(pirate,0) > 0").get().n,
     remnants: db.prepare("SELECT COUNT(*) AS n FROM systems WHERE remnant = 1").get().n,
     fleets: db.prepare("SELECT COUNT(*) AS n FROM fleets").get().n,
-    betaRegistrations: db.prepare("SELECT COUNT(*) AS n FROM beta_registrations").get().n,
+    betaRegistrations: db.prepare("SELECT COUNT(*) AS n FROM registration_requests").get().n,
     threat: pirates.threatOf(db).level,
     rift: (() => {
       const row = db.prepare("SELECT value FROM world_meta WHERE key = 'rift'").get();

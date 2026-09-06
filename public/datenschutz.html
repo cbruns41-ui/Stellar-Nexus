@@ -111,10 +111,10 @@
           </tr>
           <tr>
             <td>Beta-Registrierung</td>
-            <td>E-Mail, optional Commander-ID, optional Nachricht, IP, Zeitstempel</td>
-            <td>Verwaltung der Closed-Beta-Warteliste</td>
+            <td>E-Mail, Commander-ID, IP-Prüfsumme, Zeitstempel, Freigabestatus</td>
+            <td>Adminfreigabe und Begrenzung neuer Registrierungen</td>
             <td>Art. 6 Abs. 1 lit. b DSGVO (Anbahnung)</td>
-            <td>Nur interne Datenbank</td>
+            <td>Interne Datenbank, Administrator und dessen Mailanbieter</td>
             <td>Bis zum Ende der Beta-Phase oder auf Widerruf</td>
           </tr>
           <tr>
@@ -163,17 +163,20 @@
 
       <h2>4.3 Registrierung</h2>
       <p>
-        Bei der Registrierung werden Benutzername, Passwort (als Hash), Imperiumsname, Spezies und
-        die bei der Registrierung verwendete IP-Adresse gespeichert. Das Passwort wird mit scrypt
-        gesalzt und kann nicht zurückgelesen werden.
+        Bei der Registrierung werden Benutzername, E-Mail-Adresse, Passwort-Hash, Imperiumsname,
+        Spezies und Freigabestatus gespeichert. Das Passwort wird mit scrypt gesalzt gehasht.
+        Zur Begrenzung auf eine Registrierung je IP wird eine mit einem serverseitigen Schlüssel
+        erzeugte Prüfsumme (HMAC) gespeichert. Die Registrierungsdaten enthalten keine Klartext-IP.
+        Der Administrator erhält Benutzername, E-Mail-Adresse und einen zeitlich begrenzten
+        Freigabelink per E-Mail. Bis zur Bestätigung bleibt der Spielzugang gesperrt.
       </p>
 
       <h2>4.4 Beta-Registrierung</h2>
       <p>
-        Auf der Landingpage können Besucher eine E-Mail-Adresse sowie optional eine Commander-ID und
-        Nachricht hinterlassen. Diese Daten werden ausschließlich zur Verwaltung der Closed-Beta-Warteliste
-        verwendet. Die IP-Adresse wird nur zur Missbrauchsabwehr (Rate-Limiting) verarbeitet und nicht
-        dauerhaft den Registrierungen zugeordnet.
+        Neue Beta-Anmeldungen verwenden den oben beschriebenen Registrierungs- und Freigabeablauf.
+        Die Mensch-Bestätigung besteht aus einem Pflichtfeld und einer einmaligen Rechenaufgabe.
+        Die Aufgabe ist zehn Minuten gültig und an die IP-Prüfsumme gebunden. Frühere
+        Wartelisteneinträge werden dadurch nicht automatisch zu Spielaccounts.
       </p>
 
       <h2>4.5 Spielinhalte</h2>

@@ -33,7 +33,7 @@ namespace Colony
             _size=Mathf.Lerp(_size,_targetSize,1-Mathf.Exp(-18f*Time.unscaledDeltaTime));
             ApplyCamera();
         }
-        float MaxSize() => Mathf.Min(10f,_world.Width/(2f*Mathf.Max(.1f,_cam.aspect)));
+        float MaxSize() => Mathf.Max(_world.Height*.5f,_world.Width/(2f*Mathf.Max(.1f,_cam.aspect)))*1.08f;
         void ApplyCamera() {
             float maxX=Mathf.Max(0,_world.Width*.5f-_size*_cam.aspect);
             float maxY=Mathf.Max(0,_world.Height*.5f-_size);

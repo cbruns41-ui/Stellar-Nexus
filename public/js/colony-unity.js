@@ -1,4 +1,4 @@
-const BUILD_URL = "/unity-colony/Build", PRODUCT = "unity-colony", VERSION = "living-3";
+const BUILD_URL = "/unity-colony/Build", PRODUCT = "unity-colony", VERSION = "living-4";
 let instance = null, bootPromise = null, pendingState = null, selected = "", visible = false;
 let listeners = {}, resizeObserver = null;
 const motion = window.matchMedia("(prefers-reduced-motion: reduce)");

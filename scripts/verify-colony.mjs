@@ -1,17 +1,19 @@
 // Local integration check against an isolated server at :3100.
 import { spawn } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, rm } from "node:fs/promises";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { CITY_PLOTS } from "../public/js/city.mjs";
+import { verifyGameFlows } from "./verify-game-flows.mjs";
 const base = "http://localhost:3100";
 const debug = 9347;
+const databasePath = fileURLToPath(new URL(`../tmp/colony-verification-${process.pid}.db`, import.meta.url));
 const folder = new URL("../tmp/colony-review/", import.meta.url);
 await mkdir(folder, { recursive: true });
 const server = spawn(process.execPath, ["server.js"], {
   cwd: fileURLToPath(new URL("../", import.meta.url)),
-  env: { ...process.env, PORT: "3100", DATABASE_PATH: fileURLToPath(new URL("../tmp/colony-verification.db", import.meta.url)) },
+  env: { ...process.env, PORT: "3100", DATABASE_PATH: databasePath, SMTP_HOST: "" },
   stdio: ["ignore", "pipe", "pipe"], windowsHide: true,
 });
 let serverReady = false, serverError = "";
@@ -63,7 +65,7 @@ try {
   async function until(expression, timeout = 90000) {
     const start = Date.now();
     while (Date.now() - start < timeout) { const result = await evaluate(expression); if (result) return result; await pause(250); }
-    throw new Error("Timed out: " + expression + "\n" + errors.join("\n"));
+    throw new Error("Timed out: " + expression + "\n" + errors.join("\n") + "\n" + await evaluate(`document.querySelector('#view')?.innerText.slice(0,1800)`));
   }
   async function shot(name) {
     const result = await send("Page.captureScreenshot", { format: "png", fromSurface: true });
@@ -75,6 +77,29 @@ try {
   await until(`window.__colonyFrame?.anchors.length === 22`);
   console.log("Unity loaded", await evaluate(`({canvas: [document.querySelector('canvas#colony-unity-canvas').width,document.querySelector('canvas#colony-unity-canvas').height],markers:document.querySelectorAll('.colony-marker:not([hidden])').length})`));
   await shot("desktop-base");
+  const headers = { "content-type":"application/json", cookie:`sn_session=${token}` };
+  if(process.argv.includes('--flows-only')) {
+    await verifyGameFlows({base,headers,databasePath,send,evaluate,until,pause});
+    assert.deepEqual(errors, [], "No browser errors or warnings");
+    await writeFile(new URL("game-flows-verification.json",folder),JSON.stringify({passed:true,checkedAt:new Date().toISOString(),checks:["map search hit target","stable map and raid buttons","colonization from source hangar","deployment dialog","yard sheet preserves map","touch fire consumes battery","raid combat report","landing registration pending admin approval"],browserErrors:errors},null,2));
+  } else {
+  let before = await fetch(base+"/api/state",{headers}).then(r=>r.json());
+  for (const sku of ["pack_s","pass30","ship_cap_boost"]) {
+    const response = await fetch(base+"/api/nex/checkout",{method:"POST",headers,body:JSON.stringify({sku,ageConfirm:true,waiveWithdrawal:true})});
+    assert.equal(response.status,410,"Legacy checkout disabled: "+sku);
+  }
+  let after = await fetch(base+"/api/state",{headers}).then(r=>r.json());
+  assert.equal(after.empire.nex,before.empire.nex,"Checkout never grants currency");
+  await fetch(base+"/api/nex/grant",{method:"POST",headers,body:JSON.stringify({amount:500})});
+  before = await fetch(base+"/api/state",{headers}).then(r=>r.json());
+  const pass = before.nexShop.items.find(i=>i.id==="pass30");
+  const redeemed = await fetch(base+"/api/nex/buy",{method:"POST",headers,body:JSON.stringify({id:"pass30"})});
+  assert.ok(redeemed.ok,"Pass can be redeemed with Nex");
+  after = await redeemed.json();
+  assert.equal(after.empire.nex,before.empire.nex-pass.cost,"Pass charges its Nex price exactly once");
+  assert.ok(after.empire.vip.active,"Nex pass activates benefits");
+  console.log("Cash checkout blocked; pass redemption with Nex passed");
+
   for (const plot of CITY_PLOTS) {
     await evaluate(`document.querySelector('.colony-card-close')?.click()`);
     const point = await evaluate(`(() => {
@@ -107,7 +132,7 @@ try {
   await evaluate(`document.querySelector('[data-view="command"]').click()`);
   await until(`document.querySelectorAll('.colony-marker:not([hidden])').length > 5`);
   // Mutate only this script's explicitly isolated verification database.
-  const db = new DatabaseSync(fileURLToPath(new URL("../tmp/colony-verification.db", import.meta.url)));
+  const db = new DatabaseSync(databasePath);
   const testPlanet = db.prepare("SELECT p.id,p.empire_id FROM planets p JOIN empires e ON e.id=p.empire_id JOIN users u ON u.id=e.user_id WHERE u.username='Admin' AND COALESCE(p.alliance_id,0)=0 ORDER BY p.id LIMIT 1").get();
   assert.ok(testPlanet, "Isolated fixture planet exists");
   // Use the selected account's current planet in case the seed provides several.
@@ -250,6 +275,49 @@ try {
   const taskTarget = await evaluate(`(() => { const b=[...document.querySelectorAll('#colony-quests [data-view-jump]')].find(b=>b.dataset.viewJump!=='command'); const target=b.dataset.viewJump; b.click(); return target; })()`);
   await until(`document.querySelector('#game').dataset.view === ${JSON.stringify(taskTarget)}`);
   console.log("Daily/weekly tasks, mobile touch scrolling, close and task routing passed");
+
+  const donationSave = await fetch(base+"/api/admin/settings",{method:"POST",headers,body:JSON.stringify({donationUrl:"https://example.org/donate",donationText:"Serverkosten-Test"})});
+  assert.ok(donationSave.ok,"Admin saves donation details");
+  await send("Page.reload");
+  await until(`document.querySelector('.living-colony.is-unity') && document.querySelectorAll('.colony-marker:not([hidden])').length > 0`);
+  await evaluate(`window.__colonyOriginalFrame=window.stellarNexusColony.onFrame;window.stellarNexusColony.onFrame=frame=>{window.__colonyFrame=frame;window.__colonyOriginalFrame(frame);};`);
+  await evaluate(`document.querySelector('[data-view="nexus"]').click()`);
+  await until(`document.querySelector('a[href="https://example.org/donate"]')`);
+  assert.equal(await evaluate(`document.querySelectorAll('[data-checkout]').length`),0,"Nexus has no cash checkout buttons");
+  assert.ok(await evaluate(`document.querySelector('#view').innerText.includes('Serverkosten-Test')`),"Donation description is public");
+  await evaluate(`document.querySelector('[data-view="moderation"]').click()`);
+  await until(`document.querySelector('#admin-settings input[name="donationUrl"]')`);
+  assert.equal(await evaluate(`document.querySelector('#admin-settings input[name="donationUrl"]').value`),"https://example.org/donate","Donation link editable in admin UI");
+  for (const [width,height,mobile] of [[1440,700,false],[390,844,true],[320,568,true],[844,390,true]]) {
+    await send("Emulation.setDeviceMetricsOverride",{width,height,deviceScaleFactor:1,mobile});
+    await evaluate(`document.body.style.setProperty('--safe-top','44px'); document.querySelector('[data-view="command"]').click()`);
+    await until(`document.querySelector('.living-colony')`);
+    await evaluate(`document.querySelector('[data-open-nav]').click()`);
+    await until(`document.querySelector('.shell.nav-open')`);
+    const nav = await evaluate(`(() => { const nav=document.querySelector('#nav');const staff=document.querySelector('#nav-staff');staff.hidden=false;staff.scrollIntoView({block:'end'}); const r=staff.getBoundingClientRect(),n=nav.getBoundingClientRect();return {top:r.top,bottom:r.bottom,navBottom:n.bottom}; })()`);
+    assert.ok(nav.top>=0 && nav.bottom<=height+1 && nav.bottom<=nav.navBottom+1,"Leitung remains reachable "+width);
+    await evaluate(`document.querySelector('[data-view="reports"]').click()`);
+    await until(`document.querySelector('#news-tabs')`);
+    const mail = await evaluate(`(() => {const r=document.querySelector('[data-news="mail"]').getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom};})()`);
+    assert.ok(mail.left>=0 && mail.right<=width && mail.bottom<=height,"Postfach tab in viewport "+width);
+    await evaluate(`document.querySelector('[data-news="mail"]').click()`);
+    await until(`document.querySelector('.mail-thread') || document.querySelector('#mail-root:not(.muted)')`);
+    assert.equal(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),true,"Funk has no horizontal overflow");
+    await evaluate(`document.querySelector('[data-view="command"]').click()`);
+    await until(`document.querySelector('[data-guide]')`);
+    await pause(400);
+    assert.ok(await evaluate(`document.querySelector('#resources').getBoundingClientRect().top>=44`),"Resources below simulated notch");
+    await evaluate(`document.querySelector('[data-guide]').click()`);
+    await until(`document.querySelector('[data-guide-next]')`);
+    for(let n=0;n<10 && await evaluate(`!!document.querySelector('[data-guide-next]')`);n++) await evaluate(`document.querySelector('[data-guide-next]').click()`);
+    assert.equal(await evaluate(`!!document.querySelector('[data-guide-next]')`),false,"Introduction completes");
+    await evaluate(`document.querySelector('#colony-unity-canvas').dispatchEvent(new KeyboardEvent('keydown',{key:'Home'})); for(let n=0;n<18;n++) document.querySelector('#colony-unity-canvas').dispatchEvent(new KeyboardEvent('keydown',{key:'-'}));`);
+    await pause(1000);
+    assert.equal(await evaluate(`window.__colonyFrame.anchors.filter(p=>p.visible).length`),22,"Full zoom shows every building "+width);
+    await shot("ux-"+width+"x"+height);
+  }
+  console.log("Command menu, Funk, safe area, guide and full-base zoom passed at four viewport sizes");
+  await verifyGameFlows({base,headers,databasePath,send,evaluate,until,pause});
   await writeFile(new URL("browser-errors.json", folder), JSON.stringify(errors, null, 2));
   console.log("Browser messages", JSON.stringify(errors));
   assert.deepEqual(errors, [], "No browser errors or warnings");
@@ -259,6 +327,10 @@ try {
     checks: ["22 real collider clicks", "building info routing", "single build submission", "live current level", "ship production", "live return to idle", "touch pan", "two-finger pinch", "mobile card containment", "reduced motion", "daily and weekly tasks", "task touch scrolling", "task routing", "tutorial build routing", "live tutorial reward", "single reward submission", "next tutorial objective", "mobile tutorial rail"],
     browserErrors: errors,
   }, null, 2));
+  }
 } finally {
-  ws?.close(); chrome.kill(); server.kill();
+  ws?.close();
+  const stop=child=>child.exitCode!==null || child.signalCode!==null ? Promise.resolve() : new Promise(resolve=>{child.once('exit',resolve);child.kill();});
+  await Promise.all([stop(chrome),stop(server)]);
+  for(const suffix of ['', '-wal', '-shm']) await rm(databasePath+suffix,{force:true});
 }

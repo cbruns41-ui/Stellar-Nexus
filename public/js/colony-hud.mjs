@@ -22,6 +22,7 @@ export function colonyHudHtml(questsOpen = false) {
       <button type="button" class="colony-orders" data-city-sheet="quests" aria-expanded="${questsOpen}" aria-controls="colony-quests" title="Tägliche und wöchentliche Aufgaben öffnen"><span aria-hidden="true">▤</span> Aufgaben</button>
       <button type="button" data-colony-labels aria-pressed="true" title="Levelanzeigen" aria-label="Levelanzeigen">Lv</button>
     </div>
+    <button type="button" class="btn colony-guide" data-guide>Erste Schritte</button>
     <details class="colony-directory"><summary>Gebäude <span>22</span></summary><div>
       ${CITY_PLOTS.map(p => `<button type="button" data-colony-focus="${p.id}"><span>${escape(p.short)}</span><b data-colony-list-level="${p.id}">0</b></button>`).join("")}
     </div></details>

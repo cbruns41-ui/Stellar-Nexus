@@ -116,3 +116,11 @@
   .colony-marker[data-status="upgrading"] .colony-level i { animation: none; }
   .colony-job-track i { transition: none; }
 }
+
+/* Compact, scrollable building cards; production remains a full touch target. */
+.shell.view-home .living-colony .city-actions { width:min(288px,calc(100% - 20px));padding:10px;max-height:calc(100% - 80px);overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y; }
+.colony-card-state { margin:6px 0; }
+.colony-card-buttons { gap:6px;margin-top:6px; }
+.living-colony .city-actions .colony-card-buttons button { min-height:44px;padding:5px; }
+.living-colony .city-actions .colony-work-link { min-height:44px;padding:8px 10px;border:1px solid #83bdca;border-radius:7px;background:#284c59;color:#eefaff;font-weight:600; }
+.colony-guide { position:absolute;right:8px;top:62px;z-index:15;pointer-events:auto;min-height:44px;padding:8px 12px; }

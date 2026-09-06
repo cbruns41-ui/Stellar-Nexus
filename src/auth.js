@@ -1,6 +1,15 @@
 "use strict";
 
 const crypto = require("crypto");
+const { isIP } = require("node:net");
+
+function clientIp(req) {
+  if (process.env.VERCEL) {
+    const ip=String(req.headers["x-vercel-forwarded-for"] || req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+    if (isIP(ip)) return ip;
+  }
+  return req.ip || req.socket?.remoteAddress || "";
+}
 
 const SESSION_MS = 14 * 24 * 3600 * 1000;
 
@@ -57,6 +66,7 @@ function userFromRequest(db, req) {
        WHERE s.token = ? AND s.expires_at > ?`
     )
     .get(token, Date.now());
+  if (row && require("./registration").pending(db,row.id)) return null;
   return row || null;
 }
 
@@ -83,6 +93,7 @@ function rateLimit(key, max, windowMs) {
 }
 
 module.exports = {
+  clientIp,
   hashPassword,
   verifyPassword,
   parseCookies,

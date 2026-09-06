@@ -23,6 +23,7 @@ const {
   setSessionCookie,
   clearSessionCookie,
   rateLimit,
+  clientIp,
 } = require("./auth");
 const game = require("./game");
 const progress = require("./progress");
@@ -35,6 +36,7 @@ const fairplay = require("./fairplay");
 const premium = require("./premium");
 const settings = require("./settings");
 const admin = require("./admin");
+const registration = require("./registration");
 const commanders = require("./commanders");
 const allianceBoss = require("./allianceBoss");
 const sectorSeason = require("./sectorSeason");
@@ -70,6 +72,7 @@ function attachRoutes(app, db) {
   const auth = (req, res, next) => {
     const user = userFromRequest(db, req);
     if (!user) return fail(res, 401, "Nicht angemeldet.");
+    if (registration.pending(db,user.id)) return fail(res,403,"Dein Zugang wartet noch auf die Freigabe durch den Admin.");
     if (moderation.isBanned(user)) {
       destroySession(db, parseCookies(req).sn_session);
       clearSessionCookie(res);
@@ -101,66 +104,35 @@ function attachRoutes(app, db) {
   app.get("/api/catalog", (_req, res) => res.json(publicCatalog()));
 
   app.get("/api/beta/stats", (_req, res) => {
-    const count = db.prepare("SELECT COUNT(*) AS n FROM beta_registrations").get().n;
+    const count = db.prepare("SELECT COUNT(*) AS n FROM registration_requests").get().n;
     res.json({ count });
   });
 
-  app.post("/api/beta/register", (req, res) => {
-    try {
-      const cfg = settings.get(db);
-      if (!cfg.betaOpen) return fail(res, 403, "Beta-Registrierung ist derzeit geschlossen.");
-      const ip = req.ip || "local";
-      if (!rateLimit(`beta:${ip}`, 5, 10 * 60 * 1000)) return fail(res, 429, "Zu viele Versuche.");
-      const email = String(req.body?.email || "").trim().slice(0, 180);
-      const username = String(req.body?.username || "").trim().slice(0, 40);
-      const message = String(req.body?.message || "").trim().slice(0, 500);
-      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail(res, 400, "Gültige E-Mail-Adresse erforderlich.");
-      const existing = db.prepare("SELECT id FROM beta_registrations WHERE email = ?").get(email);
-      if (existing) return fail(res, 409, "Diese E-Mail ist bereits registriert.");
-      db.prepare("INSERT INTO beta_registrations(email, username, message, ip, created_at) VALUES(?,?,?,?,?)").run(email, username, message, ip, Date.now());
-      res.json({ ok: true });
-    } catch (err) { fail(res, 400, err.message); }
+  app.get("/api/auth/challenge",(req,res)=>{
+    if(!rateLimit(`challenge:${clientIp(req)}`,20,600000)) return fail(res,429,"Zu viele Versuche.");
+    res.setHeader("Cache-Control","no-store");
+    res.json(registration.challenge(db,clientIp(req)));
   });
-
-  app.post("/api/auth/register", (req, res) => {
-    const ip = req.ip || "local";
-    if (!settings.get(db).registrationOpen) return fail(res, 403, "Registrierung ist derzeit geschlossen.");
-    if (!rateLimit(`reg:${ip}`, 8, 10 * 60 * 1000)) return fail(res, 429, "Zu viele Versuche.");
-    const username = String(req.body?.username || "").trim();
-    const password = String(req.body?.password || "");
-    const empireName = String(req.body?.empire || "").trim();
-    const speciesMod = require("./species");
-    const raceId = String(req.body?.species || "terran");
-    if (!speciesMod.SPECIES[raceId]) return fail(res, 400, "Unbekannte Spezies.");
-    if (!/^[a-zA-Z0-9_]{3,16}$/.test(username)) {
-      return fail(res, 400, "Commander-ID: 3–16 Zeichen, nur Buchstaben, Zahlen, _.");
-    }
-    if (username.toLowerCase() === "admin") {
-      return fail(res, 403, "Dieser Name ist reserviert.");
-    }
-    if (password.length < 6 || password.length > 72) return fail(res, 400, "Passwort: 6–72 Zeichen.");
-    if (empireName.length < 3 || empireName.length > 24) return fail(res, 400, "Imperiumsname: 3–24 Zeichen.");
-    const exists = db.prepare("SELECT id FROM users WHERE username = ? COLLATE NOCASE").get(username);
-    if (exists) return fail(res, 409, "Diese Commander-ID ist vergeben.");
+  app.post(["/api/auth/register","/api/beta/register"],async(req,res)=>{
+    if(!rateLimit(`register:${clientIp(req)}`,8,600000)) return fail(res,429,"Zu viele Versuche.");
     try {
-      const t = Date.now();
-      const userId = withTx(db, () => {
-        const u = db
-          .prepare("INSERT INTO users(username, password_hash, created_at) VALUES(?, ?, ?)")
-          .run(username, hashPassword(password), t);
-        const id = Number(u.lastInsertRowid);
-        const e = db
-          .prepare("INSERT INTO empires(user_id, name, color, created_at, species, nex) VALUES(?, ?, ?, ?, ?, ?)")
-          .run(id, empireName, game.pickColor(db), t, raceId, settings.get(db).starterNex ?? speciesMod.STARTER_NEX);
-        game.assignHome(db, Number(e.lastInsertRowid), empireName);
-        return id;
-      });
-      const token = createSession(db, userId);
-      setSessionCookie(res, token);
-      res.json({ ok: true, username });
-    } catch (err) {
-      fail(res, 400, err.message || "Registrierung fehlgeschlagen.");
-    }
+      const entry=registration.request(db,clientIp(req),req.body||{});
+      await registration.notifyAdmin(db,entry);
+      res.status(202).json({ok:true,pending:true,message:"Registrierung eingegangen. Der Admin muss deinen Zugang erst per E-Mail freigeben. Danach kannst du dich anmelden."});
+    } catch(err) { fail(res,400,err.message); }
+  });
+  app.post("/api/registration/review",auth,adminOnly,(req,res)=>{
+    try { const row=registration.review(db,String(req.body?.token||""));res.json({username:row.username,email:row.email,status:row.status}); }
+    catch(err) { fail(res,400,err.message); }
+  });
+  app.post("/api/registration/approve",auth,adminOnly,(req,res)=>{
+    try { res.json(registration.approve(db,String(req.body?.token||""))); }
+    catch(err) { fail(res,400,err.message); }
+  });
+  app.get("/api/admin/registrations",auth,adminOnly,(_req,res)=>res.json({registrations:registration.list(db)}));
+  app.post("/api/admin/registrations/:id/resend",auth,adminOnly,async(req,res)=>{
+    try { await registration.resend(db,Number(req.params.id));res.json({ok:true}); }
+    catch(err) { fail(res,400,err.message); }
   });
 
   app.post("/api/auth/login", (req, res) => {
@@ -174,6 +146,7 @@ function attachRoutes(app, db) {
       if (isForm) return res.redirect(303, "/?login=fail");
       return fail(res, 401, "Ungültige Zugangsdaten.");
     }
+    if (registration.pending(db,user.id)) return fail(res,403,"Dein Zugang wartet noch auf die Freigabe durch den Admin.");
     if (moderation.isBanned(user)) {
       if (isForm) return res.redirect(303, "/?login=banned");
       return fail(res, 403, moderation.banMessage(user));
@@ -283,20 +256,7 @@ function attachRoutes(app, db) {
   });
 
   app.post("/api/nex/checkout", auth, (req, res) => {
-    try {
-      const { empire, planet } = loadCtx(req);
-      const sku = String(req.body?.sku || "");
-      const opts = { ageConfirm: !!req.body?.ageConfirm, waiveWithdrawal: !!req.body?.waiveWithdrawal };
-      withTx(db, () => {
-        if (premium.PACKS.some((p) => p.id === sku)) premium.buyPack(db, empire, sku, opts);
-        else if (premium.PLANS.some((p) => p.id === sku)) premium.subscribe(db, empire, sku, opts);
-        else if (premium.SHOP.ship_cap_boost && premium.SHOP.ship_cap_boost.id === sku) premium.buyShipCapBoost(db, empire);
-        else throw new Error("Unbekanntes Angebot.");
-      });
-      res.json(game.snapshot(db, req.user, planet.id));
-    } catch (err) {
-      fail(res, 400, err.message);
-    }
+    fail(res, 410, "Geldkäufe sind deaktiviert. Angebote sind ausschließlich mit Nex erhältlich.");
   });
 
   app.post("/api/nex/vip/cancel", auth, (req, res) => {
@@ -596,6 +556,7 @@ function attachRoutes(app, db) {
         db.prepare("DELETE FROM planets WHERE empire_id = ? AND IFNULL(alliance_id, 0) = 0").run(empire.id);
         db.prepare("DELETE FROM empires WHERE id = ?").run(empire.id);
         db.prepare("DELETE FROM sessions WHERE user_id = ?").run(req.user.id);
+        db.prepare("DELETE FROM registration_requests WHERE user_id=?").run(req.user.id);
         db.prepare("DELETE FROM users WHERE id = ?").run(req.user.id);
       });
       if (empire.avatar === "custom") social.removeAvatarUpload(empire.id);
@@ -1091,19 +1052,29 @@ function attachRoutes(app, db) {
     }
   });
 
+  app.post("/api/raids/:id/defend",auth,(req,res)=>{
+    try {
+      const {empire,planet}=loadCtx(req);
+      withTx(db,()=>{
+        const raid=db.prepare("SELECT r.* FROM raids r JOIN planets p ON p.id=r.target_planet_id WHERE r.id=? AND p.empire_id=?").get(Number(req.params.id),empire.id);
+        if(!raid) throw new Error("Raid nicht mehr aktiv.");
+        db.prepare("INSERT OR IGNORE INTO raid_engagements(raid_id,engaged_at) VALUES(?,?)").run(raid.id,Date.now());
+        db.prepare("UPDATE raids SET arrives_at=? WHERE id=?").run(Date.now(),raid.id);
+        game.tickWorld(db);
+      });
+      res.json(game.snapshot(db,req.user,planet.id));
+    } catch(err) { fail(res,400,err.message); }
+  });
+
   app.get("/api/reports", auth, (req, res) => {
     const empire = db.prepare("SELECT * FROM empires WHERE user_id = ?").get(req.user.id);
-    const rows = db
-      .prepare("SELECT * FROM reports WHERE empire_id = ? ORDER BY id DESC LIMIT 50")
-      .all(empire.id)
-      .map((r) => ({
-        id: r.id,
-        kind: r.kind,
-        title: r.title,
-        body: JSON.parse(r.body),
-        createdAt: r.created_at,
-        seen: !!r.seen,
-      }));
+    game.tickWorld(db);
+    const kind = ["combat","spy"].includes(req.query.kind) ? req.query.kind : null;
+    const rows = db.prepare("SELECT * FROM reports WHERE empire_id=? AND (? IS NULL OR kind=?) ORDER BY id DESC LIMIT 200")
+      .all(empire.id,kind,kind).map(r=>{
+        let body; try { body=JSON.parse(r.body); } catch { body={text:"Berichtsdaten konnten nicht vollständig gelesen werden."}; }
+        return {id:r.id,kind:r.kind,title:r.title,body,createdAt:r.created_at,seen:!!r.seen};
+      });
     res.json({ reports: rows });
   });
 

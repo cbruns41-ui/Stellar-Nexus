@@ -10,6 +10,19 @@ const SCHEMA = `
 PRAGMA foreign_keys = ON;
 PRAGMA busy_timeout = 3000;
 
+CREATE TABLE IF NOT EXISTS registration_challenges (
+ id TEXT PRIMARY KEY, ip_hash TEXT NOT NULL, answer_hash TEXT NOT NULL, expires_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS registration_requests (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,user_id INTEGER NOT NULL UNIQUE,email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+ ip_hash TEXT NOT NULL UNIQUE,empire TEXT NOT NULL,species TEXT NOT NULL,token_hash TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'pending',mail_status TEXT NOT NULL DEFAULT 'pending',mail_error TEXT NOT NULL DEFAULT '',
+ expires_at INTEGER NOT NULL,created_at INTEGER NOT NULL,approved_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS ship_reserves (
+ planet_id INTEGER NOT NULL, ship_id TEXT NOT NULL, count INTEGER NOT NULL CHECK(count>=0), PRIMARY KEY(planet_id,ship_id)
+);
+CREATE TABLE IF NOT EXISTS raid_engagements (raid_id INTEGER PRIMARY KEY, engaged_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS world_meta (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -277,6 +290,14 @@ CREATE TRIGGER IF NOT EXISTS fleet_ledger_delete AFTER DELETE ON ships WHEN OLD.
 END;
 
 CREATE INDEX IF NOT EXISTS idx_planets_empire ON planets(empire_id);
+CREATE TRIGGER IF NOT EXISTS reserve_ledger_insert AFTER INSERT ON ship_reserves WHEN NEW.count > 0 BEGIN
+  INSERT INTO fleet_ledger(empire_id,planet_id,ship_id,before_count,after_count,cause,created_at)
+  VALUES((SELECT empire_id FROM planets WHERE id=NEW.planet_id),NEW.planet_id,NEW.ship_id,0,NEW.count,'Reserve: Hangar voll, Schiffe bleiben erhalten',CAST(unixepoch('subsec')*1000 AS INTEGER));
+END;
+CREATE TRIGGER IF NOT EXISTS reserve_ledger_update AFTER UPDATE OF count ON ship_reserves WHEN OLD.count != NEW.count BEGIN
+  INSERT INTO fleet_ledger(empire_id,planet_id,ship_id,before_count,after_count,cause,created_at)
+  VALUES((SELECT empire_id FROM planets WHERE id=NEW.planet_id),NEW.planet_id,NEW.ship_id,OLD.count,NEW.count,CASE WHEN NEW.count<OLD.count THEN 'Reserve: Schiffe in aktiven Hangar übernommen' ELSE 'Reserve: Hangar voll, Schiffe bleiben erhalten' END,CAST(unixepoch('subsec')*1000 AS INTEGER));
+END;
 CREATE INDEX IF NOT EXISTS idx_planets_system ON planets(system_id);
 CREATE INDEX IF NOT EXISTS idx_queue_due ON queue(completes_at);
 CREATE INDEX IF NOT EXISTS idx_fleets_due ON fleets(arrives_at);

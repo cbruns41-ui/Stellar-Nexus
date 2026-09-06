@@ -6,7 +6,11 @@ export async function api(path, { method = "GET", body } = {}) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || res.statusText);
+  if (!res.ok) {
+    const error = new Error(data.error || res.statusText);
+    error.status = res.status;
+    throw error;
+  }
   return data;
 }
 
@@ -15,7 +19,7 @@ export const getCatalog = () => api("/catalog");
 export const getPreview = (planetId) => api(`/preview?planetId=${planetId}`);
 export const getGalaxy = () => api("/galaxy");
 export const getSystem = (id) => api(`/system/${id}`);
-export const getReports = () => api("/reports");
+export const getReports = (kind) => api("/reports" + (["combat","spy"].includes(kind) ? `?kind=${kind}` : ""));
 export const getRanks = () => api("/ranks");
 export const getEmpire = (id) => api(`/empire/${id}`);
 export const combatPreview = (body) => api("/combat/preview", { method: "POST", body });

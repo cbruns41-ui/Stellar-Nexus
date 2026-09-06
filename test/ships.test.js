@@ -9,11 +9,24 @@ const { withTx } = require("../src/tx");
 test("returning ships are never discarded by a station capacity check", () => {
   const db = new DatabaseSync(":memory:");
   db.exec("CREATE TABLE ships (planet_id INTEGER, ship_id TEXT, count INTEGER, PRIMARY KEY (planet_id, ship_id))");
+  db.exec(`CREATE TABLE planets(id INTEGER PRIMARY KEY,empire_id INTEGER,alliance_id INTEGER);
+    CREATE TABLE buildings(planet_id INTEGER,building_id TEXT,level INTEGER);
+    CREATE TABLE empires(id INTEGER PRIMARY KEY,ship_cap_boost_until INTEGER,ship_cap_bonus INTEGER);
+    CREATE TABLE ship_reserves(planet_id INTEGER,ship_id TEXT,count INTEGER,PRIMARY KEY(planet_id,ship_id));
+    INSERT INTO planets VALUES(1,1,NULL); INSERT INTO empires VALUES(1,0,0);`);
   db.prepare("INSERT INTO ships(planet_id, ship_id, count) VALUES(1, 'fighter', 20)").run();
 
   addShips(db, 1, { fighter: 7, bomber: 3 });
 
-  assert.deepEqual(shipsMap(db, 1), { fighter: 27, bomber: 3 });
+  assert.deepEqual(shipsMap(db, 1), { fighter: 20 });
+  const { reserveMap, reconcile, shipCap } = require("../src/hangar");
+  assert.deepEqual(reserveMap(db,1),{bomber:3,fighter:7});
+  db.exec("INSERT INTO buildings VALUES(1,'shipyard',1)");
+  assert.equal(shipCap(db,1),50);
+  reconcile(db,1);
+  assert.deepEqual(shipsMap(db,1),{bomber:3,fighter:27});
+  assert.deepEqual(reserveMap(db,1),{});
+  db.close();
 });
 
 test("intercept losses are shared without creating or deleting extra ships", () => {

@@ -3,6 +3,8 @@
 const KEY = "admin_settings";
 
 const SCHEMA = [
+  { key: "donationUrl", type: "text", group: "Spenden", label: "Spendenlink (HTTPS)", hint: "Zahlungslink für Serverkosten, z. B. PayPal. Leer = Spenden deaktiviert.", default: "" },
+  { key: "donationText", type: "text", group: "Spenden", label: "Begleittext", hint: "Öffentlicher Hinweis, z. B. Empfänger und Verwendungszweck. Keine Zugangsdaten eintragen.", default: "" },
   { key: "announcement", type: "text", group: "Welt", label: "Ankündigung", hint: "Leiste oben für alle. Leer = aus." },
   { key: "registrationOpen", type: "bool", group: "Welt", label: "Registrierung offen", default: true },
   { key: "maintenance", type: "bool", group: "Welt", label: "Wartung (nur Admins im Spiel)", default: false },
@@ -42,6 +44,14 @@ function readRaw(db) {
 }
 
 function coerce(spec, raw) {
+  if (spec.key === "donationUrl") {
+    const value = String(raw ?? "").trim();
+    if (!value) return "";
+    let url;
+    try { url = new URL(value); } catch { throw new Error("Bitte einen gültigen HTTPS-Spendenlink eintragen."); }
+    if (url.protocol !== "https:" || url.username || url.password || value.length > 1000) throw new Error("Bitte einen HTTPS-Spendenlink ohne Zugangsdaten eintragen (max. 1000 Zeichen).");
+    return url.href;
+  }
   if (spec.type === "bool") return raw === true || raw === 1 || raw === "1" || raw === "on" || raw === "true";
   if (spec.type === "text") return String(raw ?? "").slice(0, 280);
   let n = Number(raw);

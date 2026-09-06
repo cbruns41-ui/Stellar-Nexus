@@ -11,29 +11,8 @@ const REPORT_VIP = 200;
 const VIP_RECALL_CD = 12 * 60 * 60 * 1000;
 const RUSH_CD = 8 * 60 * 1000;
 
-/** Kleinste Packung bestimmt den Euro-Gegenwert je Nex (CPC 2025: echte Währung ausweisen). */
-const PACKS = [
-  { id: "pack_s", name: "80 Nex", nex: 80, eurCents: 299, blurb: "Einstieg: Rückruf, Signet oder ein Chrono-Takt." },
-  { id: "pack_m", name: "220 Nex", nex: 220, eurCents: 699, blurb: "Mehr Komfort, klarer Mengenrabatt, kein Zufall." },
-  { id: "pack_l", name: "600 Nex", nex: 600, eurCents: 1499, blurb: "Vorrat für Cosmetics und Komfort — kein Kampfvorteil." },
-];
-
-const PLANS = [
-  {
-    id: "pass30",
-    name: "Nexus-Pass · 30 Tage",
-    days: 30,
-    eurCents: 499,
-    blurb: "Abo mit Komfort und Cosmetics. Kein Kampfbonus, keine Extra-Produktion.",
-  },
-  {
-    id: "pass90",
-    name: "Nexus-Pass · 90 Tage",
-    days: 90,
-    eurCents: 1299,
-    blurb: "Drei Monate, etwas günstiger pro Tag. Jederzeit zum Periodenende kündbar.",
-  },
-];
+const PACKS = [];
+const PLANS = [];
 
 const VIP_PERKS = [
   "Täglich 10 Nex (statt 5) — Nex gibt es nur noch als Tagesbonus, nicht als Kaufpaket",
@@ -46,6 +25,8 @@ const VIP_PERKS = [
 ];
 
 const SHOP = {
+  pass30: { id: "pass30", name: "Nexus-Pass · 30 Tage", cost: 150, days: 30, kind: "comfort", blurb: "30 Tage Komfort und Tagespaket. Einmalig mit Nex einlösen, keine automatische Verlängerung." },
+  pass90: { id: "pass90", name: "Nexus-Pass · 90 Tage", cost: 400, days: 90, kind: "comfort", blurb: "90 Tage Komfort und Tagespaket. Einmalig mit Nex einlösen, keine automatische Verlängerung." },
   recall: {
     id: "recall",
     name: "Flotten-Rückruf",
@@ -155,11 +136,6 @@ function eurFromCents(cents) {
   return (Number(cents) / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR" });
 }
 
-function nexToEurLabel(nex) {
-  const cents = Math.round((Number(nex) * PACKS[0].eurCents) / PACKS[0].nex);
-  return eurFromCents(cents);
-}
-
 function isVip(empire) {
   return !!empire && (Number(empire.vip_until) || 0) > Date.now();
 }
@@ -210,7 +186,7 @@ function publicVip(empire, db) {
 }
 
 function decorateShopItem(item) {
-  return { ...item, eur: nexToEurLabel(item.cost) };
+  return { ...item };
 }
 
 function publicShop(db) {
@@ -218,8 +194,10 @@ function publicShop(db) {
   const s = db ? require("./settings").get(db) : {};
   return {
     items: Object.values(SHOP).map(decorateShopItem),
+    donationUrl: s.donationUrl || "",
+    donationText: s.donationText || "",
     packs: [],
-    plans: PLANS.map((p) => ({ ...p, eur: eurFromCents(p.eurCents), perks: VIP_PERKS })),
+    plans: [],
     changeCost: species.CHANGE_COST,
     changeCdHours: species.CHANGE_CD / 3600000,
     daily: Number.isFinite(Number(s.dailyNex)) ? s.dailyNex : DAILY_NEX_FREE,
@@ -228,16 +206,8 @@ function publicShop(db) {
     bookmarkFree: BOOKMARK_FREE,
     bookmarkVip: BOOKMARK_VIP,
     legal: {
-      currencyNote:
-        "Nex gibt es nur noch als täglichen Bonus. Käufe von Nex-Paketen sind abgeschaltet.",
-      noLoot:
-        "Shop-Angebote haben festen Inhalt, kein Zufall. Nex verdienst du täglich — mit Pass 10 statt 5, plus ein kleines Ressourcen-Paket.",
-      withdrawal:
-        "Digitale Inhalte: 14 Tage Widerruf, solange die Leistung nicht begonnen hat. Mit ausdrücklichem Verlangen der sofortigen Ausführung erlischt das Widerrufsrecht (§ 356 Abs. 5 BGB).",
-      age: "Käufe und Abos sind nur für Personen ab 18 Jahren.",
-      sub:
-        "Nexus-Pass verlängert sich in der Testphase nicht automatisch. Kündigung wirkt zum Ende der bezahlten Laufzeit. Preise inkl. MwSt., sofern anfallend.",
-      demo: "Zahlungsdienstleister folgt. Bis dahin ist der Kauf eine Testgutschrift ohne echten Einzug.",
+      currencyNote: "Nex erhältst du täglich kostenlos. Alle Angebote einschließlich Pass und Schiffen sind nur mit Nex erhältlich.",
+      noLoot: "Alle Angebote haben feste Inhalte. Spenden finanzieren ausschließlich Serverkosten und gewähren keine Spielinhalte.",
     },
   };
 }
@@ -254,13 +224,6 @@ function claimDaily(db, empire) {
   return amount;
 }
 
-function assertCheckout(opts) {
-  if (!opts?.ageConfirm) throw new Error("Bitte bestätigen: du bist mindestens 18 Jahre alt.");
-  if (!opts?.waiveWithdrawal) {
-    throw new Error("Für die sofortige Gutschrift musst du den Hinweis zum Widerrufsrecht bestätigen.");
-  }
-}
-
 function recordPurchase(db, empire, kind, sku, nex, eurCents) {
   db.prepare(
     `INSERT INTO purchases(user_id, empire_id, kind, sku, nex, eur_cents, status, created_at)
@@ -268,14 +231,7 @@ function recordPurchase(db, empire, kind, sku, nex, eurCents) {
   ).run(empire.user_id, empire.id, kind, sku, nex || 0, eurCents || 0, Date.now());
 }
 
-function buyPack(db, empire, sku, opts) {
-  assertCheckout(opts);
-  const pack = PACKS.find((p) => p.id === sku);
-  if (!pack) throw new Error("Unbekanntes Nex-Paket.");
-  db.prepare("UPDATE empires SET nex = IFNULL(nex,0) + ? WHERE id = ?").run(pack.nex, empire.id);
-  recordPurchase(db, empire, "pack", pack.id, pack.nex, pack.eurCents);
-  return { nex: pack.nex, eur: eurFromCents(pack.eurCents), name: pack.name };
-}
+function buyPack() { throw new Error("Geldkäufe sind deaktiviert."); }
 
 function buyShipCapBoost(db, empire) {
   if (Number(empire.ship_cap_bonus || 0) >= SHIP_CAP_BONUS) {
@@ -286,22 +242,7 @@ function buyShipCapBoost(db, empire) {
   return { bonus: SHIP_CAP_BONUS, name: SHOP.ship_cap_boost.name };
 }
 
-function subscribe(db, empire, sku, opts) {
-  assertCheckout(opts);
-  const plan = PLANS.find((p) => p.id === sku);
-  if (!plan) throw new Error("Unbekannter Pass.");
-  const now = Date.now();
-  const base = Math.max(now, Number(empire.vip_until) || 0);
-  const until = base + plan.days * 24 * 60 * 60 * 1000;
-  db.prepare("UPDATE empires SET vip_until = ?, vip_plan = ?, vip_cancel = 0, vip_started = ? WHERE id = ?").run(
-    until,
-    plan.id,
-    empire.vip_started || now,
-    empire.id
-  );
-  recordPurchase(db, empire, "vip", plan.id, 0, plan.eurCents);
-  return { until, plan: plan.id, eur: eurFromCents(plan.eurCents), name: plan.name };
-}
+function subscribe() { throw new Error("Geldkäufe sind deaktiviert."); }
 
 function cancelVip(db, empire) {
   if (!isVip(empire)) throw new Error("Kein aktiver Nexus-Pass.");
@@ -335,7 +276,6 @@ module.exports = {
   SHOP,
   VIP_PERKS,
   eurFromCents,
-  nexToEurLabel,
   isVip,
   dailyNexOf,
   bookmarkCap,

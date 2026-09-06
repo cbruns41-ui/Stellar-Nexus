@@ -97,37 +97,7 @@ function techsMap(db, empireId) {
   return m;
 }
 
-function addShips(db, planetId, delta) {
-  const stmt = db.prepare(
-    `INSERT INTO ships(planet_id, ship_id, count) VALUES(?, ?, ?)
-     ON CONFLICT(planet_id, ship_id) DO UPDATE SET count = count + excluded.count`
-  );
-  for (const [id, n] of Object.entries(delta || {})) {
-    if (!n || n < 0) continue;
-    stmt.run(planetId, id, n);
-  }
-  db.prepare("DELETE FROM ships WHERE planet_id = ? AND count <= 0").run(planetId);
-}
-
-function shipCap(db, planetId) {
-  const planet = db.prepare("SELECT empire_id, alliance_id FROM planets WHERE id = ?").get(planetId);
-  if (!planet?.empire_id) return 0;
-  if (planet.alliance_id) {
-    const members = db.prepare("SELECT COUNT(*) AS n FROM alliance_members WHERE alliance_id=?").get(planet.alliance_id).n;
-    const defenseHub = db.prepare("SELECT level FROM buildings WHERE planet_id=? AND building_id='defense_hub'").get(planetId)?.level || 0;
-    return Math.min(10000, 600 + members * 180 + defenseHub * 120);
-  }
-  const shipyard = db
-    .prepare("SELECT level FROM buildings WHERE planet_id = ? AND building_id = 'shipyard'")
-    .get(planetId);
-  const level = shipyard?.level || 0;
-  let cap = 20 + level * 20;
-  const empire = db.prepare("SELECT ship_cap_boost_until, ship_cap_bonus FROM empires WHERE id = ?").get(planet.empire_id);
-  const until = Number(empire?.ship_cap_boost_until || 0);
-  if (until > Date.now()) cap = Math.floor(cap * 1.2);
-  cap += Number(empire?.ship_cap_bonus || 0);
-  return Math.min(2000, Math.max(0, cap));
-}
+const { addShips, shipCap, reserveMap, reconcile: reconcileHangar } = require("./hangar");
 
 function setBuilding(db, planetId, buildingId, level) {
   db.prepare(
@@ -401,6 +371,7 @@ function acsKey(db, empireId) {
 function tickWorld(db) {
   return withTx(db, () => {
     const t = now();
+    for (const p of db.prepare("SELECT id FROM planets WHERE empire_id IS NOT NULL").all()) reconcileHangar(db,p.id);
     const dueQ = db.prepare("SELECT * FROM queue WHERE completes_at <= ? ORDER BY completes_at ASC").all(t);
     for (const q of dueQ) completeQueue(db, q);
     activity.completeDue(db, credit, addShips, addReport);
@@ -583,16 +554,16 @@ function addReport(db, empireId, kind, title, body) {
   }
   const linkedPlanetId = Number(body?.planetId || body?.originPlanetId || 0);
   if (linkedPlanetId) {
-    db.prepare("UPDATE fleet_ledger SET cause=?, report_id=? WHERE empire_id=? AND planet_id=? AND report_id IS NULL AND created_at>=?")
+    db.prepare("UPDATE fleet_ledger SET cause=?, report_id=? WHERE empire_id=? AND planet_id=? AND report_id IS NULL AND cause NOT LIKE 'Reserve:%' AND created_at>=?")
       .run(title, reportId, empireId, linkedPlanetId, createdAt - 5000);
   } else {
-    db.prepare("UPDATE fleet_ledger SET cause=?, report_id=? WHERE empire_id=? AND report_id IS NULL AND created_at>=?")
+    db.prepare("UPDATE fleet_ledger SET cause=?, report_id=? WHERE empire_id=? AND report_id IS NULL AND cause NOT LIKE 'Reserve:%' AND created_at>=?")
       .run(title, reportId, empireId, createdAt - 1500);
   }
   const owner = db.prepare("SELECT vip_until FROM empires WHERE id = ?").get(empireId);
   const cap = premium.reportCap(owner || {});
   const extra = db
-    .prepare("SELECT id FROM reports WHERE empire_id = ? ORDER BY id DESC LIMIT -1 OFFSET ?")
+    .prepare("SELECT id FROM reports WHERE empire_id = ? AND seen=1 AND kind NOT IN ('combat','expedition') ORDER BY id DESC LIMIT -1 OFFSET ?")
     .all(empireId, cap);
   if (extra.length) {
     const ids = extra.map((r) => r.id);
@@ -1045,20 +1016,19 @@ function resolveFleet(db, fleet) {
   const ships = JSON.parse(fleet.ships || "{}");
   const origin = db.prepare("SELECT * FROM planets WHERE id = ?").get(fleet.origin_planet_id);
   const target = db.prepare("SELECT * FROM planets WHERE id = ?").get(fleet.target_planet_id);
-  if (!target) {
-    db.prepare("DELETE FROM fleets WHERE id = ?").run(fleet.id);
-    return;
-  }
-  if (fleet.is_return) {
-    const dest = db.prepare("SELECT * FROM planets WHERE id = ?").get(fleet.target_planet_id);
-    if (dest && dest.empire_id === fleet.empire_id) {
-      accruePlanet(db, dest);
-      addShips(db, dest.id, ships);
-      credit(db, dest, readCargo(fleet));
-    } else if (origin && origin.empire_id === fleet.empire_id) {
-      addShips(db, origin.id, ships);
+  if (fleet.is_return || !target) {
+    const dest = target && (target.empire_id === fleet.empire_id || social.canUseAlliancePlanet(db,fleet.empire_id,target)) ? target
+      : db.prepare("SELECT * FROM planets WHERE empire_id=? AND IFNULL(alliance_id,0)=0 ORDER BY id LIMIT 1").get(fleet.empire_id);
+    if (!dest) {
+      // Keep the fleet in orbit until a safe destination exists.
+      db.prepare("UPDATE fleets SET arrives_at=? WHERE id=?").run(now()+60000,fleet.id);
+      return;
     }
-    db.prepare("DELETE FROM fleets WHERE id = ?").run(fleet.id);
+    accruePlanet(db,dest);
+    addShips(db,dest.id,ships);
+    credit(db,dest,readCargo(fleet));
+    addReport(db,fleet.empire_id,"fleet",`Flotte zurück: ${dest.name}`,{text:shipLabel(ships),planetId:dest.id,shipsReturned:ships,reserve:reserveMap(db,dest.id)});
+    db.prepare("DELETE FROM fleets WHERE id=?").run(fleet.id);
     return;
   }
 
@@ -1071,7 +1041,7 @@ function resolveFleet(db, fleet) {
     return;
   }
   if (fleet.mission === "transport") {
-    if (target.empire_id === fleet.empire_id) {
+    if (target.empire_id === fleet.empire_id || social.canUseAlliancePlanet(db,fleet.empire_id,target)) {
       accruePlanet(db, target);
       credit(db, target, readCargo(fleet));
       addReport(db, fleet.empire_id, "fleet", `Fracht gesendet: ${target.name}`, {
@@ -1084,7 +1054,7 @@ function resolveFleet(db, fleet) {
     return;
   }
   if (fleet.mission === "collect") {
-    if (target.empire_id === fleet.empire_id) {
+    if (target.empire_id === fleet.empire_id || social.canUseAlliancePlanet(db,fleet.empire_id,target)) {
       accruePlanet(db, target);
       const wanted = readCargo(fleet);
       const available = stockBag(target);
@@ -1107,7 +1077,7 @@ function resolveFleet(db, fleet) {
     return;
   }
   if (fleet.mission === "deploy") {
-    if (target.empire_id === fleet.empire_id) {
+    if (target.empire_id === fleet.empire_id || social.canUseAlliancePlanet(db,fleet.empire_id,target)) {
       addShips(db, target.id, ships);
       addReport(db, fleet.empire_id, "fleet", `Stationiert über ${target.name}`, { text: shipLabel(ships) });
       db.prepare("DELETE FROM fleets WHERE id = ?").run(fleet.id);
@@ -1921,11 +1891,13 @@ function sendFleet(db, empire, origin, target, mission, shipsWanted, cargo, opts
   const ownTarget = target.empire_id === empire.id && !target.alliance_id;
   const ownOrAllyTarget = ownTarget || targetAlly;
   if (mission === "deploy" && !ownOrAllyTarget) throw new Error("Stationieren nur auf eigenen oder Allianz-Planeten.");
-  if (mission === "deploy" && target.alliance_id) {
+  if (mission === "deploy") {
     const sent = Object.values(ships).reduce((sum, n) => sum + Number(n || 0), 0);
     const stationed = Object.values(shipsMap(db, target.id)).reduce((sum, n) => sum + Number(n || 0), 0);
     const cap = shipCap(db, target.id);
-    if (stationed + sent > cap) throw new Error(`Allianz-Flottenlimit erreicht (${stationed}/${cap}).`);
+    const queued = db.prepare("SELECT COALESCE(SUM(qty),0) AS n FROM queue WHERE planet_id=? AND kind='ship'").get(target.id).n;
+    const inbound = db.prepare("SELECT ships FROM fleets WHERE target_planet_id=? AND (mission='deploy' OR is_return=1)").all(target.id).reduce((n,f)=>n+Object.values(JSON.parse(f.ships)).reduce((a,v)=>a+v,0),0);
+    if (stationed + queued + inbound + sent > cap) throw new Error(`Hangarlimit erreicht (${stationed}/${cap}); Bauaufträge und ankommende Flotten sind berücksichtigt.`);
   }
   if (mission === "transport" && !ownOrAllyTarget) throw new Error("Fracht senden nur zu eigenen oder Allianz-Planeten.");
   if (mission === "collect" && !(ownTarget || targetAllyManage)) throw new Error("Rücktransport aus dem Allianzlager ist nur mit Lagerzugang möglich.");
@@ -2095,7 +2067,6 @@ function enqueueAllianceResearch(db, empire, planet, researchId) {
   }
   planet = accruePlanet(db, planet);
   if (!canAfford(planet, remaining)) throw new Error("Nicht genug Ressourcen auf dem Allianz-Planeten.");
-  if (RESOURCE_IDS.every((id) => !remaining[id])) throw new Error("Bereits vollständig finanziert. Spenden schließen die Stufe ab.");
   spend(db, planet, remaining);
   const t = now();
   const dur = scaledTime(def.baseTime || 240, def.factor, level, researchSpeed(db, empire.id));
@@ -2338,6 +2309,8 @@ function planetView(db, planet, empire) {
     storage: cap,
     buildings,
     ships: stationed,
+    reserveShips: reserveMap(db,planet.id),
+    reserveCount: Object.values(reserveMap(db,planet.id)).reduce((n,v)=>n+v,0),
     defenses: defensesMap(db, planet.id),
     hubBonus: hub,
     multipliers: PLANET_TYPES[planet.type]?.multipliers || {},
@@ -2375,8 +2348,8 @@ function snapshot(db, user, planetId) {
   const planet = fresh.find((p) => p.id === focus);
   const techs = techsMap(db, empire.id);
   const queue = db
-    .prepare("SELECT q.*, p.name AS planet_name FROM queue q LEFT JOIN planets p ON p.id = q.planet_id WHERE q.empire_id = ? ORDER BY q.completes_at")
-    .all(empire.id)
+    .prepare("SELECT q.*, p.name AS planet_name FROM queue q LEFT JOIN planets p ON p.id = q.planet_id WHERE q.empire_id = ? OR (p.alliance_id IS NOT NULL AND EXISTS (SELECT 1 FROM alliance_members m WHERE m.alliance_id=p.alliance_id AND m.empire_id=?)) ORDER BY q.completes_at")
+    .all(empire.id, empire.id)
     .map((q) => ({
       id: q.id,
       kind: q.kind,
@@ -2426,6 +2399,7 @@ function snapshot(db, user, planetId) {
     stationed: fleetColonies.reduce((sum, p) => sum + p.total, 0),
     inTransit: fleets.reduce((sum, f) => sum + Object.values(f.ships || {}).reduce((n, count) => n + Number(count || 0), 0), 0),
     colonies: fleetColonies,
+    reserve: fresh.reduce((n,p)=>n+Object.values(reserveMap(db,p.id)).reduce((a,v)=>a+v,0),0),
     ledger: db.prepare(`
       SELECT l.id,l.planet_id AS planetId,l.ship_id AS shipId,l.before_count AS beforeCount,
              l.after_count AS afterCount,l.cause,CASE WHEN r.id IS NULL THEN NULL ELSE l.report_id END AS reportId,l.created_at AS createdAt,
@@ -2660,7 +2634,7 @@ function incomingThreats(db, empireId) {
   const placeholders = planetIds.map(() => "?").join(",");
   const fleets = db
     .prepare(
-      `SELECT f.*, tp.name AS targetName, e.name AS fromName
+      `SELECT f.*, tp.name AS targetName, tp.system_id AS systemId, e.name AS fromName
        FROM fleets f
        JOIN planets tp ON tp.id = f.target_planet_id
        JOIN empires e ON e.id = f.empire_id
@@ -2675,12 +2649,13 @@ function incomingThreats(db, empireId) {
       from: f.fromName,
       planet: f.targetName,
       planetId: f.target_planet_id,
+      systemId: f.systemId,
       ships: JSON.parse(f.ships || "{}"),
       arrivesAt: f.arrives_at,
     }));
   const raids = db
     .prepare(
-      `SELECT r.*, p.name AS targetName FROM raids r
+      `SELECT r.*, p.name AS targetName, p.system_id AS systemId FROM raids r
        JOIN planets p ON p.id = r.target_planet_id
        WHERE p.empire_id = ? ORDER BY r.arrives_at`
     )
@@ -2691,6 +2666,7 @@ function incomingThreats(db, empireId) {
       from: r.kind === "pirates" ? "Piraten" : "Nexus-Echo",
       planet: r.targetName,
       planetId: r.target_planet_id,
+      systemId: r.systemId,
       ships: JSON.parse(r.ships || "{}"),
       arrivesAt: r.arrives_at,
     }));
@@ -2828,9 +2804,10 @@ function spawnRaid(db) {
 }
 
 function resolveRaids(db) {
-  const due = db.prepare("SELECT * FROM raids WHERE arrives_at <= ?").all(now());
+  const due = db.prepare("SELECT r.* FROM raids r JOIN raid_engagements e ON e.raid_id=r.id WHERE r.arrives_at <= ?").all(now());
   for (const r of due) {
     db.prepare("DELETE FROM raids WHERE id = ?").run(r.id);
+    db.prepare("DELETE FROM raid_engagements WHERE raid_id=?").run(r.id);
     const target = db.prepare("SELECT * FROM planets WHERE id = ?").get(r.target_planet_id);
     if (!target || !target.empire_id) continue;
     accruePlanet(db, target);
@@ -2870,6 +2847,8 @@ function resolveRaids(db) {
         loot: taken,
         planet: target.name,
         raid: true,
+        planetId: target.id,
+        systemId: target.system_id,
       });
     } else {
       const owner = db.prepare("SELECT * FROM empires WHERE id = ?").get(target.empire_id);
@@ -2902,6 +2881,8 @@ function resolveRaids(db) {
         relicId: prize.relicId || null,
         planet: target.name,
         raid: true,
+        planetId: target.id,
+        systemId: target.system_id,
       });
     }
   }
@@ -3154,10 +3135,12 @@ function buyNexItem(db, empire, planet, itemId, extra) {
     tickWorld(db);
     return;
   }
-  if ((empire.nex || 0) < item.cost) throw new Error(`Kostet ${item.cost} Nex (ca. ${premium.nexToEurLabel(item.cost)}, du hast ${empire.nex || 0}).`);
+  if ((empire.nex || 0) < item.cost) throw new Error(`Kostet ${item.cost} Nex (du hast ${empire.nex || 0}).`);
   if (item.needUnlock && !empire[item.needUnlock]) throw new Error("Erst die zugehörige Nex-Einheit freischalten.");
   if (itemId === "recall") {
     recallOwnFleets(db, empire.id);
+  } else if (item.days) {
+    premium.grantVipDays(db, empire, item.days);
   } else if (itemId === "rename") {
     const name = String(extra?.name || "").trim();
     if (name.length < 3 || name.length > 24) throw new Error("Planetenname: 3–24 Zeichen.");

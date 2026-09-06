@@ -19,8 +19,8 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Sora:wght@400;500;600;700&family=Tektur:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/css/style.css?v=115" />
-    <link rel="stylesheet" href="/css/colony.css?v=5" />
+    <link rel="stylesheet" href="/css/style.css?v=120" />
+    <link rel="stylesheet" href="/css/colony.css?v=6" />
   </head>
   <body class="land">
     <canvas id="stars" aria-hidden="true"></canvas>
@@ -130,7 +130,7 @@
         <h2>Sechs Spezies. Keine ist fair.</h2>
         <p class="land-intro">
           Du wählst bei der Anmeldung. Jede Spezies hat einen klaren Vorteil und einen Preis.
-          Wechsel später gegen Nex — die Premium-Währung für Sprünge, Fracht und seltene Dinge.
+          Wechsel später gegen Nex — die täglich kostenlos erhältliche Spielwährung für Komfort, Fracht und seltene Dinge.
         </p>
         <div class="land-species" id="land-species">
           <article class="land-race reveal" style="--c:#7ecbff">
@@ -230,6 +230,11 @@
           <button class="btn primary" type="submit">Nexus betreten</button>
         </form>
         <form id="register-form" class="stack hidden" hidden>
+          <p class="hint">Zugang erst nach Freigabe durch den Admin. Pro IP-Adresse ist eine Registrierung möglich.</p>
+          <label>E-Mail<input name="email" type="email" autocomplete="email" required maxlength="180"></label>
+          <label class="row"><input type="checkbox" name="human" required> Ich bestätige, dass ich ein Mensch bin.</label>
+          <label><span id="human-question">Prüfaufgabe wird geladen …</span><input name="answer" inputmode="numeric" autocomplete="off" required></label>
+          <input name="challengeId" type="hidden"><button type="button" class="btn ghost" id="human-refresh">Neue Prüfaufgabe</button>
           <label>Commander-ID<input name="username" autocomplete="username" required maxlength="16" /></label>
           <label>Imperium<input name="empire" required maxlength="24" placeholder="z. B. Vesper-Dynastie" /></label>
           <label>Passwort<input name="password" type="password" autocomplete="new-password" required minlength="6" /></label>
@@ -357,6 +362,6 @@
         });
     </script>
     <script src="/js/pwa.js?v=1"></script>
-    <script type="module" src="/js/app.js?v=158"></script>
+    <script type="module" src="/js/app.js?v=162"></script>
   </body>
 </html>

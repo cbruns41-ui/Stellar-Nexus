@@ -10,12 +10,14 @@ const { userFromRequest } = require("./src/auth");
 const PORT = Number(process.env.PORT) || 3000;
 const db = openDb();
 ensureAdmin(db);
-ensurePlayer(db, "Spieler", "Wurm4444", "Neme", "#7ecbff");
-ensurePlayer(db, "Neme", "Wurm4444", "Neme", "#7ecbff");
+if (process.env.SEED_DEMO_USERS === "1") {
+  ensurePlayer(db, "Spieler", "Wurm4444", "Neme", "#7ecbff");
+  ensurePlayer(db, "Neme", "Wurm4444", "Neme", "#7ecbff");
+}
 
 const app = express();
 app.disable("x-powered-by");
-app.set("trust proxy", 1);
+app.set("trust proxy", process.env.TRUST_PROXY ? process.env.TRUST_PROXY.split(",").map(x=>x.trim()) : false);
 app.use(express.json({ limit: "700kb" }));
 app.use(express.urlencoded({ extended: false }));
 app.use((req, res, next) => {

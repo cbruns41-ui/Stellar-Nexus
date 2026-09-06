@@ -155,7 +155,7 @@ const BUILDINGS = {
   shipyard: {
     id: "shipyard",
     name: "Werft",
-    blurb: "Fertigt Sonden, Jäger und Kapital-Schiffe.",
+    blurb: "Fertigt Sonden, Jäger und Kapital-Schiffe. Hangar: 20 Grundplätze plus 30 Schiffe je Werftstufe.",
     icon: "wedge",
     baseCost: bag({ metal: 200, energy: 140, titan: 35, helium: 20 }),
     baseTime: 90,
