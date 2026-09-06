@@ -5083,3 +5083,17 @@ body[data-mode="play"] .nav-backdrop { z-index:90; }
  .map-wrap:has(#sysbox:not(:empty)) .map-raid-banner { bottom:calc(56% + 16px); }
  .yard-sheet { max-height:calc(100dvh - env(safe-area-inset-top,0px) - 12px); }
 }
+
+.help-page { padding-top: calc(72px + var(--safe-top, env(safe-area-inset-top, 0px))); }
+.help-page .help-topbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 20; gap: 12px;
+  padding-bottom: 14px;
+  padding-top: calc(14px + var(--safe-top, env(safe-area-inset-top, 0px)));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.help-topbar .help-brand { min-width: 0; }
+.help-topbar > .btn { flex-shrink: 0; min-height: 44px; }
+@media (max-width: 420px) {
+  .help-topbar .help-brand span { display: none; }
+}

@@ -5,7 +5,7 @@ import { battleReplayHtml, bindBattleReplays } from "./battle.js?v=2";
 import { startAllianceBossEncounter } from "./alliance-boss-game.js?v=15";
 import { CITY_PLOTS } from "./city.mjs?v=10";
 import { colonyRows, colonyHudHtml, paintColonyMarkers, paintColonyFrame } from "./colony-hud.mjs?v=5";
-import { createColonyUnity, setUnityColonyVisible } from "./colony-unity.js?v=10";
+import { createColonyUnity, setUnityColonyVisible } from "./colony-unity.js?v=11";
 
 
 const $ = (id) => document.getElementById(id);
@@ -1712,11 +1712,11 @@ const views = {
 
   research() {
     if (state.snap.planet?.isAlliance) return allianceResearchHtml();
-    if (state.snap.planet?.isAlliance) return allianceResearchHtml();
     const prev = Object.fromEntries((state.preview?.techs || []).map((t) => [t.id, t]));
     const busy = state.snap.queue.some((q) => q.kind === "research");
     const rows = Object.values(state.catalog.techs)
       .map((t) => {
+        const job = state.snap.queue.find(q => q.kind === "research" && q.itemId === t.id);
         const info = prev[t.id] || {
           level: state.snap.techs[t.id] || 0,
           unlocked: nodeUnlocked("tech", t.id),
@@ -2556,10 +2556,14 @@ function bindCity(root) {
       const scene = await createColonyUnity(canvas, {
         state: unityColonyState(), selectedId: state.cityBuilding,
         onSelect: id => select(id, false),
-        onFrame: frame => paintColonyFrame(root, frame, state.cityBuilding),
+        onFrame: frame => {
+          if (!view.isConnected || state.view !== "command") return;
+          paintColonyFrame(root, frame, state.cityBuilding);
+          view.classList.add("is-unity");
+        },
       });
       if (!view.isConnected || state.view !== "command") return;
-      view.classList.add("is-unity");
+      setUnityColonyVisible(true);
       state.cityScene = scene;
       cityStateSignature = "";
       syncCityLive();

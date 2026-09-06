@@ -73,6 +73,10 @@ export function setUnityColonyVisible(show) {
   const layer = document.getElementById("colony-unity-layer");
   if (layer) { layer.hidden = !show; layer.classList.toggle("hidden", !show); }
   document.getElementById("game")?.classList.toggle("unity-active", show);
+  if (show) {
+    resizeUnityColony();
+    requestAnimationFrame(() => { if (visible) resizeUnityColony(); });
+  }
   send("SetVisible", show && !document.hidden ? "1" : "0");
 }
 export function resizeUnityColony() {
@@ -82,6 +86,8 @@ export function resizeUnityColony() {
 function fitUnityCanvas(canvas) {
   if (!canvas?.parentElement) return;
   const { clientWidth, clientHeight } = canvas.parentElement;
+  // Hidden panels have no dimensions. Keep the render surface until it is visible again.
+  if (!clientWidth || !clientHeight) return;
   canvas.style.width = `${Math.max(2, clientWidth)}px`;
   canvas.style.height = `${Math.max(2, clientHeight)}px`;
 }

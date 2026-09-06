@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { CITY_PLOTS } from "../public/js/city.mjs";
 import { verifyGameFlows } from "./verify-game-flows.mjs";
+import { verifyNavigation } from "./verify-navigation.mjs";
 const base = "http://localhost:3100";
 const debug = 9347;
 const databasePath = fileURLToPath(new URL(`../tmp/colony-verification-${process.pid}.db`, import.meta.url));
@@ -78,7 +79,10 @@ try {
   console.log("Unity loaded", await evaluate(`({canvas: [document.querySelector('canvas#colony-unity-canvas').width,document.querySelector('canvas#colony-unity-canvas').height],markers:document.querySelectorAll('.colony-marker:not([hidden])').length})`));
   await shot("desktop-base");
   const headers = { "content-type":"application/json", cookie:`sn_session=${token}` };
-  if(process.argv.includes('--flows-only')) {
+  if(process.argv.includes('--navigation-only')) {
+    await verifyNavigation({base,databasePath,send,evaluate,until,pause});
+    assert.deepEqual(errors, [], "No browser errors or warnings");
+  } else if(process.argv.includes('--flows-only')) {
     await verifyGameFlows({base,headers,databasePath,send,evaluate,until,pause});
     assert.deepEqual(errors, [], "No browser errors or warnings");
     await writeFile(new URL("game-flows-verification.json",folder),JSON.stringify({passed:true,checkedAt:new Date().toISOString(),checks:["map search hit target","stable map and raid buttons","colonization from source hangar","deployment dialog","yard sheet preserves map","touch fire consumes battery","raid combat report","landing registration pending admin approval"],browserErrors:errors},null,2));
@@ -317,6 +321,7 @@ try {
     await shot("ux-"+width+"x"+height);
   }
   console.log("Command menu, Funk, safe area, guide and full-base zoom passed at four viewport sizes");
+  await verifyNavigation({base,databasePath,send,evaluate,until,pause});
   await verifyGameFlows({base,headers,databasePath,send,evaluate,until,pause});
   await writeFile(new URL("browser-errors.json", folder), JSON.stringify(errors, null, 2));
   console.log("Browser messages", JSON.stringify(errors));
