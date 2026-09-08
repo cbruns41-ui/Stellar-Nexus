@@ -41,14 +41,6 @@ const commanders = require("./commanders");
 const allianceBoss = require("./allianceBoss");
 const sectorSeason = require("./sectorSeason");
 
-const LOCAL_BOSS_TEST = process.argv.includes("--local-boss-test") || process.env.LOCAL_BOSS_TEST === "1";
-function localBossTest(req) {
-  const address = String(req.socket?.remoteAddress || "");
-  const loopback = address === "127.0.0.1" || address === "::1" || address === "::ffff:127.0.0.1";
-  if (!loopback) return false;
-  const hostname = String(req.hostname || "").toLowerCase().replace(/^\[|\]$/g, "");
-  return LOCAL_BOSS_TEST || hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
-}
 
 const DELETE_CONFIRMATIONS = {
   de: "Löschen",
@@ -591,7 +583,7 @@ function attachRoutes(app, db) {
     try {
       const empire = db.prepare("SELECT * FROM empires WHERE user_id = ?").get(req.user.id);
       const alliance = social.getAlliance(db, Number(req.params.id), empire.id);
-      if (alliance.mine) alliance.boss = allianceBoss.publicBoss(db, alliance.id, empire.id, { unlimited: localBossTest(req) });
+      if (alliance.mine) alliance.boss = allianceBoss.publicBoss(db, alliance.id, empire.id);
       res.json({ alliance });
     } catch (err) {
       fail(res, 400, err.message);
@@ -725,9 +717,9 @@ function attachRoutes(app, db) {
     try {
       const { empire, planet } = loadCtx(req);
       if (req.body?.donate) {
-        social.donateAllianceResearch(db, empire, planet, String(req.body?.id || ""), req.body?.donation || {});
+        game.fundAllianceResearch(db, empire, planet, String(req.body?.id || ""));
       } else {
-        game.enqueueAllianceResearch(db, empire, planet, String(req.body?.id || ""));
+        withTx(db, () => game.enqueueAllianceResearch(db, empire, planet, String(req.body?.id || "")));
       }
       res.json(game.snapshot(db, req.user, planet.id));
     } catch (err) {
@@ -774,6 +766,8 @@ function attachRoutes(app, db) {
       db.prepare("SELECT system_id, COUNT(*) AS n FROM planets GROUP BY system_id").all().map((row) => [row.system_id, Number(row.n || 0)])
     );
     const links = db.prepare("SELECT a, b FROM links").all();
+    const planetNames={};
+    for(const p of db.prepare('SELECT system_id,name FROM planets').all())(planetNames[p.system_id] ||= []).push(p.name);
     const ownFlights = db
       .prepare(
         `SELECT f.id, f.mission, f.is_return, f.departed_at, f.arrives_at, f.ships,
@@ -879,6 +873,7 @@ function attachRoutes(app, db) {
         owners: bySys[s.id] || [],
         fleetCount: Number(stationedBySystem[s.id] || 0),
         planetCount: planetCounts[s.id] || 0,
+        planetNames: planetNames[s.id] || [],
       })),
       links,
       flights,
@@ -974,19 +969,25 @@ function attachRoutes(app, db) {
     }
   });
 
-  app.post("/api/alliances/boss/attack", auth, (req, res) => {
+  app.post("/api/alliances/boss/start", auth, (req, res) => {
     try {
       const empire = db.prepare("SELECT * FROM empires WHERE user_id = ?").get(req.user.id);
       const mine = social.myAlliance(db, empire.id);
       if (!mine) throw new Error("Du bist in keiner Allianz.");
-      let result;
-      const unlimited = localBossTest(req);
-      withTx(db, () => { result = allianceBoss.attack(db, mine.id, empire, req.body?.score, { unlimited }); });
-      res.json({ result, boss: allianceBoss.publicBoss(db, mine.id, empire.id, { unlimited }) });
+      res.json(allianceBoss.start(db, mine.id, empire.id));
     } catch (err) {
       fail(res, 400, err.message);
     }
   });
+
+  app.post("/api/alliances/boss/finish", auth, async (req, res) => {
+    try {
+      const empire=db.prepare("SELECT * FROM empires WHERE user_id=?").get(req.user.id);
+      const result=await allianceBoss.finish(db,empire.id,String(req.body?.id||""),req.body?.frames);
+      res.json({result});
+    } catch(err) { fail(res,400,err.message); }
+  });
+  app.post("/api/alliances/boss/attack", auth, (_req,res) => fail(res,410,"Bitte den neuen NEMESIS-Kampf starten."));
 
   app.post("/api/fleet/group", auth, (req, res) => {
     try {
@@ -1055,13 +1056,7 @@ function attachRoutes(app, db) {
   app.post("/api/raids/:id/defend",auth,(req,res)=>{
     try {
       const {empire,planet}=loadCtx(req);
-      withTx(db,()=>{
-        const raid=db.prepare("SELECT r.* FROM raids r JOIN planets p ON p.id=r.target_planet_id WHERE r.id=? AND p.empire_id=?").get(Number(req.params.id),empire.id);
-        if(!raid) throw new Error("Raid nicht mehr aktiv.");
-        db.prepare("INSERT OR IGNORE INTO raid_engagements(raid_id,engaged_at) VALUES(?,?)").run(raid.id,Date.now());
-        db.prepare("UPDATE raids SET arrives_at=? WHERE id=?").run(Date.now(),raid.id);
-        game.tickWorld(db);
-      });
+      game.defendRaid(db,empire,Number(req.params.id),req.body?.deployments || []);
       res.json(game.snapshot(db,req.user,planet.id));
     } catch(err) { fail(res,400,err.message); }
   });

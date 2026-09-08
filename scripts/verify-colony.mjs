@@ -52,7 +52,10 @@ try {
     if (pending.has(data.id)) { const { resolve, reject } = pending.get(data.id); pending.delete(data.id); data.error ? reject(new Error(data.error.message)) : resolve(data.result || {}); }
   });
   const send = (method, params = {}) => new Promise((resolve, reject) => {
-    const id = ++counter; pending.set(id, { resolve, reject }); ws.send(JSON.stringify({ id, method, params }));
+    const id = ++counter;
+    const timer = setTimeout(() => { pending.delete(id); reject(new Error('Browser command timed out: '+method+' '+JSON.stringify(params).slice(0,250))); }, 20000);
+    pending.set(id, { resolve: value => { clearTimeout(timer); resolve(value); }, reject: error => { clearTimeout(timer); reject(error); } });
+    ws.send(JSON.stringify({ id, method, params }));
   });
   const evaluate = async expression => {
     const value = await send("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });
@@ -132,8 +135,8 @@ try {
   await evaluate(`document.querySelector('[data-colony-info]').click()`);
   await until(`document.querySelector('#bldg-shipyard')`);
   assert.equal(await evaluate(`document.querySelector('#bldg-shipyard').classList.contains('focus-row')`), true);
-  assert.equal(await evaluate(`document.querySelector('#colony-unity-layer').hidden`), true);
-  await evaluate(`document.querySelector('[data-view="command"]').click()`);
+  assert.equal(await evaluate(`document.querySelector('#colony-unity-layer').hidden`), false);
+  await evaluate(`document.querySelector('button[data-view="command"]').click()`);
   await until(`document.querySelectorAll('.colony-marker:not([hidden])').length > 5`);
   // Mutate only this script's explicitly isolated verification database.
   const db = new DatabaseSync(databasePath);
@@ -189,7 +192,7 @@ try {
   assert.match(await evaluate(`document.querySelector('.city-quest-reward').textContent`), /350 Met.*180 En.*40 XP/);
   await evaluate(`document.querySelector('.city-commander .city-quest').click()`);
   await until(`document.querySelector('#bldg-matter_mine.focus-row')`);
-  await evaluate(`document.querySelector('[data-view="command"]').click()`);
+  await evaluate(`document.querySelector('button[data-view="command"]').click()`);
   const mineBuild = await fetch(base + "/api/build", {method:"POST",headers:{...authHeaders,"content-type":"application/json"},body:JSON.stringify({id:"matter_mine",planetId:pid})});
   assert.equal(mineBuild.ok,true,"Tutorial build accepted");
   await send("Page.reload");
@@ -277,7 +280,7 @@ try {
   await evaluate(`document.querySelector('.colony-orders').click()`);
   await until(`document.querySelector('#colony-quests')`);
   const taskTarget = await evaluate(`(() => { const b=[...document.querySelectorAll('#colony-quests [data-view-jump]')].find(b=>b.dataset.viewJump!=='command'); const target=b.dataset.viewJump; b.click(); return target; })()`);
-  await until(`document.querySelector('#game').dataset.view === ${JSON.stringify(taskTarget)}`);
+  await until(`(document.querySelector('#game').dataset.panel || document.querySelector('#game').dataset.view) === ${JSON.stringify(taskTarget)}`);
   console.log("Daily/weekly tasks, mobile touch scrolling, close and task routing passed");
 
   const donationSave = await fetch(base+"/api/admin/settings",{method:"POST",headers,body:JSON.stringify({donationUrl:"https://example.org/donate",donationText:"Serverkosten-Test"})});
@@ -285,29 +288,29 @@ try {
   await send("Page.reload");
   await until(`document.querySelector('.living-colony.is-unity') && document.querySelectorAll('.colony-marker:not([hidden])').length > 0`);
   await evaluate(`window.__colonyOriginalFrame=window.stellarNexusColony.onFrame;window.stellarNexusColony.onFrame=frame=>{window.__colonyFrame=frame;window.__colonyOriginalFrame(frame);};`);
-  await evaluate(`document.querySelector('[data-view="nexus"]').click()`);
+  await evaluate(`document.querySelector('button[data-view="nexus"]').click()`);
   await until(`document.querySelector('a[href="https://example.org/donate"]')`);
   assert.equal(await evaluate(`document.querySelectorAll('[data-checkout]').length`),0,"Nexus has no cash checkout buttons");
-  assert.ok(await evaluate(`document.querySelector('#view').innerText.includes('Serverkosten-Test')`),"Donation description is public");
-  await evaluate(`document.querySelector('[data-view="moderation"]').click()`);
+  assert.ok(await evaluate(`document.querySelector('#panel-view').innerText.includes('Serverkosten-Test')`),"Donation description is public");
+  await evaluate(`document.querySelector('button[data-view="moderation"]').click()`);
   await until(`document.querySelector('#admin-settings input[name="donationUrl"]')`);
   assert.equal(await evaluate(`document.querySelector('#admin-settings input[name="donationUrl"]').value`),"https://example.org/donate","Donation link editable in admin UI");
   for (const [width,height,mobile] of [[1440,700,false],[390,844,true],[320,568,true],[844,390,true]]) {
     await send("Emulation.setDeviceMetricsOverride",{width,height,deviceScaleFactor:1,mobile});
-    await evaluate(`document.body.style.setProperty('--safe-top','44px'); document.querySelector('[data-view="command"]').click()`);
+    await evaluate(`document.body.style.setProperty('--safe-top','44px'); document.querySelector('button[data-view="command"]').click()`);
     await until(`document.querySelector('.living-colony')`);
     await evaluate(`document.querySelector('[data-open-nav]').click()`);
     await until(`document.querySelector('.shell.nav-open')`);
     const nav = await evaluate(`(() => { const nav=document.querySelector('#nav');const staff=document.querySelector('#nav-staff');staff.hidden=false;staff.scrollIntoView({block:'end'}); const r=staff.getBoundingClientRect(),n=nav.getBoundingClientRect();return {top:r.top,bottom:r.bottom,navBottom:n.bottom}; })()`);
     assert.ok(nav.top>=0 && nav.bottom<=height+1 && nav.bottom<=nav.navBottom+1,"Leitung remains reachable "+width);
-    await evaluate(`document.querySelector('[data-view="reports"]').click()`);
+    await evaluate(`document.querySelector('button[data-view="reports"]').click()`);
     await until(`document.querySelector('#news-tabs')`);
     const mail = await evaluate(`(() => {const r=document.querySelector('[data-news="mail"]').getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom};})()`);
     assert.ok(mail.left>=0 && mail.right<=width && mail.bottom<=height,"Postfach tab in viewport "+width);
     await evaluate(`document.querySelector('[data-news="mail"]').click()`);
     await until(`document.querySelector('.mail-thread') || document.querySelector('#mail-root:not(.muted)')`);
     assert.equal(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),true,"Funk has no horizontal overflow");
-    await evaluate(`document.querySelector('[data-view="command"]').click()`);
+    await evaluate(`document.querySelector('button[data-view="command"]').click()`);
     await until(`document.querySelector('[data-guide]')`);
     await pause(400);
     assert.ok(await evaluate(`document.querySelector('#resources').getBoundingClientRect().top>=44`),"Resources below simulated notch");
@@ -333,9 +336,12 @@ try {
     browserErrors: errors,
   }, null, 2));
   }
+} catch (error) {
+  console.error(error);
+  process.exitCode=1;
 } finally {
   ws?.close();
-  const stop=child=>child.exitCode!==null || child.signalCode!==null ? Promise.resolve() : new Promise(resolve=>{child.once('exit',resolve);child.kill();});
+  const stop=child=>child.exitCode!==null || child.signalCode!==null ? Promise.resolve() : new Promise(resolve=>{const timeout=setTimeout(resolve,5000);child.once('exit',()=>{clearTimeout(timeout);resolve();});child.kill();});
   await Promise.all([stop(chrome),stop(server)]);
   for(const suffix of ['', '-wal', '-shm']) await rm(databasePath+suffix,{force:true});
 }

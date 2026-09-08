@@ -57,7 +57,7 @@ export function createMap(canvas, onSelect, onViewChange) {
 
   function visible(system) {
     const query = filter.query.trim().toLowerCase();
-    if (query && !String(system.name).toLowerCase().includes(query)) return false;
+    if (query && ![system.name,...(system.planetNames || [])].some(name=>String(name).toLowerCase().includes(query))) return false;
     const own = system.owners.some((o) => o.empireId === data.self.empireId);
     const hostile = system.remnant || system.pirate || system.warlord;
     const free = !system.owners.length && !hostile;

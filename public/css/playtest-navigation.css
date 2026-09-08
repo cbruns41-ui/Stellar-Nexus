@@ -1,0 +1,43 @@
+
+/* Playtest IA: one persistent world, command panels above it, chrome always reachable. */
+.hangar-summary{padding:12px;margin-bottom:12px}.hangar-summary h3{margin-top:0}.hangar-summary p{overflow-wrap:anywhere}.hangar-summary summary{min-height:44px;cursor:pointer}
+.map-quick-filters{position:absolute;left:8px;top:58px;right:8px;z-index:12;display:flex;gap:5px;pointer-events:auto;width:max-content;max-width:calc(100% - 16px)}
+.map-quick-filters label{display:flex;align-items:center;gap:4px;min-height:44px;padding:4px 8px;background:#071b2ef5;border:1px solid #438da480;border-radius:7px;font-size:12px;cursor:pointer}
+.map-quick-filters input{width:16px!important;height:16px;min-height:0!important;margin:0}
+.shell.view-galaxy .map-tools{top:110px!important;z-index:14!important;max-height:calc(100% - 120px)}
+.shell.view-galaxy .map-search-toggle{z-index:15}.shell.view-galaxy .map-status{max-width:calc(100% - 80px)}
+body[data-mode="play"] .nav-section[hidden]{display:none!important}
+body[data-mode="play"] .topbar{z-index:150!important;position:relative!important;display:flex!important}
+body[data-mode="play"] .brand{display:flex!important;min-width:0}
+body[data-mode="play"] .brand>div{display:block!important;min-width:0}
+body[data-mode="play"] .brand select{display:block!important;max-width:min(42vw,260px)}
+body[data-mode="play"] .tabbar{z-index:150!important}
+.command-panel{grid-area:main;position:relative;z-index:60;align-self:stretch;justify-self:center;width:min(1100px,100%);min-height:0;max-height:100%;display:flex;flex-direction:column;overflow:hidden;background:#06121bf7;border:1px solid #438da45c;border-radius:12px;pointer-events:auto}
+.command-panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0;padding:10px 14px;background:#081b28;border-bottom:1px solid #438da45c}
+.command-panel-head h2{font-size:16px;margin:0 0 5px}.command-panel-head span{font-size:12px;color:#97becd}.command-panel-head button{min-width:44px;min-height:44px}
+.command-panel .panel-view{min-height:0;flex:1;overflow:auto;overscroll-behavior:contain;padding:12px;touch-action:pan-y;width:100%;max-height:none}
+.command-panel .panel-view>.section-title{position:static}.command-panel .yard-sheet{max-height:none}
+body[data-mode="play"] .nav{top:var(--game-top,60px)!important;bottom:var(--game-bottom,66px)!important;left:3%!important;right:3%!important;width:auto!important;transform:none!important;max-height:none!important;z-index:100!important;padding:16px;overflow-y:auto}
+body[data-mode="play"] .nav-open .nav{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));align-content:start;gap:10px}
+body[data-mode="play"] .nav-section{display:contents}body[data-mode="play"] .nav-group{grid-column:1/-1}
+body[data-mode="play"] .nav button{min-height:48px;margin:0}
+body[data-mode="play"] .nav-backdrop{top:var(--game-top,60px)!important;bottom:var(--game-bottom,66px)!important;z-index:90!important}
+body[data-mode="play"] .shell:not(.nav-open) .nav-backdrop{display:none!important;pointer-events:none!important}
+body[data-mode="play"] .modal{top:var(--game-top,60px);bottom:var(--game-bottom,66px);height:auto;z-index:125}
+body[data-mode="play"] .modal .sheet{max-height:100%}
+.shell.view-home:not(.alliance-planet-open) #view{pointer-events:none}
+.command-panel *{max-width:100%}.focus-pending #view,.focus-pending #command-panel{pointer-events:none;opacity:.5}
+.focus-pending::after{content:"Planet wird gewechselt …";position:fixed;left:50%;top:calc(var(--game-top,60px) + 15px);transform:translateX(-50%);z-index:155;padding:12px 20px;background:#082c3d;color:#c7f4ff;border:1px solid #54b6cf;pointer-events:none}
+@media(max-width:720px){.command-panel{border-radius:0;width:100%}.command-panel .panel-view{padding:9px}.command-panel-head{padding:8px 10px}body[data-mode="play"] .brand select{font-size:11px;max-width:43vw}body[data-mode="play"] .nav{left:3%!important;right:3%!important;width:auto!important}}
+@media(max-width:760px){
+ body[data-mode="play"] .shell{--top:calc(100px + var(--safe-top));}
+ body[data-mode="play"] .shell:not(.show-resources){--top:calc(54px + var(--safe-top));}
+ body[data-mode="play"] .topbar{display:grid!important;grid-template-columns:minmax(0,1fr)!important;grid-template-rows:44px auto!important;align-content:start;gap:4px!important}
+ body[data-mode="play"] .brand{width:100%;grid-area:auto!important;gap:8px;min-width:0;flex:auto!important}
+ body[data-mode="play"] .brand>div{flex:1!important}
+ body[data-mode="play"] .brand strong{display:none}
+ body[data-mode="play"] .brand select{min-width:0;max-width:none;width:100%;min-height:40px;margin:0}
+ body[data-mode="play"] #resources{grid-area:auto!important;width:100%;min-width:0}
+ body[data-mode="play"] .resources.expanded{top:calc(98px + var(--safe-top))!important}
+ body[data-mode="play"] .top-actions{display:none!important}
+}

@@ -21,7 +21,7 @@ app.set("trust proxy", process.env.TRUST_PROXY ? process.env.TRUST_PROXY.split("
 app.use(express.json({ limit: "700kb" }));
 app.use(express.urlencoded({ extended: false }));
 app.use((req, res, next) => {
-  if (req.path === "/" || /\.(?:html|js|css)$/.test(req.path)) {
+  if (req.path === "/" || /\.(?:html|m?js|css)$/.test(req.path)) {
     res.setHeader("Cache-Control", "no-cache, must-revalidate");
   }
   next();

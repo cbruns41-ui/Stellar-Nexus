@@ -6,8 +6,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js --local-boss-test",
-    "start:local": "node server.js --local-boss-test",
+    "dev": "node --watch server.js",
+    "start:local": "node server.js",
     "test": "node --test",
     "colony:prepare": "node scripts/prepare-colony.mjs",
     "colony:verify": "node scripts/verify-colony.mjs",

@@ -27,6 +27,19 @@ test("colonization launches real colony ship, consumes exactly one and deploymen
  assert.equal(game.shipsMap(db,target.id).fighter,2);
  assert.equal(game.shipsMap(db,home.id).fighter,(before.fighter||0)-2);
 });
+
+test("displayed ship resource maximum agrees with the server at the purchase boundary",async t=>{
+ const {db,empire,home}=fixture(t),{shipBudget}=await import('../public/js/ship-budget.mjs');
+ const {SHIPS,RESOURCE_IDS}=require('../src/catalog');
+ const cost=SHIPS.fighter.cost,resources=Object.fromEntries(RESOURCE_IDS.map(id=>[id,(cost[id]||0)*3]));
+ for(const id of RESOURCE_IDS) db.prepare(`UPDATE planets SET ${id}=? WHERE id=?`).run(resources[id],home.id);
+ const planet=db.prepare('SELECT * FROM planets WHERE id=?').get(home.id);
+ const budget=shipBudget(cost,resources,{cap:110,stationed:20});
+ assert.equal(budget.affordable,3);
+ assert.throws(()=>withTx(db,()=>game.enqueueShip(db,empire,planet,'fighter',4)),/Ressourcen/);
+ withTx(db,()=>game.enqueueShip(db,empire,planet,'fighter',budget.buildable));
+ assert.equal(db.prepare("SELECT qty FROM queue WHERE kind='ship' AND planet_id=?").get(home.id).qty,3);
+});
 test("unengaged raids cannot silently consume ships; engaged raid and its report are atomic",t=>{
  const {db,empire,home}=fixture(t);game.addShips(db,home.id,{fighter:8});
  const before=game.shipsMap(db,home.id);
@@ -39,6 +52,24 @@ test("unengaged raids cannot silently consume ships; engaged raid and its report
  assert.ok(report);assert.equal(JSON.parse(report.body).planetId,home.id);
  for(let n=0;n<220;n++) game.addReport(db,empire.id,"event","Other event",{text:"test"});
  assert.ok(db.prepare("SELECT id FROM reports WHERE id=?").get(report.id),"Combat report survives unrelated event traffic");
+});
+
+test('overdue raid accepts reinforcement once and resolves with a loss report at arrival',t=>{
+ const {db,empire,home,target}=fixture(t);
+ db.prepare('UPDATE planets SET empire_id=? WHERE id=?').run(empire.id,target.id);
+ game.addShips(db,home.id,{fighter:8});
+ const before=game.shipsMap(db,home.id).fighter;
+ const id=Number(db.prepare("INSERT INTO raids(target_planet_id,ships,arrives_at,kind) VALUES(?,?,1,'pirates')").run(target.id,JSON.stringify({fighter:80})).lastInsertRowid);
+ const result=game.defendRaid(db,empire,id,[{planetId:home.id,ships:{fighter:8}}]);
+ assert.equal(result.launched.length,1);assert.ok(result.commonArrival>Date.now());
+ assert.equal(game.shipsMap(db,home.id).fighter,before-8);
+ assert.equal(game.defendRaid(db,empire,id,[{planetId:home.id,ships:{fighter:8}}]).launched.length,0);
+ assert.equal(db.prepare('SELECT COUNT(*) AS n FROM fleets').get().n,1);
+ assert.equal(db.prepare('SELECT arrives_at FROM raids WHERE id=?').get(id).arrives_at,result.commonArrival);
+ db.exec('UPDATE fleets SET arrives_at=1;UPDATE raids SET arrives_at=1');game.tickWorld(db);
+ assert.equal(db.prepare('SELECT id FROM raids WHERE id=?').get(id),undefined);
+ const report=db.prepare("SELECT body FROM reports WHERE kind='combat' AND empire_id=? ORDER BY id DESC LIMIT 1").get(empire.id);
+ assert.equal(JSON.parse(report.body).planetId,target.id);assert.ok(JSON.parse(report.body).defLost.fighter>0);
 });
 
 test("fully funded alliance supply grid starts once and its queue is visible to members",t=>{
@@ -67,4 +98,24 @@ test("overflow and later recovery are retained and recorded in the fleet ledger"
  assert.ok(db.prepare("SELECT id FROM fleet_ledger WHERE planet_id=? AND cause LIKE 'Reserve:%'").get(home.id));
  db.prepare("UPDATE buildings SET level=10 WHERE planet_id=? AND building_id='shipyard'").run(home.id);hangar.reconcile(db,home.id);
  assert.equal(total(),before+150);assert.deepEqual(hangar.reserveMap(db,home.id),{});
+});
+
+test('alliance funding persists partial deposits and spends only the missing amount on start',t=>{
+ const {db,empire,target}=fixture(t),social=require('../src/social');
+ const alliance=social.createAlliance(db,empire,'FND','Funding Alliance','','#00ffff');
+ db.prepare('UPDATE planets SET empire_id=?,alliance_id=?,metal=100,helium=0,titan=0,energy=0,crystal=0 WHERE id=?').run(empire.id,alliance.id,target.id);
+ const planet=()=>db.prepare('SELECT * FROM planets WHERE id=?').get(target.id);
+ const paid=game.fundAllianceResearch(db,empire,planet(),'supply_grid');assert.equal(paid.metal,100);
+ assert.equal(planet().metal,0);
+ assert.throws(()=>withTx(db,()=>game.enqueueAllianceResearch(db,empire,planet(),'supply_grid')),/Ressourcen/);
+ let row=social.researchRows(db,alliance.id,empire.id).find(r=>r.id==='supply_grid');assert.equal(row.funded.metal,100);assert.ok(row.progress>0 && row.progress<1);
+ for(const [id,n] of Object.entries(row.remaining))db.prepare(`UPDATE planets SET ${id}=? WHERE id=?`).run(n,target.id);
+ withTx(db,()=>game.enqueueAllianceResearch(db,empire,planet(),'supply_grid'));
+ assert.equal(planet().metal,0);assert.equal(social.researchRows(db,alliance.id,empire.id).find(r=>r.id==='supply_grid').funded.metal,100);
+});
+
+test('orbit fire requires stationed ships on the selected planet',t=>{
+ const {db,empire,home}=fixture(t);db.prepare('DELETE FROM ships WHERE planet_id=?').run(home.id);
+ assert.throws(()=>game.startOrbitFire(db,empire,home),/Keine Schiffe am Fokus/);
+ game.addShips(db,home.id,{fighter:1});assert.ok(game.startOrbitFire(db,empire,home).id);
 });

@@ -125,10 +125,6 @@ function allianceBonuses(db, empireId) {
   return out;
 }
 
-function donateAllianceResearch(db, empire, planet, researchId, donation) {
-  throw new Error("Direktspenden wurden ersetzt: Ressourcen zuerst per Transport in das Allianzlager schicken.");
-}
-
 function canDo(rank, action) {
   const r = rank || "member";
   if (action === "edit") return r === "leader" || r === "coleader" || r === "diplomat";
@@ -721,7 +717,6 @@ module.exports = {
   researchRows,
   allianceBonuses,
   emptyAllianceBonuses,
-  donateAllianceResearch,
   listRanksFull,
   removeAvatarUpload,
   memberLimits,

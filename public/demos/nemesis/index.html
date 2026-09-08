@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#07131e"><title>NEMESIS · Stellar Nexus Demo</title>
+  <link rel="stylesheet" href="./demo.css">
+</head>
+<body>
+  <main id="stage" aria-label="Nemesis Bosskampf-Demo">
+    <canvas id="combat" aria-label="Schlachtfeld: Ziehen zum Zielen, Feuer halten"></canvas>
+    <div class="vignette" aria-hidden="true"></div>
+    <header class="hud">
+      <div class="brand">STELLAR NEXUS <span>SPIELBARE DEMO</span></div>
+      <div class="title"><div><small>ALLIANZ-ANGRIFF</small><h1>NEMESIS</h1></div><div class="tools"><button id="sound" aria-label="Ton einschalten" aria-pressed="false">TON AUS</button><button id="pause" aria-label="Kampf pausieren">Ⅱ</button></div></div>
+      <div class="boss-meter"><i><span id="boss-fill"></span></i><b id="boss-percent">100 %</b></div>
+      <div class="phase"><span id="phase">01 / PANZERUNG BRECHEN</span><time id="clock">00:40</time></div>
+      <div class="raid-status"><span id="raid-hull">ALLIANZHÜLLE 100.000 / 100.000</span><b id="attempt">ANGRIFF 1</b></div>
+    </header>
+    <div id="alert" role="status"></div>
+    <aside class="score"><span>DEIN BEITRAG</span><strong id="damage">0</strong><small id="combo">PRÄZISION ZÄHLT</small></aside>
+    <div id="crosshair" aria-hidden="true"><i></i><b></b><span id="target-label">PANZERUNG</span></div>
+    <div class="controls">
+      <div id="stick" role="group" aria-label="Schiff bewegen"><div class="stick-ring"></div><span id="stick-knob"></span><small>BEWEGEN</small></div>
+      <div class="player-status"><small>SCHILD <b id="shield-value">100 %</b></small><i><span id="shield-fill"></span></i><div id="armor-status">◈ &nbsp; 2 PANZERPLATTEN</div></div>
+      <div class="weapons"><button id="dodge"><span>»</span><small>AUSWEICHEN</small></button><button id="fire"><span>⌁</span><b>FEUER</b></button></div>
+    </div>
+    <div class="bottom-note">2,5D-DEMO <span>·</span> LOKALE ALLIANZSIMULATION</div>
+    <section id="intro" class="overlay">
+      <div class="intro-card"><small>STELLAR NEXUS / ALLIANZ-DEMO</small><h2>JEDER<br>TREFFER ZÄHLT.</h2><p>Ein Titan. Viele Angriffe.<br>Du hast 40 Sekunden. Trage seinen Panzer ab und überlebe seinen Gegenschlag.</p><button id="start" disabled>GRAFIK WIRD GELADEN …</button><div class="instructions"><span><b>ZIELEN</b> Bild berühren / Maus bewegen</span><span><b>FEUERN</b> Feuer halten / Leertaste</span><span><b>BEWEGEN</b> Stick / A und D</span><span><b>AUSWEICHEN</b> » / Umschalttaste</span></div><p class="demo-note" id="storage-note">Demo: Schaden bleibt in diesem Browser für weitere Angriffe erhalten. Keine Verbindung zu eurer Allianz.</p></div>
+    </section>
+    <section id="result" class="overlay" hidden><div class="result-card"><small>DEIN ALLIANZ-BEITRAG</small><h2 id="result-title"></h2><p id="result-detail"></p><button id="restart">NÄCHSTER ANGRIFF</button><a href="/">ZURÜCK ZU NEXUS</a></div></section>
+    <section id="pause-screen" class="overlay" hidden><div class="result-card"><small>GEFECHT ANGEHALTEN</small><h2>PAUSE</h2><button id="resume">WEITERKÄMPFEN</button><button id="reset" class="secondary">ANGRIFF BEENDEN · NÄCHSTER PILOT</button><button id="reset-raid" class="secondary">TESTBOSS ZURÜCKSETZEN</button></div></section>
+    <div id="load-error" role="alert" hidden>Die Demo konnte nicht geladen werden. <button onclick="location.reload()">Erneut laden</button></div>
+  </main>
+  <script type="module" src="./demo.mjs"></script>
+</body>
+</html>

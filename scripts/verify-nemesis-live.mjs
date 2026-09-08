@@ -1,0 +1,72 @@
+import {spawn} from 'node:child_process';
+import {mkdir,writeFile} from 'node:fs/promises';
+import {fileURLToPath} from 'node:url';
+import assert from 'node:assert/strict';
+import express from 'express';
+import {createRequire} from 'node:module';
+const require=createRequire(import.meta.url),{bossFixture}=require('./lib/boss-fixture.cjs'),{attachRoutes}=require('../src/routes'),{createSession}=require('../src/auth'),boss=require('../src/allianceBoss');
+const fixture=bossFixture(),{db,alliance,empires:[pilot,member]}=fixture;
+const root=new URL('../',import.meta.url),folder=new URL('tmp/nemesis-live-review/',root);await mkdir(folder,{recursive:true});
+let failNextFinish=false;
+const app=express();app.use(express.json({limit:'700kb'}));app.use('/api/alliances/boss/finish',(_req,res,next)=>{if(failNextFinish){failNextFinish=false;res.status(503).json({error:'Test: Verbindung unterbrochen'});}else next();});app.use(express.static(fileURLToPath(new URL('public/',root))));attachRoutes(app,db);
+const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));const base='http://127.0.0.1:'+server.address().port;
+const debug=9450,chrome=spawn('C:/Program Files/Google/Chrome/Application/chrome.exe',['--headless=new','--no-first-run','--no-default-browser-check','--autoplay-policy=no-user-gesture-required','--user-data-dir='+fileURLToPath(new URL('tmp/nemesis-live-chrome/',root)),'--remote-debugging-port='+debug,'--window-size=1440,1000','about:blank'],{stdio:'ignore',windowsHide:true});
+const pause=ms=>new Promise(r=>setTimeout(r,ms));let ws;const errors=[];
+try{
+ let page;for(let n=0;n<60;n++){try{page=await fetch('http://127.0.0.1:'+debug+'/json/new?about:blank',{method:'PUT'}).then(r=>r.json());break;}catch{await pause(200);}}
+ assert.ok(page);ws=new WebSocket(page.webSocketDebuggerUrl);await new Promise((r,j)=>{ws.addEventListener('open',r);ws.addEventListener('error',j);});let id=0;const pending=new Map();
+ ws.addEventListener('message',event=>{const d=JSON.parse(event.data);if(d.method==='Runtime.exceptionThrown')errors.push(d.params.exceptionDetails.exception?.description||d.params.exceptionDetails.text);if(pending.has(d.id)){const p=pending.get(d.id);pending.delete(d.id);clearTimeout(p.timeout);d.error?p.reject(new Error(d.error.message)):p.resolve(d.result||{});}});
+ const send=(method,params={})=>new Promise((resolve,reject)=>{const key=++id,timeout=setTimeout(()=>{pending.delete(key);reject(new Error('CDP timeout '+method));},15000);pending.set(key,{resolve,reject,timeout});ws.send(JSON.stringify({id:key,method,params}));});
+ const ev=async expression=>{const d=await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(d.exceptionDetails)throw new Error(d.exceptionDetails.exception?.description||d.exceptionDetails.text);return d.result?.value;};
+ const until=async expression=>{for(let n=0;n<150;n++){const v=await ev(expression);if(v)return v;await pause(100);}await shot('failure');console.log((await ev('document.body.innerText')).slice(0,4000));throw new Error('Timed out: '+expression+' '+errors.join('\n'));};
+ const fw="document.querySelector('#nemesis-encounter iframe').contentWindow",fd=fw+".document";
+ const snap=()=>ev(fw+'.nemesisDemo.snapshot()');
+ const shot=async name=>{const r=await send('Page.captureScreenshot',{format:'png',fromSurface:true});await writeFile(new URL(name+'.png',folder),Buffer.from(r.data,'base64'));};
+ const click=async(selector,inside=false)=>{
+  const p=await ev(`(()=>{const doc=${inside?fd:'document'},el=doc.querySelector(${JSON.stringify(selector)});el.scrollIntoView({block:'center'});const r=el.getBoundingClientRect(),f=${inside?"document.querySelector('#nemesis-encounter iframe').getBoundingClientRect()":"{x:0,y:0}"};return{x:f.x+r.x+r.width/2,y:f.y+r.y+r.height/2}})()`);
+  await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...p});await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...p});
+ };
+ const aim=async()=>{const p=await ev(`(()=>{const win=${fw},p=win.nemesisDemo.snapshot().weakpoints[1],r=win.document.querySelector('#stage').getBoundingClientRect();return{x:r.x+p.x*r.width/1000,y:r.y+p.y*r.height/1500}})()`);await send('Input.dispatchMouseEvent',{type:'mouseMoved',...p});return p;};
+ const key=down=>send('Input.dispatchKeyEvent',{type:down?'keyDown':'keyUp',code:'Space',key:' ',windowsVirtualKeyCode:32});
+ await send('Page.enable');await send('Runtime.enable');await send('Network.enable');
+ await send('Network.setCookie',{name:'sn_session',value:createSession(db,pilot.user_id),url:base,httpOnly:true,sameSite:'Lax'});
+ await send('Page.addScriptToEvaluateOnNewDocument',{source:"localStorage.setItem('sn-view','alliance');localStorage.setItem('sn-tut-v1','done')"});
+ await send('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});await send('Page.navigate',{url:base+'/'});
+ await until("document.querySelector('#game') && !document.querySelector('#game').hidden && document.querySelector('[data-view=alliance]')");
+ await ev("document.querySelector('[data-view=alliance]').click()");await until("document.querySelector('#ally-boss-launch')");
+ assert.ok(await ev("document.querySelector('.ally-boss-reward').innerText.includes('Belohnung je Allianzmitglied')"));
+ await ev("document.querySelector('.ally-boss').scrollIntoView({block:'center'})");await shot('desktop-reward-preview');
+ await click('#ally-boss-launch');await until(fw+".nemesisDemo?.snapshot().ready");await click('#start',true);await until(fw+".nemesisDemo.snapshot().mode==='playing'");
+ assert.equal(db.prepare("SELECT COUNT(*) AS n FROM alliance_boss_sessions").get().n,1);
+ await aim();await key(true);for(let n=0;n<25;n++){await aim();await pause(60);}await key(false);
+ const before=await snap();assert.ok(before.damage>0);await shot('desktop-live-fight');
+ await click('#pause',true);await ev(fw+'.__beforeReload=true;'+fw+'.location.reload()');await until('!'+fw+'.__beforeReload && '+fw+".nemesisDemo?.snapshot().ready");
+ assert.equal(await ev(fd+".querySelector('#start').textContent"),'OFFENEN ANGRIFF ABSCHLIESSEN','Reload recovers the same reserved attempt');
+ failNextFinish=true;await click('#start',true);await until(fd+".querySelector('#restart').textContent==='SPEICHERN ERNEUT VERSUCHEN'");
+ assert.equal(db.prepare('SELECT COUNT(*) AS n FROM alliance_boss_hits').get().n,0);
+ await click('#restart',true);await until(fd+".querySelector('#restart').textContent==='ZURÜCK ZUR ALLIANZ'");
+ assert.equal(db.prepare("SELECT damage FROM alliance_boss_hits ORDER BY id DESC LIMIT 1").get().damage,before.damage,'Real browser damage matches server replay');
+ assert.equal(db.prepare("SELECT COUNT(*) AS n FROM alliance_boss_rewards").get().n,0,'No participation reward');
+ await click('#restart',true);await until("!document.querySelector('#nemesis-encounter')");
+ // Test the real mobile victory using a nearly defeated fixture boss, never production data.
+ const previous=boss.publicBoss(db,alliance.id,pilot.id),memberMetal=db.prepare("SELECT metal FROM planets WHERE empire_id=? ORDER BY id LIMIT 1").get(member.id).metal;
+ db.exec("UPDATE alliance_bosses SET hp=1,armor='[0,0]'");
+ await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});await send('Emulation.setTouchEmulationEnabled',{enabled:true,maxTouchPoints:5});
+ await click('#ally-boss-launch');await until(fw+".nemesisDemo?.snapshot().ready");await shot('mobile-live-intro');
+ for(const [width,height] of [[360,640],[844,390],[390,844]]){await send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:true});await pause(100);assert.ok(await ev(`(()=>{const win=${fw};return ['start','exit-live'].every(id=>{const el=win.document.getElementById(id),r=el.getBoundingClientRect();return r.left>=0&&r.right<=win.innerWidth&&r.top>=0&&r.bottom<=win.innerHeight})})()`),'Start and exit visible '+width+'x'+height);}
+ await click('#start',true);await until(fw+".nemesisDemo.snapshot().mode==='playing'");
+ const target=await aim(),fire=await ev(`(()=>{const r=${fd}.querySelector('#fire').getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+ await send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{id:1,...target},{id:2,...fire}]});await pause(100);await send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+ await until(fd+".querySelector('#result-title').textContent==='NEMESIS BESIEGT'");await shot('mobile-live-victory');
+ assert.equal(db.prepare("SELECT COUNT(*) AS n FROM alliance_boss_rewards").get().n,2);
+ assert.equal(db.prepare("SELECT metal FROM planets WHERE empire_id=? ORDER BY id LIMIT 1").get(member.id).metal,memberMetal+previous.reward.metal);
+ assert.equal(db.prepare("SELECT COUNT(*) AS n FROM reports WHERE kind='alliance_boss'").get().n,2);
+ assert.equal(db.prepare("SELECT level FROM alliance_bosses").get().level,2);
+ await click('#restart',true);await until("!document.querySelector('#nemesis-encounter')");await click('#ally-boss-launch');await until(fw+".nemesisDemo?.snapshot().ready");
+ assert.ok(await ev(fd+".querySelector('#start').disabled"));assert.equal(db.prepare("SELECT COUNT(*) AS n FROM alliance_boss_sessions").get().n,2);
+ await click('#exit-live',true);await until("!document.querySelector('#nemesis-encounter')");
+ await ev("document.querySelector('[data-view=reports]').click()");await until("document.querySelector('#report-list')?.innerText.includes('NEMESIS Stufe 1 besiegt')");
+ await ev("document.querySelector('#report-list details').open=true");await shot('mobile-victory-receipt');
+ assert.deepEqual(errors,[]);await writeFile(new URL('verification.json',folder),JSON.stringify({passed:true,checkedAt:new Date().toISOString(),checks:['real authenticated alliance launch','reward preview','reload recovers reserved attempt','failed save retries same contribution','server replay matches rendered damage','no partial reward','mobile touch victory','automatic rewards for offline member','one receipt per member','immediate next level','daily limit survives victory','back to alliance','mobile controls'],errors},null,2));
+ console.log('NEMESIS live integration passed');
+}finally{ws?.close();chrome.kill();await Promise.race([new Promise(r=>chrome.once('exit',r)),pause(2500)]);server.closeAllConnections();await new Promise(r=>server.close(r));fixture.close();}

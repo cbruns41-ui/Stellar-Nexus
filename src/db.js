@@ -515,6 +515,22 @@ function migrate(db) {
   if (!hasCol(db, "alliance_bosses", "level")) db.exec("ALTER TABLE alliance_bosses ADD COLUMN level INTEGER NOT NULL DEFAULT 1");
   if (!hasCol(db, "alliance_bosses", "available_at")) db.exec("ALTER TABLE alliance_bosses ADD COLUMN available_at INTEGER NOT NULL DEFAULT 0");
   if (!hasCol(db, "alliance_boss_hits", "boss_level")) db.exec("ALTER TABLE alliance_boss_hits ADD COLUMN boss_level INTEGER NOT NULL DEFAULT 1");
+  if (!hasCol(db, "alliance_bosses", "armor")) db.exec("ALTER TABLE alliance_bosses ADD COLUMN armor TEXT NOT NULL DEFAULT '[100,100]'");
+  if (!hasCol(db, "alliance_bosses", "scaling")) db.exec("ALTER TABLE alliance_bosses ADD COLUMN scaling TEXT NOT NULL DEFAULT '{}'");
+  if (!hasCol(db, "alliance_boss_hits", "session_id")) db.exec("ALTER TABLE alliance_boss_hits ADD COLUMN session_id TEXT");
+  db.exec(`CREATE TABLE IF NOT EXISTS alliance_boss_sessions (
+    id TEXT PRIMARY KEY, empire_id INTEGER NOT NULL, alliance_id INTEGER NOT NULL,
+    week TEXT NOT NULL, boss_level INTEGER NOT NULL, day TEXT NOT NULL,
+    started_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, config TEXT NOT NULL,
+    finished_at INTEGER NOT NULL DEFAULT 0, result TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_boss_sessions_daily ON alliance_boss_sessions(empire_id,day);
+  CREATE TABLE IF NOT EXISTS alliance_boss_rewards (
+    id INTEGER PRIMARY KEY, alliance_id INTEGER NOT NULL, week TEXT NOT NULL,
+    boss_level INTEGER NOT NULL, empire_id INTEGER NOT NULL,
+    resources TEXT NOT NULL, granted_at INTEGER NOT NULL,
+    UNIQUE(alliance_id,week,boss_level,empire_id)
+  );`);
   db.exec(`CREATE TABLE IF NOT EXISTS sector_season_claims (
     empire_id INTEGER NOT NULL, season_id TEXT NOT NULL, tier INTEGER NOT NULL, claimed_at INTEGER NOT NULL,
     PRIMARY KEY (empire_id, season_id, tier)

@@ -29,3 +29,7 @@ unity-colony/Assets/Colony/BuildArchive/
 unity-colony/Assets/Colony/BuildArchive.meta
 tmp/colony-chrome/
 tmp/colony-review/
+tmp/nemesis-chrome/
+tmp/nemesis-review/
+tmp/nemesis-live-chrome/
+tmp/nemesis-live-review/

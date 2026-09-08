@@ -5094,6 +5094,9 @@ body[data-mode="play"] .nav-backdrop { z-index:90; }
 }
 .help-topbar .help-brand { min-width: 0; }
 .help-topbar > .btn { flex-shrink: 0; min-height: 44px; }
+.ship-budget { color: var(--cyan); font-variant-numeric: tabular-nums; }
 @media (max-width: 420px) {
   .help-topbar .help-brand span { display: none; }
 }
+
+.ally-boss-art i{width:100%;height:160px;clip-path:none;background:url("/demos/nemesis/assets/body-v3.png") center/contain no-repeat;filter:drop-shadow(0 0 12px #ff8b3322)}.ally-boss-art span{display:none}.ally-boss-art em{color:#ffb56d}.ally-boss-reward{border:1px solid #76bfd744;border-radius:8px;padding:12px;margin:12px 0}.ally-boss-reward>.cost{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.ally-boss-reward>p{font-size:12px;line-height:1.5}@media(max-width:720px){.ally-boss{grid-template-columns:1fr}.ally-boss-art{min-height:120px}.ally-boss-art i{height:115px}.ally-boss-body{min-width:0}}
