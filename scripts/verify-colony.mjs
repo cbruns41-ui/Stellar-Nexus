@@ -7,6 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import { CITY_PLOTS } from "../public/js/city.mjs";
 import { verifyGameFlows } from "./verify-game-flows.mjs";
 import { verifyNavigation } from "./verify-navigation.mjs";
+import { verifyQaRegressions } from './verify-qa-regressions.mjs';
 const base = "http://localhost:3100";
 const debug = 9347;
 const databasePath = fileURLToPath(new URL(`../tmp/colony-verification-${process.pid}.db`, import.meta.url));
@@ -27,7 +28,7 @@ const chrome = spawn("C:/Program Files/Google/Chrome/Application/chrome.exe", [
   "--remote-debugging-port=" + debug, "--window-size=1440,960", "about:blank",
 ], { stdio: "ignore", windowsHide: true });
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
-let ws;
+let ws,fixtureDb;
 try {
   for (let i=0;i<100 && !serverReady && server.exitCode===null;i++) await pause(100);
   assert.ok(serverReady,"Isolated server started: " + serverError);
@@ -82,7 +83,12 @@ try {
   console.log("Unity loaded", await evaluate(`({canvas: [document.querySelector('canvas#colony-unity-canvas').width,document.querySelector('canvas#colony-unity-canvas').height],markers:document.querySelectorAll('.colony-marker:not([hidden])').length})`));
   await shot("desktop-base");
   const headers = { "content-type":"application/json", cookie:`sn_session=${token}` };
-  if(process.argv.includes('--navigation-only')) {
+  if(process.argv.includes('--qa-regressions-only')) {
+    await verifyQaRegressions({base,headers,databasePath,send,evaluate,until,pause});
+    await shot('qa-final');
+    assert.deepEqual(errors,[], 'No browser exceptions during QA regressions');
+    await writeFile(new URL('qa-regressions-verification.json',folder),JSON.stringify({passed:true,checkedAt:new Date().toISOString(),checks:['real touch building/yard controls','system label tap and search','two colony arrivals: five to seven planets without reload','planet and open sheet synchronize','raid reinforcement beyond destination capacity','combat report and cleared alarm','visible building queue','live activity slots and timer','Orbit touch fire','alliance colony with preserved 89% funding, deposit and research start'],browserErrors:errors},null,2));
+  } else if(process.argv.includes('--navigation-only')) {
     await verifyNavigation({base,databasePath,send,evaluate,until,pause});
     assert.deepEqual(errors, [], "No browser errors or warnings");
   } else if(process.argv.includes('--flows-only')) {
@@ -139,7 +145,7 @@ try {
   await evaluate(`document.querySelector('button[data-view="command"]').click()`);
   await until(`document.querySelectorAll('.colony-marker:not([hidden])').length > 5`);
   // Mutate only this script's explicitly isolated verification database.
-  const db = new DatabaseSync(databasePath);
+  const db = fixtureDb = new DatabaseSync(databasePath);
   const testPlanet = db.prepare("SELECT p.id,p.empire_id FROM planets p JOIN empires e ON e.id=p.empire_id JOIN users u ON u.id=e.user_id WHERE u.username='Admin' AND COALESCE(p.alliance_id,0)=0 ORDER BY p.id LIMIT 1").get();
   assert.ok(testPlanet, "Isolated fixture planet exists");
   // Use the selected account's current planet in case the seed provides several.
@@ -184,9 +190,13 @@ try {
   await evaluate(`Date.now = window.__realNow;`);
   console.log("Upgrade, exact current level, production and return to sleep passed");
   // Restore the first tutorial objective in this isolated account.
+  db.exec('DELETE FROM raids;DELETE FROM raid_engagements');
+  db.prepare("INSERT OR REPLACE INTO world_meta(key,value) VALUES('last_galaxy',?)").run(String(Date.now()+86400000));
   db.prepare("DELETE FROM quests WHERE empire_id=? AND quest_id IN ('mine2','helium1')").run(snap.empire.id);
   db.prepare("UPDATE buildings SET level=1 WHERE planet_id=? AND building_id='matter_mine'").run(pid);
   await send("Page.reload");
+  await until(`document.querySelector('.colony-orders')`);
+  await evaluate(`document.querySelector('.colony-orders').click()`);
   await until(`document.querySelector('.city-commander .city-quest[data-highlight-building="matter_mine"]')`);
   assert.match(await evaluate(`document.querySelector('.city-commander').innerText`), /Metall-Mine auf Stufe 2/);
   assert.match(await evaluate(`document.querySelector('.city-quest-reward').textContent`), /350 Met.*180 En.*40 XP/);
@@ -197,6 +207,7 @@ try {
   assert.equal(mineBuild.ok,true,"Tutorial build accepted");
   await send("Page.reload");
   await until(`document.querySelector('[data-city-building="matter_mine"]')?.dataset.status === 'upgrading'`);
+  await evaluate(`document.querySelector('.colony-orders').click()`);
   const mineState = await fetch(base + "/api/state", {headers:authHeaders}).then(r=>r.json());
   const mineDeadline = mineState.queue.find(q=>q.planetId===pid && q.kind==='building' && q.itemId==='matter_mine').completesAt;
   db.prepare("UPDATE queue SET completes_at=? WHERE planet_id=? AND kind='building' AND item_id='matter_mine'").run(Date.now()-10,pid);
@@ -209,7 +220,9 @@ try {
   assert.equal(requests.filter(r=>r.url.endsWith('/api/quest/claim') && r.method==='POST').length-beforeClaim,1,"Reward is submitted once");
   assert.ok(db.prepare("SELECT 1 FROM quests WHERE empire_id=? AND quest_id='mine2'").get(snap.empire.id),"Tutorial reward recorded");
   console.log("Tutorial build routing, live reward and next objective passed");
+  await evaluate(`document.querySelector('.colony-quests .city-sheet-close').click()`);
   db.close();
+  fixtureDb=null;
   await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
   await send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 2 });
   await evaluate(`document.querySelector('.colony-card-close')?.click(); window.__colonyFrame = null; window.__colonyOriginalFrame = window.stellarNexusColony.onFrame; window.stellarNexusColony.onFrame = frame => { window.__colonyFrame=frame; window.__colonyOriginalFrame(frame); };`);
@@ -217,8 +230,7 @@ try {
   await until(`window.__colonyFrame?.anchors.length === 22`);
   await pause(1500);
   await shot("mobile-base");
-  const railBox = await evaluate(`(() => { const r=document.querySelector('.city-commander').getBoundingClientRect(); return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,height:r.height}; })()`);
-  assert.ok(railBox.height > 44 && railBox.height < 150 && railBox.left >= 0 && railBox.right <= 390 && railBox.bottom <= 844,"Compact tutorial rail is visible inside the mobile screen");
+  assert.equal(await evaluate(`document.querySelector('.living-colony > .city-commander')`),null,'Objective card lives inside Aufgaben, leaving the base unobstructed');
   const beforePan = await evaluate(`window.__colonyFrame.anchors.find(p => p.id === 'command').x`);
   await send("Input.dispatchTouchEvent", { type:"touchStart", touchPoints:[{x:250,y:400,id:1}] });
   for (let n=1;n<=6;n++) {
@@ -332,7 +344,7 @@ try {
   await writeFile(new URL("verification.json", folder), JSON.stringify({
     passed: true, checkedAt: new Date().toISOString(), engine: "Unity 6000.6.0f1 WebGL",
     desktop: { width: 1440, height: 960 }, mobile: { width: 390, height: 844, deviceScaleFactor: 2 },
-    checks: ["22 real collider clicks", "building info routing", "single build submission", "live current level", "ship production", "live return to idle", "touch pan", "two-finger pinch", "mobile card containment", "reduced motion", "daily and weekly tasks", "task touch scrolling", "task routing", "tutorial build routing", "live tutorial reward", "single reward submission", "next tutorial objective", "mobile tutorial rail"],
+    checks: ["22 real collider clicks", "building info routing", "single build submission", "live current level", "ship production", "live return to idle", "touch pan", "two-finger pinch", "mobile card containment", "reduced motion", "daily and weekly tasks", "task touch scrolling", "task routing", "tutorial build routing", "live tutorial reward", "single reward submission", "next tutorial objective", "objective card inside tasks"],
     browserErrors: errors,
   }, null, 2));
   }
@@ -340,6 +352,7 @@ try {
   console.error(error);
   process.exitCode=1;
 } finally {
+  fixtureDb?.close();
   ws?.close();
   const stop=child=>child.exitCode!==null || child.signalCode!==null ? Promise.resolve() : new Promise(resolve=>{const timeout=setTimeout(resolve,5000);child.once('exit',()=>{clearTimeout(timeout);resolve();});child.kill();});
   await Promise.all([stop(chrome),stop(server)]);

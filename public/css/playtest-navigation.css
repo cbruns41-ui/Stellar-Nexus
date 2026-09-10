@@ -1,10 +1,15 @@
 
 /* Playtest IA: one persistent world, command panels above it, chrome always reachable. */
 .hangar-summary{padding:12px;margin-bottom:12px}.hangar-summary h3{margin-top:0}.hangar-summary p{overflow-wrap:anywhere}.hangar-summary summary{min-height:44px;cursor:pointer}
-.map-quick-filters{position:absolute;left:8px;top:58px;right:8px;z-index:12;display:flex;gap:5px;pointer-events:auto;width:max-content;max-width:calc(100% - 16px)}
+.map-quick-filters{position:absolute;right:8px;top:52px;z-index:16;display:flex;flex-wrap:wrap;gap:5px;pointer-events:auto;width:max-content;max-width:calc(100% - 16px)}
+.map-quick-filters[hidden]{display:none!important}
 .map-quick-filters label{display:flex;align-items:center;gap:4px;min-height:44px;padding:4px 8px;background:#071b2ef5;border:1px solid #438da480;border-radius:7px;font-size:12px;cursor:pointer}
 .map-quick-filters input{width:16px!important;height:16px;min-height:0!important;margin:0}
-.shell.view-galaxy .map-tools{top:110px!important;z-index:14!important;max-height:calc(100% - 120px)}
+.shell.view-galaxy .map-tools{top:52px!important;z-index:14!important;max-height:calc(100% - 64px);display:none!important}
+.shell.view-galaxy .map-tools.open{display:block!important}
+.shell.view-galaxy .map-search-toggle,.shell.view-galaxy .map-filter-toggle{position:absolute;display:grid;place-items:center;top:8px!important;left:auto!important;width:38px!important;height:38px!important;min-height:38px;padding:0;border:1px solid #438da480;border-radius:8px;background:#071b2ef5;color:#9eeaff;font:24px/1 system-ui;z-index:16;pointer-events:auto}
+.shell.view-galaxy .map-search-toggle{right:51px!important}.shell.view-galaxy .map-filter-toggle{right:8px}
+.map-filter-toggle[aria-expanded="true"]{border-color:#8eeaff}.sys-flight-eta{grid-column:1/-1;font-size:12px;margin:4px}
 .shell.view-galaxy .map-search-toggle{z-index:15}.shell.view-galaxy .map-status{max-width:calc(100% - 80px)}
 body[data-mode="play"] .nav-section[hidden]{display:none!important}
 body[data-mode="play"] .topbar{z-index:150!important;position:relative!important;display:flex!important}
@@ -27,6 +32,20 @@ body[data-mode="play"] .modal{top:var(--game-top,60px);bottom:var(--game-bottom,
 body[data-mode="play"] .modal .sheet{max-height:100%}
 .shell.view-home:not(.alliance-planet-open) #view{pointer-events:none}
 .command-panel *{max-width:100%}.focus-pending #view,.focus-pending #command-panel{pointer-events:none;opacity:.5}
+/* Unity only receives gestures on uncovered city pixels. Sheets own their hit area. */
+body[data-mode="play"] #command-panel,body[data-mode="play"] #panel-view,body[data-mode="play"] .modal .sheet{pointer-events:auto!important}
+.shell:has(#command-panel:not([hidden])) #colony-unity-layer,.shell:has(.modal:not(.hidden):not([hidden])) #colony-unity-layer{pointer-events:none!important}
+.shell.view-home .living-colony .colony-tools{top:8px;left:8px;right:auto;display:flex;gap:5px;width:max-content;max-width:calc(100% - 16px);z-index:24;pointer-events:auto}
+.shell.view-home .living-colony .colony-tools>button,.shell.view-home .living-colony .colony-directory>summary{position:static;width:auto;min-height:38px;height:38px;padding:0 10px;margin:0;display:flex;align-items:center;gap:5px;border:1px solid #8cabb25c;border-radius:8px;background:#0b1721ed;color:#dce9ec;font:600 12px/1 system-ui;box-shadow:0 4px 12px #0004;white-space:nowrap}
+.shell.view-home .living-colony .colony-tools .colony-directory{position:static;width:auto}
+.shell.view-home .living-colony .colony-directory>div{position:absolute;top:38px;left:0;width:min(260px,calc(100vw - 32px));max-height:min(60vh,420px)}
+.shell.view-home .living-colony .colony-level{visibility:visible!important;opacity:1!important}
+.shell.view-home .living-colony .city-actions{left:50%;top:auto;bottom:8px;max-height:calc(100% - 60px);overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y}
+.living-colony:has(.city-actions:not([hidden])) .city-commander{visibility:hidden}
+.shell.view-home .living-colony .colony-quests .city-commander{position:static!important;transform:none!important;width:100%!important;margin:0 0 10px;max-width:100%;pointer-events:auto}
+.colony-tools button,.colony-directory summary,.city-actions button,.command-panel button,.map-wrap button{touch-action:manipulation}
+#toasts,.toasts,.toast{pointer-events:none!important}
+.map-wrap:has(#map-raid-banner:not([hidden])) #map-orbit-fire{bottom:calc(var(--raid-height,100px) + 26px)}
 .focus-pending::after{content:"Planet wird gewechselt …";position:fixed;left:50%;top:calc(var(--game-top,60px) + 15px);transform:translateX(-50%);z-index:155;padding:12px 20px;background:#082c3d;color:#c7f4ff;border:1px solid #54b6cf;pointer-events:none}
 @media(max-width:720px){.command-panel{border-radius:0;width:100%}.command-panel .panel-view{padding:9px}.command-panel-head{padding:8px 10px}body[data-mode="play"] .brand select{font-size:11px;max-width:43vw}body[data-mode="play"] .nav{left:3%!important;right:3%!important;width:auto!important}}
 @media(max-width:760px){

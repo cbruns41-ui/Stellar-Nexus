@@ -438,6 +438,7 @@ function migrate(db) {
   if (!hasCol(db, "fleets", "hold_ms")) {
     db.exec("ALTER TABLE fleets ADD COLUMN hold_ms INTEGER NOT NULL DEFAULT 0");
   }
+  if (!hasCol(db, "fleets", "raid_id")) db.exec("ALTER TABLE fleets ADD COLUMN raid_id INTEGER");
   if (!hasCol(db, "empires", "xp")) db.exec("ALTER TABLE empires ADD COLUMN xp INTEGER NOT NULL DEFAULT 0");
   if (!hasCol(db, "empires", "streak")) db.exec("ALTER TABLE empires ADD COLUMN streak INTEGER NOT NULL DEFAULT 0");
   if (!hasCol(db, "empires", "last_daily")) db.exec("ALTER TABLE empires ADD COLUMN last_daily TEXT");

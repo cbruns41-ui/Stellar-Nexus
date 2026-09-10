@@ -1,0 +1,168 @@
+import assert from 'node:assert/strict';
+import {DatabaseSync} from 'node:sqlite';
+
+export async function verifyQaRegressions({base,headers,databasePath,send,evaluate,until,pause}) {
+  const database=fn=>{const db=new DatabaseSync(databasePath);try{db.exec('PRAGMA busy_timeout=5000');return fn(db);}finally{db.close();}};
+  const {home,targets}=database(db=>{
+    const home=db.prepare("SELECT p.* FROM planets p JOIN empires e ON e.id=p.empire_id JOIN users u ON u.id=e.user_id WHERE u.username='Admin' ORDER BY p.id LIMIT 1").get();
+    const free=db.prepare('SELECT * FROM planets WHERE empire_id IS NULL LIMIT 6').all();
+    for(const p of free.slice(0,4))db.prepare('UPDATE planets SET empire_id=? WHERE id=?').run(home.empire_id,p.id);
+    const targets=free.slice(4);
+    targets.forEach((p,i)=>db.prepare('UPDATE planets SET system_id=?,name=? WHERE id=?').run(home.system_id,`QA Pyre Hollow ${i?'II':'I'}`,p.id));
+    db.prepare('UPDATE systems SET remnant=0,pirate=0 WHERE id=?').run(home.system_id);
+    db.prepare('UPDATE planets SET helium=50000,metal=50000,titan=50000,energy=50000,crystal=50000 WHERE id=?').run(home.id);
+    for(const [id,level] of [['shipyard',5],['colony_dock',1],['command',4],['archive',2]])db.prepare('INSERT INTO buildings VALUES(?,?,?) ON CONFLICT(planet_id,building_id) DO UPDATE SET level=excluded.level').run(home.id,id,level);
+    db.prepare("INSERT INTO research VALUES(?,'colonization',6) ON CONFLICT(empire_id,tech_id) DO UPDATE SET level=6").run(home.empire_id);
+    for(const [id,n] of [['colony',2],['fighter',90]])db.prepare('INSERT INTO ships VALUES(?,?,?) ON CONFLICT(planet_id,ship_id) DO UPDATE SET count=excluded.count').run(home.id,id,n);
+    return {home,targets};
+  });
+  await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+  await send('Emulation.setTouchEmulationEnabled',{enabled:true});
+  // One initial reload loads the isolated fixture. No reload is allowed during the scenarios below.
+  await send('Page.reload');await until(`document.querySelector('.living-colony.is-unity') && document.querySelector('#planet-select').options.length===5`);
+  await evaluate(`window.__qaEvents=[];for(const kind of ['pointerdown','pointerup','click'])document.addEventListener(kind,e=>window.__qaEvents.push([kind,e.target.outerHTML?.slice(0,100)]),true);`);
+  const tap=async selector=>{
+    await until(`document.querySelector(${JSON.stringify(selector)})`,15000);
+    const point=await evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});e.scrollIntoView({block:'nearest'});const r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;return {x,y,hit:e.contains(document.elementFromPoint(x,y)),actual:document.elementFromPoint(x,y)?.outerHTML.slice(0,180)};})()`);
+    assert.ok(point.hit,`First touch must hit ${selector}: ${JSON.stringify(point)}`);
+    await send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:point.x,y:point.y,id:1}]});
+    await pause(80);
+    await send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  };
+  const panel=async view=>{await tap('#tabbar [data-tab="cmd"]');await tap(`#nav [data-view="${view}"]`);};
+  assert.equal(await evaluate(`!!document.querySelector('[data-colony-labels]')`),false);
+  await tap('.colony-directory summary');await tap('[data-colony-focus="shipyard"]');
+  await tap('[data-colony-work="yard"]');
+  try{await until(`document.querySelector('.yard-sheet')`,10000);}catch(err){console.log('Touch trace',await evaluate(`window.__qaEvents`));throw err;}
+  await tap('[data-yard-close]');
+  console.log('QA: real first-touch building production link passed');
+  await tap('#tabbar [data-tab="map"]');await until(`document.querySelector('#starmap')`);
+  assert.equal(await evaluate(`document.querySelector('#map-filters').hidden`),true);
+  await tap('.map-filter-toggle');await tap('[data-map-filter="own"]');await tap('[data-map-filter="hostile"]');
+  await tap('.map-search-toggle');
+  await evaluate(`{const e=document.querySelector('#map-search');e.value='QA Pyre Hollow';e.dispatchEvent(new Event('input',{bubbles:true}));}`);
+  await tap('[data-search-system]');await until(`document.querySelector('[data-planet-id="${targets[0].id}"]')`);
+  assert.equal(await evaluate(`document.querySelectorAll('[data-map-filter]:checked').length`),0,'Search result clears contradictory filters');
+  await tap('.map-search-toggle');
+  await tap('[data-sys-close]');
+  const labelPoint=await evaluate(`(()=>{const r=document.querySelector('#starmap').getBoundingClientRect();return {x:r.x+r.width/2+60,y:r.y+r.height/2-14};})()`);
+  await send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{...labelPoint,id:1}]});await pause(80);await send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  await until(`document.querySelector('[data-planet-id="${targets[0].id}"]')`,15000);
+  console.log('QA: search and label tap open system sheet');
+  await evaluate(`window.__qaCanvas=document.querySelector('#starmap');window.__qaFetch=window.fetch;window.__qaMissions=[];window.fetch=async(...args)=>{const r=await window.__qaFetch(...args);if(String(args[0]).endsWith('/api/fleet') && args[1]?.method==='POST'){window.__qaMissions.push(await r.clone().json());}return r;};`);
+  for(const target of targets){
+    await tap(`[data-target="${target.id}"][data-mission-kind="colonize"]`);
+    await until(`document.querySelector('#ship-picks [data-ship="colony"]')?.value==='1'`);
+    await tap('#m-go');await until(`!document.querySelector('#m-go')`);
+    await until(`document.querySelector('[data-planet-id="${target.id}"] [data-live-eta]')`);
+  }
+  const flights=database(db=>db.prepare("SELECT * FROM fleets WHERE empire_id=? AND mission='colonize' AND is_return=0").all(home.empire_id));
+  assert.equal(flights.length,2);assert.equal(await evaluate(`document.querySelector('#planet-select').options.length`),5);
+  database(db=>db.exec("UPDATE fleets SET arrives_at=1 WHERE mission='colonize'"));
+  await evaluate(`window.__qaNow=Date.now;Date.now=()=>window.__qaNow()+86400000;`);
+  await until(`document.querySelector('#planet-select').options.length===7`,15000);
+  await until(`document.querySelector('#planet-focus').options.length===8 && document.querySelector('[data-focus="${targets[1].id}"]')`,15000);
+  await evaluate(`Date.now=window.__qaNow;`);
+  assert.ok(await evaluate(`window.__qaCanvas===document.querySelector('#starmap')`),'Both arrivals update existing canvas and system sheet without reload');
+  await panel('yard');
+  await evaluate(`{const s=document.querySelector('#planet-select');s.value='${targets[0].id}';s.dispatchEvent(new Event('change',{bubbles:true}));}`);
+  await until(`document.querySelector('#command-panel').dataset.planetId==='${targets[0].id}'`);
+  assert.match(await evaluate(`document.querySelector('.hangar-summary').innerText`),/QA Pyre Hollow I/);
+  await tap('[data-yard-close]');
+  console.log('QA: real first-touch city/yard/map controls; two live colony arrivals from 5 to 7 planets; sheet/focus sync passed');
+
+  // Raid at a full small hangar, reinforced from another planet beyond its capacity.
+  const raidId=database(db=>{
+    db.prepare("INSERT INTO ships VALUES(?,'fighter',60) ON CONFLICT(planet_id,ship_id) DO UPDATE SET count=60").run(targets[0].id);
+    return Number(db.prepare("INSERT INTO raids(target_planet_id,ships,arrives_at,kind) VALUES(?,?,1,'pirates')").run(targets[0].id,JSON.stringify({fighter:35})).lastInsertRowid);
+  });
+  // A normal focus request refreshes the live world, without rebuilding the page.
+  await evaluate(`{const s=document.querySelector('#planet-select');s.value='${home.id}';s.dispatchEvent(new Event('change',{bubbles:true}));}`);
+  await until(`document.querySelector('[data-alert-defend]') && !document.querySelector('#game').classList.contains('focus-pending')`);
+  await tap('[data-alert-defend]');await tap(`[data-group-max="${home.id}"]`);
+  await evaluate(`window.__qaLaunch=document.querySelector('#group-launch')`);await pause(1600);
+  assert.ok(await evaluate(`window.__qaLaunch===document.querySelector('#group-launch')`));
+  await tap('#group-launch');await until(`!document.querySelector('#group-launch')`);
+  assert.ok(database(db=>db.prepare('SELECT raid_id FROM raid_engagements WHERE raid_id=?').get(raidId)),'Touch commits raid defense');
+  database(db=>db.exec('UPDATE fleets SET arrives_at=1;UPDATE raids SET arrives_at=1'));
+  await evaluate(`Date.now=()=>window.__qaNow()+86400000;`);
+  await until(`!document.querySelector('[data-alert-defend]') && !document.querySelector('#map-raid-banner:not([hidden])')`,15000);
+  await evaluate(`Date.now=window.__qaNow;`);
+  const reports=await fetch(base+'/api/reports?kind=combat',{headers}).then(r=>r.json());
+  assert.ok(reports.reports.some(r=>r.body.raid && r.body.planetId===targets[0].id && r.body.defenders.some(p=>p.originPlanetId===home.id)));
+  console.log('QA: first-touch max-fleet raid at full target hangar commits, resolves, clears alarm and reports source losses');
+  await tap('#tabbar [data-tab="home"]');await panel('infra');
+  await tap('[data-build="silo"]');await until(`document.querySelector('[data-build="silo"]').disabled`);
+  await until(`document.querySelector('[data-build="command"]').disabled`);
+  assert.match(await evaluate(`document.querySelector('[data-build="command"]').parentElement.innerText`),/Bauschleife belegt/);
+  await tap('#tabbar [data-tab="home"]');await until(`!document.querySelector('#command-panel:not([hidden])')`);
+  await send('Emulation.setDeviceMetricsOverride',{width:1440,height:960,deviceScaleFactor:1,mobile:false});
+  await panel('research');assert.ok(await evaluate(`document.querySelector('#panel-view').innerText.includes('Forschung')`));
+  await tap('#tabbar [data-tab="home"]');
+  console.log('QA: visible building queue prevents stale second upgrade; mobile and desktop panels return to Planet');
+  await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+  await panel('activity');
+  await tap('[data-activity="salvage"]');
+  await until(`document.querySelector('.activity-slot-summary').innerText.includes('1/6')`,10000);
+  const timer=await evaluate(`Number(document.querySelector('.force-count[data-live-eta]').dataset.liveEta)`);
+  const run=database(db=>db.prepare("SELECT * FROM activity_runs WHERE empire_id=? AND kind='salvage'").get(home.empire_id));
+  assert.equal(timer,run.completes_at);assert.equal(run.planet_id,home.id);
+  const beforeTimer=await evaluate(`document.querySelector('.force-count[data-live-eta]').textContent`);await pause(1200);
+  assert.notEqual(await evaluate(`document.querySelector('.force-count[data-live-eta]').textContent`),beforeTimer);
+  database(db=>db.exec('UPDATE activity_runs SET completes_at=1'));
+  await evaluate(`Date.now=()=>window.__qaNow()+86400000;`);
+  await until(`document.querySelector('.activity-slot-summary').innerText.includes('0/6')`,10000);
+  await evaluate(`Date.now=window.__qaNow;`);
+  console.log('QA: live activity slots and timer follow the recorded mission, including completion');
+  // Raid reinforcements are still on their return trip. Land them before a valid Orbit run.
+  database(db=>db.exec('UPDATE fleets SET arrives_at=1 WHERE is_return=1'));
+  await evaluate(`Date.now=()=>window.__qaNow()+86400000;`);
+  await until(`!document.querySelector('#dock .fleet-item')`,10000);
+  await evaluate(`Date.now=window.__qaNow;`);
+  await tap('#tabbar [data-tab="map"]');
+  await tap('#map-orbit-fire');await until(`document.querySelector('.orbit-game')`,10000);
+  const fire=await evaluate(`(()=>{const b=document.querySelector('.orbit-fire'),r=b.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;return {x,y,hit:b.contains(document.elementFromPoint(x,y))};})()`);
+  assert.ok(fire.hit);
+  await send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:fire.x,y:fire.y,id:1}]});await pause(700);
+  assert.ok(await evaluate(`parseFloat(document.querySelector('[data-orbit-battery]').style.width)<100`));
+  await send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await tap('.orbit-exit');
+  assert.equal(await evaluate(`document.querySelector('#game').dataset.view`),'galaxy');
+  console.log('QA: Orbit start, held touch fire and return to map passed');
+
+  const created=await fetch(base+'/api/alliances',{method:'POST',headers,body:JSON.stringify({tag:'QAT',name:'QA Allianz',color:'#00ffff'})});assert.ok(created.ok);
+  const alliance=(await created.json()).alliance;
+  const allyTarget=database(db=>{
+    const p=db.prepare('SELECT * FROM planets WHERE empire_id IS NULL LIMIT 1').get();
+    db.prepare("UPDATE planets SET system_id=?,name='QA Allianz-Ziel' WHERE id=?").run(home.system_id,p.id);
+    db.prepare("INSERT INTO ships VALUES(?,'colony',1) ON CONFLICT(planet_id,ship_id) DO UPDATE SET count=1").run(home.id);
+    db.prepare("INSERT INTO alliance_research(alliance_id,research_id,metal,helium,titan,energy,crystal) VALUES(?,'supply_grid',89000,62300,31150,44500,22250)").run(alliance.id);
+    return p;
+  });
+  const focus=async id=>{await evaluate(`{const s=document.querySelector('#planet-select');s.value='${id}';s.dispatchEvent(new Event('change',{bubbles:true}));}`);await until(`document.querySelector('#planet-select').value==='${id}' && !document.querySelector('#game').classList.contains('focus-pending')`);};
+  await focus(targets[1].id);await focus(home.id);
+  await panel('alliance');await until(`document.querySelector('#ally-colonize')`);
+  assert.match(await evaluate(`document.querySelector('#panel-view').innerText`),/89% finanziert/);
+  await tap('#ally-colonize');await tap('.map-search-toggle');
+  await evaluate(`{const e=document.querySelector('#map-search');e.value='QA Allianz-Ziel';e.dispatchEvent(new Event('input',{bubbles:true}));}`);
+  await tap('[data-search-system]');await tap('.map-search-toggle');
+  await tap(`[data-target="${allyTarget.id}"][data-mission-kind="colonize"]`);
+  assert.equal(await evaluate(`document.querySelector('#mission').value`),'ally_colonize');
+  await tap('#m-go');await until(`!document.querySelector('#m-go')`);
+  database(db=>db.exec("UPDATE fleets SET arrives_at=1 WHERE mission='ally_colonize'"));
+  await evaluate(`Date.now=()=>window.__qaNow()+86400000;`);
+  await until(`document.querySelector('#planet-select option[value="${allyTarget.id}"]')`,10000);await evaluate(`Date.now=window.__qaNow;`);
+  database(db=>db.prepare('UPDATE planets SET metal=100,helium=0,titan=0,energy=0,crystal=0 WHERE id=?').run(allyTarget.id));
+  await panel('alliance');await until(`document.querySelector('[data-ally-research-open]')`);
+  await tap('[data-ally-research-open]');await until(`document.querySelector('[data-ally-fund="supply_grid"]')`);
+  assert.match(await evaluate(`document.querySelector('#panel-view').innerText`),/Finanziert 89%/);
+  await evaluate(`window.__qaFund=document.querySelector('[data-ally-fund="supply_grid"]')`);
+  await tap('[data-ally-fund="supply_grid"]');await until(`document.querySelector('[data-ally-fund="supply_grid"]').disabled && document.querySelector('[data-ally-fund="supply_grid"]')!==window.__qaFund`,10000);
+  database(db=>{
+    assert.equal(db.prepare("SELECT metal FROM alliance_research WHERE alliance_id=? AND research_id='supply_grid'").get(alliance.id).metal,89100);
+    db.prepare('UPDATE planets SET metal=10900,helium=7700,titan=3850,energy=5500,crystal=2750 WHERE id=?').run(allyTarget.id);
+  });
+  await focus(home.id);await focus(allyTarget.id);
+  await tap('[data-ally-tech="supply_grid"]');await until(`document.querySelector('#panel-view').innerText.includes('Forschung läuft')`,10000);
+  assert.equal(database(db=>db.prepare("SELECT COUNT(*) AS n FROM queue WHERE planet_id=? AND kind='ally_research'").get(allyTarget.id).n),1);
+  console.log('QA: uncolonized alliance retains 89% funding; dedicated colonization, deposit and lab start work without reload');
+}

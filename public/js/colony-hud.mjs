@@ -20,12 +20,11 @@ export function colonyHudHtml(questsOpen = false) {
     </button>`).join("")}</div>
     <div class="colony-tools" aria-label="Basisansicht">
       <button type="button" class="colony-orders" data-city-sheet="quests" aria-expanded="${questsOpen}" aria-controls="colony-quests" title="Tägliche und wöchentliche Aufgaben öffnen"><span aria-hidden="true">▤</span> Aufgaben</button>
-      <button type="button" data-colony-labels aria-pressed="true" title="Levelanzeigen" aria-label="Levelanzeigen">Lv</button>
-    </div>
-    <button type="button" class="btn colony-guide" data-guide>Erste Schritte</button>
     <details class="colony-directory"><summary>Gebäude <span>22</span></summary><div>
       ${CITY_PLOTS.map(p => `<button type="button" data-colony-focus="${p.id}"><span>${escape(p.short)}</span><b data-colony-list-level="${p.id}">0</b></button>`).join("")}
     </div></details>
+    <button type="button" class="colony-guide" data-guide>Erste Schritte</button>
+    </div>
     <div class="colony-load-error" hidden role="alert"><b>Basis konnte nicht geladen werden</b><p>Bitte erneut versuchen.</p><button type="button" data-colony-retry>Erneut laden</button></div>
     <div class="city-actions" id="city-actions" hidden role="region" aria-label="Gebäudeaktionen"></div>`;
 }
@@ -53,13 +52,6 @@ export function paintColonyFrame(root, frame, selected) {
     marker.style.left = `${point.x * 100}%`;
     marker.style.top = `${point.y * 100}%`;
   }
-  const anchor = frame.anchors?.find(a => a.id === selected);
-  const card = view.querySelector("#city-actions");
-  if (!anchor || !card || card.hidden) return;
-  const w = view.clientWidth, h = view.clientHeight;
-  const x = Math.max(card.offsetWidth / 2 + 10, Math.min(w - card.offsetWidth / 2 - 10, anchor.x * w));
-  let y = anchor.y * h + 26;
-  if (y + card.offsetHeight > h - 12) y = anchor.y * h - card.offsetHeight - 26;
-  card.style.left = `${x}px`;
-  card.style.top = `${Math.max(68, Math.min(h - card.offsetHeight - 12, y))}px`;
+  // Building badges follow the camera; action buttons stay anchored in the viewport.
+  // Moving a live button between pointerdown and pointerup loses the first tap.
 }

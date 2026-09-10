@@ -89,7 +89,7 @@ function desk(db, empire) {
   );
   return Object.values(KINDS).map((k) => {
     const run = runs[k.id];
-    const running = !!(run && run.completes_at > now);
+    const running = !!run;
     const readyAt = running ? run.completes_at : 0;
     return {
       id: k.id,
@@ -102,6 +102,8 @@ function desk(db, empire) {
       duration: run?.duration || null,
       durationName: run ? durationOf(run.duration).name : null,
       startedAt: run?.started_at || 0,
+      planetId:run?.planet_id || null,
+      planetName:run ? db.prepare('SELECT name FROM planets WHERE id=?').get(run.planet_id)?.name || '' : '',
       readyAt,
       wait: Math.max(0, readyAt - now),
       durations: Object.values(DURATIONS).map((d) => ({
@@ -271,7 +273,7 @@ function run(db, empire, planet, kind, creditFn, addShipsFn, addReportFn, durati
   if (planet && ships.probe) addShipsFn(db, planet.id, ships);
   db.prepare("UPDATE empires SET xp = IFNULL(xp,0) + ? WHERE id = ?").run(xp, empire.id);
   const suffix = d.id === "short" ? "" : ` · ${d.name}`;
-  addReportFn(db, empire.id, "event", title + suffix, { text, loot, shipsGain: ships, xp, activity: kind, duration: d.id });
+  addReportFn(db, empire.id, "event", title + suffix, { text, loot, shipsGain: ships, xp, activity: kind, duration: d.id, planetId:planet?.id });
   return { title, text, loot, ships, xp };
 }
 

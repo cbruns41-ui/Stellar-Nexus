@@ -19,6 +19,8 @@ export async function verifyGameFlows({base,headers,databasePath,send,evaluate,u
   await send("Page.reload");await until(`document.querySelector('.living-colony.is-unity')`);
   await evaluate(`document.querySelector('[data-view="galaxy"]').click()`);
   await until(`document.querySelector('#planet-focus option[value="planet:${home.id}"]')`);
+  assert.equal(await evaluate(`document.querySelector('#map-filters').hidden`),true,'Filters start collapsed');
+  await evaluate(`document.querySelector('.map-filter-toggle').click()`);
   for(const filter of ['own','hostile','free'])assert.ok(await evaluate(`(()=>{const e=document.querySelector('[data-map-filter="${filter}"]').closest('label'),r=e.getBoundingClientRect();return r.top>=0 && r.right<=innerWidth && e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));})()`),'Visible first-tap filter '+filter);
   await evaluate(`document.querySelector('.map-search-toggle').click();const s=document.querySelector('#map-search');s.value=${JSON.stringify(system.name)};s.dispatchEvent(new Event('input',{bubbles:true}));`);
   await until(`document.querySelector('[data-search-system="${system.id}"]')`);

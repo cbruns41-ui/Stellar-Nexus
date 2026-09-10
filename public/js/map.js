@@ -7,6 +7,8 @@ export function createMap(canvas, onSelect, onViewChange) {
   let hover = null;
   let filter = { query: "", own: false, hostile: false, free: false, special: false };
   let highlightSystemId = null;
+  let pendingFocus=null;
+  const labelBounds=new Map();
   let lastViewMode = "";
   const backdropArt = new Image();
   backdropArt.decoding = "async";
@@ -52,6 +54,11 @@ export function createMap(canvas, onSelect, onViewChange) {
         best = s;
       }
     }
+    if(!best)for(const s of data.systems){
+      if(!visible(s))continue;
+      const b=labelBounds.get(s.id);
+      if(b && sx>=b.left-5 && sx<=b.right+5 && sy>=b.top-8 && sy<=b.bottom+8)return s;
+    }
     return best;
   }
 
@@ -62,11 +69,9 @@ export function createMap(canvas, onSelect, onViewChange) {
     const hostile = system.remnant || system.pirate || system.warlord;
     const free = !system.owners.length && !hostile;
     const special = system.isHub || system.rift || hostile;
-    if (filter.own && !own) return false;
-    if (filter.hostile && !hostile) return false;
-    if (filter.free && !free) return false;
-    if (filter.special && !special) return false;
-    return true;
+    const categories={own,hostile,free,special};
+    const checked=Object.keys(categories).filter(key=>filter[key]);
+    return !checked.length || checked.some(key=>categories[key]);
   }
 
   canvas.style.touchAction = "none";
@@ -457,6 +462,10 @@ export function createMap(canvas, onSelect, onViewChange) {
         ctx.shadowBlur = Math.max(5, 8 / cam.scale);
         const label = `${s.warlord ? s.name + "  †" : s.name}${s.planetCount ? ` · ${s.planetCount}` : ""}`;
         ctx.fillText(label, s.x + 12 / cam.scale, s.y - 9 / cam.scale);
+        const rect=canvas.getBoundingClientRect(),sx=rect.width/canvas.width,sy=rect.height/canvas.height;
+        const left=((s.x-cam.x)*cam.scale+canvas.width/2+12)*sx;
+        const bottom=((s.y-cam.y)*cam.scale+canvas.height/2-9)*sy;
+        labelBounds.set(s.id,{left,right:left+ctx.measureText(label).width*cam.scale*sx,top:bottom-Math.max(9,10*cam.scale)*sy,bottom});
         ctx.shadowBlur = 0;
       }
       if (data.self?.homeSystemId === s.id) {
@@ -530,12 +539,13 @@ export function createMap(canvas, onSelect, onViewChange) {
   document.addEventListener("visibilitychange", visibility);
   raf = requestAnimationFrame(loop);
 
-  return {
+  const controls = {
     setData(next) {
       const first = !data;
       data = next;
       if (first) centerHome(false);
       notifyViewMode(true);
+      if(pendingFocus && data){const focus=pendingFocus;pendingFocus=null;focus();}
     },
     focusHome(open) {
       centerHome(!!open);
@@ -561,6 +571,7 @@ export function createMap(canvas, onSelect, onViewChange) {
       notifyViewMode(true);
     },
     focusSystem(systemId, zoom) {
+      if(!data){pendingFocus=()=>controls.focusSystem(systemId,zoom);return;}
       const sys = data?.systems.find((s) => s.id === systemId);
       if (!sys) return;
       highlightSystemId = systemId;
@@ -572,6 +583,7 @@ export function createMap(canvas, onSelect, onViewChange) {
       requestAnimationFrame(() => {});
     },
     focusPlanet(planetId, systemId) {
+      if(!data){pendingFocus=()=>controls.focusPlanet(planetId,systemId);return;}
       const sys = data?.systems.find((s) => s.id === systemId);
       if (!sys) return;
       highlightSystemId = sys.id;
@@ -591,6 +603,7 @@ export function createMap(canvas, onSelect, onViewChange) {
       document.removeEventListener("visibilitychange", visibility);
     },
   };
+  return controls;
 }
 
 export function systemHtml(sys, catalog, originShips, opts = {}) {
@@ -619,6 +632,7 @@ export function systemHtml(sys, catalog, originShips, opts = {}) {
             ? `<span class="danger">Remnants</span>`
             : `<span class="muted">unbesetzt</span>`;
       const alert = highlightPlanetId && p.id === highlightPlanetId;
+      const flights=(opts.flights || []).filter(f=>f.targetPlanetId===p.id && !f.returning);
       
       // Im Kolonie-Auswahlmodus: Unterscheide Zielplanet von anderen
       let acts;
@@ -641,6 +655,7 @@ export function systemHtml(sys, catalog, originShips, opts = {}) {
       }
       
       return `<article class="sys-planet-card${alert ? " sys-planet-alert" : ""}${p.own ? " own" : ""}" data-planet-id="${p.id}">
+        ${flights.map(f=>`<p class="sys-flight-eta">${esc(catalog.missions?.[f.mission]?.name || f.mission)} · ${esc(f.originName)} → ${esc(p.name)} · Ankunft in <span data-live-eta="${f.arrivesAt}"></span></p>`).join('')}
         <img class="planet-thumb" src="/assets/planets/${p.type || "terran"}.jpg" alt="" />
         <div class="sys-planet-copy">
           <b><em class="planet-roman">${roman(p.slot || index + 1)}</em>${esc(p.name)}${p.isHome ? ` <span class="chip ok">Heimat</span>` : ""}</b>

@@ -213,8 +213,9 @@ function reportShipLosses(body, empireId) {
   if (body.lost && typeof body.lost === "object") return body.lost;
   if (body.losses && typeof body.losses === "object") return body.losses;
   const side = body.viewer === "defender" ? body.defenders : body.attackers;
-  const mine = Array.isArray(side) ? side.find((entry) => Number(entry.empireId) === Number(empireId)) : null;
-  if (mine?.lost && typeof mine.lost === "object") return mine.lost;
+  const mine = Array.isArray(side) ? side.filter((entry) => Number(entry.empireId) === Number(empireId)) : [];
+  if (body.raid && body.viewer==='defender') return body.defLost || {};
+  if (mine.length) return mine.reduce((losses,entry)=>mergeShips(losses,entry.lost || {}),{});
   return body.viewer === "defender" ? body.defLost || {} : body.atkLost || {};
 }
 
@@ -395,6 +396,8 @@ function resolveDueFleets(db, t) {
       done.add(f.id);
       continue;
     }
+    // Raid reinforcements fight together in resolveRaids, without entering the target hangar.
+    if (f.raid_id && db.prepare('SELECT id FROM raids WHERE id=?').get(f.raid_id)) continue;
     if (f.mission === "attack") {
       const batch = collectAcsBatch(db, f, t);
       if (batch.defer) continue;
@@ -420,7 +423,7 @@ function collectInterceptBatch(db, lead, t) {
   const inbound = db
     .prepare(
       `SELECT * FROM fleets
-       WHERE target_planet_id = ? AND is_return = 0 AND mission = 'intercept'`
+       WHERE target_planet_id = ? AND is_return = 0 AND mission = 'intercept' AND raid_id IS NULL`
     )
     .all(lead.target_planet_id);
   const leadTick = tickStart(lead.arrives_at);
@@ -547,8 +550,8 @@ function addReport(db, empireId, kind, title, body) {
           .run(empireId, party.originPlanetId, shipId, Number(party.ships?.[shipId] || lost), Number(party.left?.[shipId] || 0), title, reportId, createdAt);
       }
     }
-  } else if (kind === "expedition" && body?.originPlanetId) {
-    for (const [shipId, lost] of Object.entries(body.lost || {})) {
+  } else if ((kind === "expedition" || kind === 'colony') && body?.originPlanetId) {
+    for (const [shipId, lost] of Object.entries(body.lost || body.shipsConsumed || {})) {
       if (!Number(lost)) continue;
       db.prepare("INSERT INTO fleet_ledger(empire_id,planet_id,ship_id,before_count,after_count,cause,report_id,created_at) VALUES(?,?,?,?,?,?,?,?)")
         .run(empireId, body.originPlanetId, shipId, Number(body.deployed?.[shipId] || lost), Math.max(0, Number(body.deployed?.[shipId] || lost) - Number(lost)), title, reportId, createdAt);
@@ -558,7 +561,7 @@ function addReport(db, empireId, kind, title, body) {
   if (linkedPlanetId) {
     db.prepare("UPDATE fleet_ledger SET cause=?, report_id=? WHERE empire_id=? AND planet_id=? AND report_id IS NULL AND cause NOT LIKE 'Reserve:%' AND created_at>=?")
       .run(title, reportId, empireId, linkedPlanetId, createdAt - 5000);
-  } else {
+  } else if (['fleet','combat','expedition','ship'].includes(kind)) {
     db.prepare("UPDATE fleet_ledger SET cause=?, report_id=? WHERE empire_id=? AND report_id IS NULL AND cause NOT LIKE 'Reserve:%' AND created_at>=?")
       .run(title, reportId, empireId, createdAt - 1500);
   }
@@ -608,7 +611,8 @@ function enqueueBuilding(db, empire, planet, buildingId) {
 
 function enqueueShip(db, empire, planet, shipId, qty) {
   if (planet?.alliance_id) throw new Error("Der Allianzplanet besitzt keine Werft. Schiffe werden dort stationiert.");
-  qty = Math.max(1, Math.min(50, qty | 0));
+  qty = Number(qty);
+  if (!Number.isSafeInteger(qty) || qty < 1 || qty > 50) throw new Error('Pro Bauauftrag sind 1 bis 50 Schiffe möglich. Bitte die Anzahl anpassen.');
   const spec = SHIPS[shipId];
   if (!spec) throw new Error("Unbekanntes Schiff.");
   const buildings = buildingsMap(db, planet.id);
@@ -902,7 +906,7 @@ function listInterceptStrikes(db, empire, targetId, natural) {
     .prepare(
       `SELECT f.*, e.name AS empireName
        FROM fleets f JOIN empires e ON e.id = f.empire_id
-       WHERE f.target_planet_id = ? AND f.is_return = 0 AND f.mission = 'intercept'
+       WHERE f.target_planet_id = ? AND f.is_return = 0 AND f.mission = 'intercept' AND f.raid_id IS NULL
        ORDER BY f.arrives_at`
     )
     .all(targetId);
@@ -1081,7 +1085,7 @@ function resolveFleet(db, fleet) {
   if (fleet.mission === "deploy") {
     if (target.empire_id === fleet.empire_id || social.canUseAlliancePlanet(db,fleet.empire_id,target)) {
       addShips(db, target.id, ships);
-      addReport(db, fleet.empire_id, "fleet", `Stationiert über ${target.name}`, { text: shipLabel(ships) });
+      addReport(db, fleet.empire_id, "fleet", `Stationiert über ${target.name}`, { text: shipLabel(ships),planetId:target.id,originPlanetId:origin?.id,fleetId:fleet.id,shipsArrived:ships });
       db.prepare("DELETE FROM fleets WHERE id = ?").run(fleet.id);
     } else {
       launchReturn(db, fleet, ships, {});
@@ -1790,21 +1794,23 @@ function resolveIntercept(db, fleets) {
 
 function resolveColonize(db, fleet, ships, target, sys, techs, empire) {
   const colony = ships.colony || 0;
+  const context = {fleetId:fleet.id,originPlanetId:fleet.origin_planet_id,targetPlanetId:target.id,planetId:fleet.origin_planet_id};
   if (target.empire_id) {
     addReport(db, fleet.empire_id, "fleet", `Kolonisation von ${target.name} gescheitert`, {
-      text: "Planet bereits beansprucht.",
+      ...context, text: "Planet bereits beansprucht. Die Flotte kehrt zurück.",
     });
     launchReturn(db, fleet, ships, {});
     return;
   }
   if (sys.remnant) {
     addReport(db, fleet.empire_id, "fleet", `Kolonisation von ${target.name} gescheitert`, {
-      text: "Remnant-Wache blockiert das System. Erst angreifen.",
+      ...context, text: "Remnant-Wache blockiert das System. Die Flotte kehrt zurück.",
     });
     launchReturn(db, fleet, ships, {});
     return;
   }
   if (colony < 1) {
+    addReport(db,fleet.empire_id,'fleet',`Kolonisation von ${target.name} abgebrochen`,{...context,text:'Kein Kolonieschiff in der Flotte. Übrige Schiffe kehren zurück.'});
     launchReturn(db, fleet, ships, {});
     return;
   }
@@ -1813,14 +1819,14 @@ function resolveColonize(db, fleet, ships, target, sys, techs, empire) {
   if (asAlliance) {
     if (!mine || !social.canDo(mine.myRank, "planet")) {
       addReport(db, fleet.empire_id, "fleet", `Allianz-Kolonisation abgebrochen`, {
-        text: "Nur Anführer oder Co-Leader können einen Allianz-Planeten besiedeln.",
+        ...context, text: "Berechtigung zur Allianz-Kolonisation fehlt. Die Flotte kehrt zurück.",
       });
       launchReturn(db, fleet, ships, {});
       return;
     }
     if (social.alliancePlanetRow(db, mine.id)) {
       addReport(db, fleet.empire_id, "fleet", `Allianz-Kolonisation abgebrochen`, {
-        text: "Die Allianz hat bereits einen Planeten.",
+        ...context, text: "Die Allianz hat bereits einen Planeten. Die Flotte kehrt zurück.",
       });
       launchReturn(db, fleet, ships, {});
       return;
@@ -1829,7 +1835,7 @@ function resolveColonize(db, fleet, ships, target, sys, techs, empire) {
     const owned = personalPlanetCount(db, empire.id);
     if (owned >= maxPlanets(techs.colonization, techs.astrophysics)) {
       addReport(db, fleet.empire_id, "fleet", `Kolonisation abgebrochen`, {
-        text: "Planet-Limit erreicht. Erforsche Kolonisation weiter.",
+        ...context, text: "Planet-Limit erreicht. Erforsche Kolonisation weiter. Die Flotte kehrt mit dem Kolonieschiff zurück.",
       });
       launchReturn(db, fleet, ships, {});
       return;
@@ -1843,7 +1849,8 @@ function resolveColonize(db, fleet, ships, target, sys, techs, empire) {
     ).run(mine.leader_id || empire.id, mine.id, now(), now(), target.id);
     setBuilding(db, target.id, "command", 1);
     addReport(db, fleet.empire_id, "colony", `${target.name} als Allianz-Planet kolonisiert`, {
-      text: `Neue Welt für [${mine.tag}]. Führung und gewählte Mitglieder bauen über das Allianz-Menü.`,
+      ...context, shipsConsumed:{colony:1}, text: `Neue Welt für [${mine.tag}]. Ein Kolonieschiff wurde beim Aufbau verbraucht; Begleitschiffe kehren zurück. Führung und gewählte Mitglieder bauen über das Allianz-Menü.`,
+      jumps:[{view:'command',planetId:target.id,label:'Allianzplanet öffnen'}],
     });
   } else {
     db.prepare(
@@ -1851,7 +1858,8 @@ function resolveColonize(db, fleet, ships, target, sys, techs, empire) {
     ).run(empire.id, now(), now(), target.id);
     setBuilding(db, target.id, "command", 1);
     addReport(db, fleet.empire_id, "colony", `${target.name} kolonisiert`, {
-      text: "Neue Welt dem Imperium einverleibt.",
+      ...context, shipsConsumed:{colony:1}, text: "Neue Welt gegründet. Ein Kolonieschiff wurde beim Aufbau verbraucht; Begleitschiffe kehren zurück.",
+      jumps:[{view:'command',planetId:target.id,label:'Kolonie öffnen'}],
     });
   }
   if (Object.values(left).some((n) => n > 0)) launchReturn(db, fleet, left, {});
@@ -1908,12 +1916,20 @@ function sendFleet(db, empire, origin, target, mission, shipsWanted, cargo, opts
     if ((ships.colony || 0) < 1) throw new Error("Kolonieschiff erforderlich.");
     if (target.empire_id) throw new Error("Planet ist bereits besetzt.");
     if ((originBuild.colony_dock || 0) < 1) throw new Error("Kolonialdock am Startplaneten nötig.");
+    if (db.prepare('SELECT remnant FROM systems WHERE id=?').get(target.system_id)?.remnant) throw new Error('Remnant-Wache blockiert das System. Erst den Orbit sichern.');
+    if (db.prepare("SELECT id FROM fleets WHERE empire_id=? AND target_planet_id=? AND mission IN ('colonize','ally_colonize') AND is_return=0").get(empire.id,target.id)) throw new Error('Zu diesem Planeten ist bereits ein Kolonieschiff unterwegs.');
+    if (mission === 'colonize') {
+      const pending = db.prepare("SELECT COUNT(*) AS n FROM fleets WHERE empire_id=? AND mission='colonize' AND is_return=0").get(empire.id).n;
+      const owned = personalPlanetCount(db,empire.id), cap = maxPlanets(techs.colonization,techs.astrophysics);
+      if (owned + pending >= cap) throw new Error(`Planet-Limit ${owned}/${cap} · ${pending} Kolonisationen unterwegs. Kolonisation oder Astrophysik erforschen, bevor weitere Schiffe starten.`);
+    }
   }
   if (mission === "ally_colonize") {
     const mine = social.myAlliance(db, empire.id);
     if (!mine) throw new Error("Du bist in keiner Allianz.");
     if (!social.canDo(mine.myRank, "planet")) throw new Error("Nur Anführer oder Co-Leader besiedeln Allianz-Planeten.");
     if (social.alliancePlanetRow(db, mine.id)) throw new Error("Die Allianz hat bereits einen Planeten.");
+    if (db.prepare("SELECT f.id FROM fleets f JOIN alliance_members m ON m.empire_id=f.empire_id WHERE m.alliance_id=? AND f.mission='ally_colonize' AND f.is_return=0").get(mine.id)) throw new Error('Ein Allianz-Kolonieschiff ist bereits unterwegs.');
   }
   if (mission === "spy") {
     if ((ships.probe || 0) < 1) throw new Error("Mindestens eine Sonde nötig.");
@@ -1934,7 +1950,8 @@ function sendFleet(db, empire, origin, target, mission, shipsWanted, cargo, opts
     const threats = db.prepare(
       `SELECT f.* FROM fleets f WHERE f.target_planet_id = ? AND f.is_return = 0 AND f.mission = 'attack' AND f.empire_id != ? AND f.arrives_at > ?`
     ).all(target.id, empire.id, now()).filter((f) => acsKey(db, empire.id) !== acsKey(db, f.empire_id));
-    if (!threats.length) throw new Error("Keine feindliche Flotte im Anflug.");
+    const raid = opts.raidId && db.prepare('SELECT id FROM raids WHERE id=? AND target_planet_id=?').get(opts.raidId,target.id);
+    if (!threats.length && !raid) throw new Error("Keine feindliche Flotte im Anflug.");
   }
   const fuelNeeded = mission === "expedition" ? 0 : fleetFuelCost(ships, hops, worldEconomy(db).fuel);
   if (fuelNeeded > 0 && (origin.helium || 0) < fuelNeeded) {
@@ -2024,6 +2041,7 @@ function sendFleet(db, empire, origin, target, mission, shipsWanted, cargo, opts
       eta,
       hold
     );
+  if (opts.raidId) db.prepare('UPDATE fleets SET raid_id=? WHERE id=?').run(opts.raidId,Number(info.lastInsertRowid));
   return { fleetId: Number(info.lastInsertRowid), arrivesAt: eta, holdMs: hold, flightMs: flight };
 }
 
@@ -2770,7 +2788,7 @@ function defendRaid(db, empire, raidId, deployments = []) {
       if (!Object.keys(ships).length) throw new Error('Keine Schiffe ausgewählt.');
       return { origin, ships };
     });
-    const launched = prepared.filter(entry => entry.origin.id !== target.id).map(entry => sendFleet(db, empire, entry.origin, target, 'deploy', entry.ships, {}));
+    const launched = prepared.filter(entry => entry.origin.id !== target.id).map(entry => sendFleet(db, empire, entry.origin, target, 'intercept', entry.ships, {}, {raidId:raid.id}));
     const fleetIds = launched.map(fleet => fleet.fleetId);
     const commonArrival = fleetIds.length ? Math.max(...fleetIds.map(id => db.prepare('SELECT arrives_at FROM fleets WHERE id=?').get(id).arrives_at)) : now();
     for (const id of fleetIds) db.prepare('UPDATE fleets SET arrives_at=? WHERE id=?').run(commonArrival, id);
@@ -2866,7 +2884,10 @@ function resolveRaids(db) {
     if (!target || !target.empire_id) continue;
     accruePlanet(db, target);
     const atk = JSON.parse(r.ships || "{}");
-    const defShips = shipsMap(db, target.id);
+    const stationed = shipsMap(db, target.id);
+    const reinforcements = db.prepare('SELECT * FROM fleets WHERE raid_id=? AND is_return=0').all(r.id);
+    const groups = reinforcements.map(f=>JSON.parse(f.ships || '{}'));
+    const defShips = groups.reduce((ships,group)=>mergeShips(ships,group),stationed);
     const defs = defensesMap(db, target.id);
     const defTechs = techsMap(db, target.empire_id);
     const buildings = buildingsMap(db, target.id);
@@ -2874,7 +2895,10 @@ function resolveRaids(db) {
     const defEmp = db.prepare("SELECT species FROM empires WHERE id = ?").get(target.empire_id);
     const result = combat.simulate(atk, {}, defShips, techsWithSpecies(defTechs, species.bonuses(defEmp?.species)), defs, platform, 0);
     db.prepare("DELETE FROM ships WHERE planet_id = ?").run(target.id);
-    addShips(db, target.id, result.defSurvivors || {});
+    const survivors = splitShipSurvivors([stationed,...groups],result.defLost || {});
+    addShips(db, target.id, survivors[0] || {});
+    const defenders = reinforcements.map((f,i)=>({empireId:f.empire_id,originPlanetId:f.origin_planet_id,ships:groups[i],left:survivors[i+1] || {},lost:Object.fromEntries(Object.entries(groups[i]).map(([id,n])=>[id,n-(survivors[i+1]?.[id] || 0)]))}));
+    for (const [i,f] of reinforcements.entries()) launchReturn(db,f,survivors[i+1] || {},{});
     db.prepare("DELETE FROM defenses WHERE planet_id = ?").run(target.id);
     addDefenses(db, target.id, result.defSurvivorsDefense || {});
     if (result.winner === "attacker") {
@@ -2887,6 +2911,7 @@ function resolveRaids(db) {
       writeStock(db, target.id, left);
       addReport(db, target.empire_id, "combat", `Raid geplündert: ${target.name}`, {
         text: "Die Angreifer haben den Orbit gebrochen und Rohstoffe geraubt. Die Piraten werden kühner.",
+        defenders,
         winner: "attacker",
         viewer: "defender",
         youWin: false,
@@ -2917,6 +2942,7 @@ function resolveRaids(db) {
       if (prize.xp) db.prepare("UPDATE empires SET xp = IFNULL(xp,0) + ? WHERE id = ?").run(prize.xp, target.empire_id);
       addReport(db, target.empire_id, "combat", `Raid abgewehrt: ${target.name}`, {
         text: `Orbit gehalten. Prise: ${prize.title}. ${prize.text}`,
+        defenders,
         winner: "defender",
         viewer: "defender",
         youWin: true,

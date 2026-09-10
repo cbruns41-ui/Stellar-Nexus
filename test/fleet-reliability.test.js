@@ -31,6 +31,7 @@ test("colonization launches real colony ship, consumes exactly one and deploymen
 test("displayed ship resource maximum agrees with the server at the purchase boundary",async t=>{
  const {db,empire,home}=fixture(t),{shipBudget}=await import('../public/js/ship-budget.mjs');
  const {SHIPS,RESOURCE_IDS}=require('../src/catalog');
+ for(const qty of [0,-1,1.5,51,NaN])assert.throws(()=>withTx(db,()=>game.enqueueShip(db,empire,home,'fighter',qty)),/1 bis 50/);
  const cost=SHIPS.fighter.cost,resources=Object.fromEntries(RESOURCE_IDS.map(id=>[id,(cost[id]||0)*3]));
  for(const id of RESOURCE_IDS) db.prepare(`UPDATE planets SET ${id}=? WHERE id=?`).run(resources[id],home.id);
  const planet=db.prepare('SELECT * FROM planets WHERE id=?').get(home.id);
@@ -118,4 +119,51 @@ test('orbit fire requires stationed ships on the selected planet',t=>{
  const {db,empire,home}=fixture(t);db.prepare('DELETE FROM ships WHERE planet_id=?').run(home.id);
  assert.throws(()=>game.startOrbitFire(db,empire,home),/Keine Schiffe am Fokus/);
  game.addShips(db,home.id,{fighter:1});assert.ok(game.startOrbitFire(db,empire,home).id);
+});
+
+test('colony slots include outbound missions; rejected launch keeps ships and fuel',t=>{
+ const {db,empire,home,target}=fixture(t);
+ db.prepare("UPDATE research SET level=1 WHERE empire_id=? AND tech_id='colonization'").run(empire.id);
+ game.addShips(db,home.id,{colony:2});
+ withTx(db,()=>game.sendFleet(db,empire,home,target,'colonize',{colony:1},{}));
+ const other=db.prepare('SELECT * FROM planets WHERE empire_id IS NULL AND id!=? LIMIT 1').get(target.id);
+ db.prepare('UPDATE planets SET system_id=? WHERE id=?').run(home.system_id,other.id);other.system_id=home.system_id;
+ const stock=game.shipsMap(db,home.id),fuel=db.prepare('SELECT helium FROM planets WHERE id=?').get(home.id).helium;
+ assert.throws(()=>withTx(db,()=>game.sendFleet(db,empire,home,other,'colonize',{colony:1},{})),/Planet-Limit.*1 Kolonisationen unterwegs/);
+ assert.deepEqual(game.shipsMap(db,home.id),stock);assert.equal(db.prepare('SELECT helium FROM planets WHERE id=?').get(home.id).helium,fuel);
+ db.exec('UPDATE fleets SET arrives_at=1');game.tickWorld(db);
+ const report=db.prepare("SELECT id,body FROM reports WHERE kind='colony' ORDER BY id DESC LIMIT 1").get(),body=JSON.parse(report.body);
+ assert.equal(body.targetPlanetId,target.id);assert.equal(body.shipsConsumed.colony,1);
+ assert.ok(db.prepare('SELECT id FROM fleet_ledger WHERE report_id=? AND planet_id=? AND before_count-after_count=1').get(report.id,home.id));
+});
+
+test('raid reinforcement can exceed destination cap, fights in orbit and returns to source',t=>{
+ const {db,empire,home,target}=fixture(t);
+ db.prepare('UPDATE planets SET empire_id=? WHERE id=?').run(empire.id,target.id);
+ game.addShips(db,home.id,{fighter:90});game.addShips(db,target.id,{fighter:60});
+ const originalHome=game.shipsMap(db,home.id),originalTarget=game.shipsMap(db,target.id);
+ const raid=Number(db.prepare("INSERT INTO raids(target_planet_id,ships,arrives_at,kind) VALUES(?,?,1,'pirates')").run(target.id,JSON.stringify({fighter:20})).lastInsertRowid);
+ const defense=game.defendRaid(db,empire,raid,[{planetId:home.id,ships:{fighter:90}}]);assert.equal(defense.launched.length,1);
+ assert.deepEqual(game.shipsMap(db,target.id),originalTarget);
+ db.exec('UPDATE fleets SET arrives_at=1;UPDATE raids SET arrives_at=1');game.tickWorld(db);
+ const report=JSON.parse(db.prepare("SELECT body FROM reports WHERE kind='combat' ORDER BY id DESC LIMIT 1").get().body);
+ assert.equal(report.defShips.fighter,originalTarget.fighter+90);
+ const party=report.defenders.find(p=>p.originPlanetId===home.id);assert.ok(party);assert.equal(party.left.fighter+party.lost.fighter,90);
+ assert.ok(Object.values(game.shipsMap(db,target.id)).reduce((a,n)=>a+n,0)<=80);
+ const returning=db.prepare('SELECT * FROM fleets WHERE raid_id=?').get(raid);
+ if(party.left.fighter){assert.equal(returning.is_return,1);assert.equal(returning.target_planet_id,home.id);}
+ db.exec('UPDATE fleets SET arrives_at=1');game.tickWorld(db);
+ assert.equal(game.shipsMap(db,home.id).fighter,originalHome.fighter-party.lost.fighter);
+});
+
+test('ordinary intercept waves cannot collect a waiting raid reinforcement',t=>{
+ const {db,empire,home,target}=fixture(t);
+ db.prepare('UPDATE planets SET empire_id=? WHERE id=?').run(empire.id,target.id);game.addShips(db,home.id,{fighter:8});
+ const raid=Number(db.prepare("INSERT INTO raids(target_planet_id,ships,arrives_at,kind) VALUES(?,?,1,'pirates')").run(target.id,'{"fighter":5}').lastInsertRowid);
+ const sent=game.defendRaid(db,empire,raid,[{planetId:home.id,ships:{fighter:8}}]).launched[0];
+ db.prepare('UPDATE fleets SET arrives_at=1 WHERE id=?').run(sent.fleetId);
+ db.prepare("INSERT INTO fleets(empire_id,origin_planet_id,target_planet_id,mission,ships,cargo,departed_at,arrives_at,is_return) VALUES(?,?,?,'intercept','{\"probe\":1}','{}',0,1,0)").run(empire.id,home.id,target.id);
+ game.tickWorld(db);
+ const reinforcement=db.prepare('SELECT * FROM fleets WHERE id=?').get(sent.fleetId);
+ assert.equal(reinforcement.is_return,0);assert.deepEqual(JSON.parse(reinforcement.ships),{fighter:8});
 });
