@@ -44,7 +44,7 @@ test("displayed ship resource maximum agrees with the server at the purchase bou
 test("unengaged raids cannot silently consume ships; engaged raid and its report are atomic",t=>{
  const {db,empire,home}=fixture(t);game.addShips(db,home.id,{fighter:8});
  const before=game.shipsMap(db,home.id);
- const raid=db.prepare("INSERT INTO raids(target_planet_id,ships,arrives_at,kind) VALUES(?,?,1,'pirates')").run(home.id,JSON.stringify({fighter:80}));
+ const raid=db.prepare("INSERT INTO raids(target_planet_id,ships,arrives_at,kind,expires_at) VALUES(?,?,1,'pirates',unixepoch('now')*1000+7200000)").run(home.id,JSON.stringify({fighter:80}));
  game.tickWorld(db);assert.deepEqual(game.shipsMap(db,home.id),before);
  db.prepare("INSERT INTO raid_engagements VALUES(?,?)").run(Number(raid.lastInsertRowid),Date.now());
  game.tickWorld(db);
@@ -60,7 +60,7 @@ test('overdue raid accepts reinforcement once and resolves with a loss report at
  db.prepare('UPDATE planets SET empire_id=? WHERE id=?').run(empire.id,target.id);
  game.addShips(db,home.id,{fighter:8});
  const before=game.shipsMap(db,home.id).fighter;
- const id=Number(db.prepare("INSERT INTO raids(target_planet_id,ships,arrives_at,kind) VALUES(?,?,1,'pirates')").run(target.id,JSON.stringify({fighter:80})).lastInsertRowid);
+ const id=Number(db.prepare("INSERT INTO raids(target_planet_id,ships,arrives_at,kind,expires_at) VALUES(?,?,1,'pirates',unixepoch('now')*1000+7200000)").run(target.id,JSON.stringify({fighter:80})).lastInsertRowid);
  const result=game.defendRaid(db,empire,id,[{planetId:home.id,ships:{fighter:8}}]);
  assert.equal(result.launched.length,1);assert.ok(result.commonArrival>Date.now());
  assert.equal(game.shipsMap(db,home.id).fighter,before-8);
@@ -142,7 +142,7 @@ test('raid reinforcement can exceed destination cap, fights in orbit and returns
  db.prepare('UPDATE planets SET empire_id=? WHERE id=?').run(empire.id,target.id);
  game.addShips(db,home.id,{fighter:90});game.addShips(db,target.id,{fighter:60});
  const originalHome=game.shipsMap(db,home.id),originalTarget=game.shipsMap(db,target.id);
- const raid=Number(db.prepare("INSERT INTO raids(target_planet_id,ships,arrives_at,kind) VALUES(?,?,1,'pirates')").run(target.id,JSON.stringify({fighter:20})).lastInsertRowid);
+ const raid=Number(db.prepare("INSERT INTO raids(target_planet_id,ships,arrives_at,kind,expires_at) VALUES(?,?,1,'pirates',unixepoch('now')*1000+7200000)").run(target.id,JSON.stringify({fighter:20})).lastInsertRowid);
  const defense=game.defendRaid(db,empire,raid,[{planetId:home.id,ships:{fighter:90}}]);assert.equal(defense.launched.length,1);
  assert.deepEqual(game.shipsMap(db,target.id),originalTarget);
  db.exec('UPDATE fleets SET arrives_at=1;UPDATE raids SET arrives_at=1');game.tickWorld(db);
@@ -159,7 +159,7 @@ test('raid reinforcement can exceed destination cap, fights in orbit and returns
 test('ordinary intercept waves cannot collect a waiting raid reinforcement',t=>{
  const {db,empire,home,target}=fixture(t);
  db.prepare('UPDATE planets SET empire_id=? WHERE id=?').run(empire.id,target.id);game.addShips(db,home.id,{fighter:8});
- const raid=Number(db.prepare("INSERT INTO raids(target_planet_id,ships,arrives_at,kind) VALUES(?,?,1,'pirates')").run(target.id,'{"fighter":5}').lastInsertRowid);
+ const raid=Number(db.prepare("INSERT INTO raids(target_planet_id,ships,arrives_at,kind,expires_at) VALUES(?,?,1,'pirates',unixepoch('now')*1000+7200000)").run(target.id,'{"fighter":5}').lastInsertRowid);
  const sent=game.defendRaid(db,empire,raid,[{planetId:home.id,ships:{fighter:8}}]).launched[0];
  db.prepare('UPDATE fleets SET arrives_at=1 WHERE id=?').run(sent.fleetId);
  db.prepare("INSERT INTO fleets(empire_id,origin_planet_id,target_planet_id,mission,ships,cargo,departed_at,arrives_at,is_return) VALUES(?,?,?,'intercept','{\"probe\":1}','{}',0,1,0)").run(empire.id,home.id,target.id);

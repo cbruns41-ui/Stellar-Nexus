@@ -903,6 +903,7 @@ function attachRoutes(app, db) {
       isHub: !!sys.is_hub,
       remnant: !!sys.remnant,
       remnantShips: sys.remnant ? remnantFleet(db, sys.id) : {},
+      npc: require('./npc-sites').status(db, sys.id),
       planets: planets.map((p) => {
         const ownerRow = p.empire_id
           ? db.prepare("SELECT * FROM empires WHERE id = ?").get(p.empire_id)

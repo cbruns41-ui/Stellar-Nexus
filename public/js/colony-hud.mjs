@@ -39,6 +39,10 @@ export function paintColonyMarkers(root, rows) {
     marker.setAttribute("aria-label", `${row.name}, Stufe ${row.level}, ${row.statusLabel}`);
     marker.title = `${row.name} · Stufe ${row.level} · ${row.statusLabel}`;
     const list = root.querySelector(`[data-colony-list-level="${row.id}"]`);
+    if (list) {
+      list.previousElementSibling.textContent = row.name;
+      list.parentElement.setAttribute('aria-label', `${row.name}, Stufe ${row.level} öffnen`);
+    }
     if (list) list.textContent = row.level;
   }
 }

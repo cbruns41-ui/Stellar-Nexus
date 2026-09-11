@@ -7,6 +7,7 @@ const progress = require("./progress");
 
 const MAX_LEVEL = 99;
 const MAX_STACK = 8000;
+const GARRISONS = new Map();
 const CLASS_ERA = {
   probe: 1,
   fighter: 1,
@@ -90,7 +91,13 @@ function eraForLevel(level) {
 
 function powerForLevel(level) {
   const lv = clampLevel(level);
-  return Math.floor(70 * Math.pow(1.3, lv - 1));
+  return Math.floor(70 * Math.pow(1.18, Math.min(30, lv - 1)) * (1 + Math.max(0, lv - 31) * 0.08));
+}
+
+function levelForFleet(ships) {
+  const power = fleetPower(ships);
+  for (let level = 1; level < MAX_LEVEL; level++) if (powerForLevel(level) >= power) return level;
+  return MAX_LEVEL;
 }
 
 function displayLevelFromPower(power, era, cmd) {
@@ -106,7 +113,7 @@ function empireMilitary(db, empireId) {
     .prepare(
       `SELECT s.ship_id, SUM(s.count) AS n
        FROM ships s JOIN planets p ON p.id = s.planet_id
-       WHERE p.empire_id = ?
+       WHERE p.empire_id = ? AND IFNULL(p.alliance_id,0)=0
        GROUP BY s.ship_id`
     )
     .all(empireId);
@@ -129,9 +136,10 @@ function planetMilitary(db, planetId) {
   const bld = db.prepare("SELECT building_id, level FROM buildings WHERE planet_id = ?").all(planetId);
   let plat = 0;
   for (const b of bld) {
-    if (b.building_id === "shield") plat += (b.level || 0) * 70;
-    if (b.building_id === "citadel") plat += (b.level || 0) * 140;
+    if (b.building_id === "shield") plat += (b.level || 0) * 55;
+    if (b.building_id === "citadel") plat += (b.level || 0) * 110;
   }
+  if (db.prepare('SELECT directive FROM planets WHERE id=?').get(planetId)?.directive === 'fortress') plat += 280;
   return { map, power: fleetPower(map) + defP + plat, era: eraFromShips(map) };
 }
 
@@ -226,7 +234,16 @@ function fleetFor(level, role) {
 }
 
 function garrisonFor(level) {
-  return merge({ fighter: 3, frigate: level >= 3 ? 1 : 0 }, fleetFor(level, "garrison"));
+  const limit = clampLevel(level);
+  for (let lv=1; lv<=limit; lv++) {
+    if (GARRISONS.has(lv)) continue;
+    const fleet = merge({ fighter: 3, frigate: lv >= 3 ? 1 : 0 }, fleetFor(lv, 'garrison'));
+    const previous = fleetPower(GARRISONS.get(lv-1));
+    const missing = previous - fleetPower(fleet);
+    if (missing > 0) fleet.fighter += Math.ceil(missing / shipWeight('fighter'));
+    GARRISONS.set(lv, fleet);
+  }
+  return { ...GARRISONS.get(limit) };
 }
 
 function merge(a, b) {
@@ -238,7 +255,7 @@ function merge(a, b) {
 function lootScale(level, mode) {
   const t = clampLevel(level);
   const modeMul = mode === "occupation" ? 1.45 : mode === "raid_defense" ? 1 : 1.2;
-  return modeMul * Math.pow(1.11, Math.min(48, t) - 1);
+  return modeMul * (1 + (t - 1) * 0.12);
 }
 
 function rollLoot(level, mode) {
@@ -250,7 +267,7 @@ function rollLoot(level, mode) {
   let xp = Math.floor((18 + t * 12) * scale);
   let relicId = null;
   const r = Math.random();
-  let title = "Prise";
+  let title = "Beute";
   let text = "";
 
   if (r < 0.22) {
@@ -298,7 +315,7 @@ function rollLoot(level, mode) {
     loot.crystal = Math.floor(40 * scale);
   } else if (r < 0.96 && mode !== "raid_defense") {
     title = "Kriegsbeute";
-    text = "Schwere Prise: Schiffe und Erz.";
+    text = "Schwere Beute: Schiffe und Erz.";
     ships.fighter = 2 + (t >= 18 ? 2 : 0);
     if (t >= 4) ships.frigate = 1;
     if (t >= 7 && Math.random() < 0.35) ships.cruiser = 1;
@@ -309,7 +326,7 @@ function rollLoot(level, mode) {
       helium: Math.floor(80 * scale),
     }));
   } else {
-    title = "Relikt im Wrack";
+    title = "Daten aus dem Wrack";
     text = "Zwischen den Leichen ein Nexus-Stück.";
     loot.crystal = Math.floor(50 * scale);
     xp += Math.floor(40 * scale);
@@ -340,7 +357,10 @@ function occupyEmpty(db, level) {
     .prepare(
       `SELECT s.id FROM systems s
        WHERE s.remnant = 0 AND s.is_hub = 0 AND IFNULL(s.pirate,0) = 0
+         AND NOT EXISTS (SELECT 1 FROM npc_sites n WHERE n.system_id=s.id)
          AND NOT EXISTS (SELECT 1 FROM planets p WHERE p.system_id = s.id AND p.empire_id IS NOT NULL)
+         AND NOT EXISTS (SELECT 1 FROM fleets f JOIN planets p ON p.id=f.target_planet_id
+           WHERE p.system_id=s.id AND f.is_return=0 AND f.mission IN ('colonize','ally_colonize'))
        ORDER BY RANDOM() LIMIT 1`
     )
     .get();
@@ -351,50 +371,25 @@ function occupyEmpty(db, level) {
   return empty.id;
 }
 
-function galaxyPeak(db) {
-  const empires = db.prepare("SELECT id, xp FROM empires").all();
-  let peak = 1;
-  for (const e of empires) peak = Math.max(peak, raidLevelFor(db, e));
-  return clampLevel(peak);
-}
-
 function grow(db) {
-  const peak = galaxyPeak(db);
-  const t = threatOf(db);
-  if (t.level < peak && Math.random() < 0.18) {
-    t.level = Math.min(peak, t.level + 1);
-    saveThreat(db, t);
-  } else if (t.level > peak + 3 && Math.random() < 0.12) {
-    t.level = Math.max(1, t.level - 1);
-    saveThreat(db, t);
+  const at = Date.now(), interval = 6 * 3600000;
+  const last = Number(db.prepare("SELECT value FROM world_meta WHERE key='npc_replenished_at'").get()?.value || 0);
+  if (at - last < interval) return threatOf(db);
+  db.prepare("INSERT OR REPLACE INTO world_meta(key,value) VALUES('npc_replenished_at',?)").run(String(at));
+  const active = db.prepare('SELECT * FROM empires WHERE last_seen>?').all(at - 7 * 86400000);
+  const levels = active.map(e => raidLevelFor(db, e)).sort((a,b) => a-b);
+  const reference = levels.length ? levels[Math.floor((levels.length - 1) * 0.75)] : 1;
+  const t = threatOf(db); t.level = reference; saveThreat(db, t);
+  // Cleared sites remain reserved and count towards supply: no infinite map occupation.
+  const held = db.prepare("SELECT COUNT(*) AS n FROM npc_sites n WHERE role='hold' AND NOT EXISTS(SELECT 1 FROM planets p WHERE p.system_id=n.system_id AND p.empire_id IS NOT NULL)").get().n;
+  const untracked = db.prepare('SELECT COUNT(*) AS n FROM systems s WHERE pirate>0 AND NOT EXISTS(SELECT 1 FROM npc_sites n WHERE n.system_id=s.id)').get().n;
+  const total = db.prepare('SELECT COUNT(*) AS n FROM systems').get().n;
+  const want = Math.min(40, Math.max(3, Math.floor(total * 0.05)));
+  for (let i=held+untracked; i<Math.min(want,held+untracked+3); i++) {
+    const level = i % 3 === 0 ? 1 + (i % 2) : i % 3 === 1 ? Math.max(3,Math.round(reference * 0.5)) : Math.max(5,reference);
+    if (!occupyEmpty(db,level)) break;
   }
-
-  const held = db.prepare("SELECT COUNT(*) AS n FROM systems WHERE IFNULL(pirate,0) > 0").get().n;
-  const want = Math.min(40, 3 + Math.floor(peak * 0.55));
-  if (held < want) {
-    const roll = Math.random();
-    let spawnLv;
-    if (roll < 0.42) spawnLv = 1 + rand(Math.min(3, Math.max(1, peak)));
-    else if (roll < 0.78) spawnLv = Math.max(1, Math.round(peak * 0.4) + rand(3));
-    else spawnLv = Math.max(1, peak - rand(Math.min(4, peak)));
-    occupyEmpty(db, spawnLv);
-  }
-
-  const rows = db.prepare("SELECT id, pirate FROM systems WHERE IFNULL(pirate,0) > 0").all();
-  for (const s of rows) {
-    if (s.pirate <= 3 && Math.random() < 0.72) {
-      setRemnantFleet(db, s.id, garrisonFor(s.pirate || 1));
-      continue;
-    }
-    let next = s.pirate || 1;
-    const r = Math.random();
-    if (next < peak && r < 0.1) next += 1;
-    else if (next > peak + 2 && r < 0.08) next -= 1;
-    next = clampLevel(next);
-    if (next !== s.pirate) db.prepare("UPDATE systems SET pirate = ? WHERE id = ?").run(next, s.id);
-    setRemnantFleet(db, s.id, garrisonFor(next));
-  }
-  return threatOf(db);
+  return t;
 }
 
 function clearHold(db, systemId) {
@@ -415,4 +410,6 @@ module.exports = {
   grow,
   clearHold,
   MAX_LEVEL,
+  levelForFleet,
+  powerForLevel,
 };

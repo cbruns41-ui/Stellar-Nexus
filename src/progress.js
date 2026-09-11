@@ -37,7 +37,7 @@ const CONTRACTS = [
   {
     id: "fighters6",
     title: "Schwarm",
-    blurb: "Stationiere mindestens 6 Jäger. Dann kannst du Remnants jagen.",
+    blurb: "Stationiere mindestens 6 Jäger. Dann kannst du Piratenbesatzungen jagen.",
     hint: "Schiffswerft → Jäger bauen",
     view: "yard",
     xp: 50,
@@ -67,7 +67,7 @@ const CONTRACTS = [
   {
     id: "combat1",
     title: "Erste Schlacht",
-    blurb: "Gewinne einen Kampf. Remnants in Nachbarsystemen sind das ideale Ziel.",
+    blurb: "Gewinne einen Kampf. Piratenbesatzungen in Nachbarsystemen sind das ideale Ziel.",
     hint: "Nachrichten → Spionage → oder Galaxie → Angriff",
     view: "galaxy",
     xp: 80,
@@ -118,7 +118,7 @@ const CONTRACTS = [
     id: "colony1",
     title: "Zweite Welt",
     blurb: "Kolonisiere einen Planeten. Spezialisiere: Lava = Titan, Gas = Helium, Ruinen = Diamanten.",
-    hint: "Kolonialdock und Kolonieschiff, Remnants vertreiben, dann kolonisieren",
+    hint: "Kolonialdock und Kolonieschiff, Piratenbesatzungen vertreiben, dann kolonisieren",
     view: "galaxy",
     xp: 120,
     reward: bag({ metal: 600, helium: 300, diamond: 20 }),
@@ -315,7 +315,7 @@ const CONTRACTS = [
   {
     id: "combat15",
     title: "Schlachtfeld",
-    blurb: "Gewinne 15 Kämpfe. Remnants, Piraten, Spieler — alles zählt.",
+    blurb: "Gewinne 15 Kämpfe. Piratenbesatzungen, Horste, Spieler — alles zählt.",
     hint: "Galaxie → Angriff",
     view: "galaxy",
     xp: 150,
@@ -1079,7 +1079,7 @@ function buildDailyPool(ctx) {
   pool.push({
     id: `win_${winT}`,
     title: "Tagesorder: Gefecht",
-    blurb: "Gewinne einen Kampf — Remnants, Piraten oder Spieler.",
+    blurb: "Gewinne einen Kampf — Piratenbesatzungen, Horste oder Spieler.",
     view: "galaxy",
     xp: 55,
     reward: rewardFor(lv, bag({ metal: 220, helium: 90, titan: 30 })),
@@ -1250,7 +1250,7 @@ function buildWeeklyPool(ctx) {
   pool.push({
     id: `wk_win_${(ctx.combatWins || 0) + 5}`,
     title: "Wochenorder: Fünf Siege",
-    blurb: "Gewinne fünf Kämpfe. Piraten und Remnants zählen.",
+    blurb: "Gewinne fünf Kämpfe. Besatzungen, Horste und Raids zählen.",
     view: "galaxy",
     xp: 120,
     reward: rewardFor(lv, bag({ metal: 600, titan: 140, helium: 220 })),

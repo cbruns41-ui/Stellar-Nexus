@@ -686,6 +686,30 @@ function migrate(db) {
     arrives_at INTEGER NOT NULL,
     kind TEXT NOT NULL
   )`);
+  if (!hasCol(db, "raids", "expires_at")) db.exec("ALTER TABLE raids ADD COLUMN expires_at INTEGER NOT NULL DEFAULT 0");
+  if (!hasCol(db, "systems", "ring")) {
+    db.exec("ALTER TABLE systems ADD COLUMN ring INTEGER NOT NULL DEFAULT 3");
+    const radii = [0,180,340,520,720,940,1180,1440,1720,2040];
+    const update = db.prepare('UPDATE systems SET ring=? WHERE id=?');
+    for (const sys of db.prepare('SELECT id,x,y FROM systems').all()) {
+      const distance = Math.hypot(sys.x-1500,sys.y-1500);
+      let ring = 0;
+      radii.forEach((radius,i) => { if (Math.abs(radius-distance)<Math.abs(radii[ring]-distance)) ring=i; });
+      update.run(ring,sys.id);
+    }
+  }
+  if (!hasCol(db, "raids", "level")) db.exec("ALTER TABLE raids ADD COLUMN level INTEGER NOT NULL DEFAULT 1");
+  db.exec(`CREATE TABLE IF NOT EXISTS npc_sites (
+    system_id INTEGER PRIMARY KEY,
+    role TEXT NOT NULL,
+    level INTEGER NOT NULL,
+    baseline TEXT NOT NULL,
+    survivors TEXT NOT NULL DEFAULT '{}',
+    damaged_at INTEGER NOT NULL DEFAULT 0,
+    cleared_at INTEGER NOT NULL DEFAULT 0,
+    victories INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_raids_expiry ON raids(expires_at);`);
   db.exec(`CREATE TABLE IF NOT EXISTS trade_orders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     seller_empire_id INTEGER NOT NULL,

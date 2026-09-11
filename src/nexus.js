@@ -167,10 +167,10 @@ function seedWarlords(db) {
   if (!hasCol(db, "systems", "warlord")) return;
   const existing = db.prepare("SELECT COUNT(*) AS n FROM systems WHERE IFNULL(warlord,'') != ''").get().n;
   if (existing > 0) return;
-  const remnants = db.prepare("SELECT id FROM systems WHERE remnant = 1").all();
+  const remnants = db.prepare("SELECT * FROM systems WHERE remnant = 1").all();
   const pick = remnants.sort(() => Math.random() - 0.5).slice(0, 3);
   pick.forEach((s, i) => {
-    db.prepare("UPDATE systems SET warlord = ? WHERE id = ?").run(WARLORD_NAMES[i % WARLORD_NAMES.length], s.id);
+    require('./npc-sites').addWarlord(db, s, WARLORD_NAMES[i % WARLORD_NAMES.length]);
   });
 }
 

@@ -47,6 +47,13 @@ body[data-mode="play"] #command-panel,body[data-mode="play"] #panel-view,body[da
 #toasts,.toasts,.toast{pointer-events:none!important}
 .map-wrap:has(#map-raid-banner:not([hidden])) #map-orbit-fire{bottom:calc(var(--raid-height,100px) + 26px)}
 .focus-pending::after{content:"Planet wird gewechselt …";position:fixed;left:50%;top:calc(var(--game-top,60px) + 15px);transform:translateX(-50%);z-index:155;padding:12px 20px;background:#082c3d;color:#c7f4ff;border:1px solid #54b6cf;pointer-events:none}
+/* Keep the confirmation reachable even with many colonies or an open phone keyboard. */
+body[data-mode="play"] .modal .group-fleet-sheet{display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.group-fleet-sheet .group-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;padding-right:2px}
+.group-fleet-sheet .group-origin-list{max-height:none;overflow:visible}
+.group-fleet-sheet .group-footer{flex:none;padding-top:8px;background:#06121c;border-top:1px solid #397088;position:relative;z-index:3}
+.group-fleet-sheet .group-error{margin:4px 0 8px;color:#ffc0b0;font-size:13px;line-height:1.35;max-height:70px;overflow-y:auto}
+.group-fleet-sheet .group-summary{margin:4px 0 8px}
 @media(max-width:720px){.command-panel{border-radius:0;width:100%}.command-panel .panel-view{padding:9px}.command-panel-head{padding:8px 10px}body[data-mode="play"] .brand select{font-size:11px;max-width:43vw}body[data-mode="play"] .nav{left:3%!important;right:3%!important;width:auto!important}}
 @media(max-width:760px){
  body[data-mode="play"] .shell{--top:calc(100px + var(--safe-top));}

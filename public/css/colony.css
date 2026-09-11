@@ -37,7 +37,7 @@
 @keyframes colony-pulse { 50% { opacity: .35; } }
 .colony-tools { position: absolute; right: 16px; top: 16px; z-index: 12; display: flex; gap: 5px; pointer-events: auto; }
 .colony-tools button, .colony-directory summary { border: 1px solid #8cabb23d; border-radius: 8px; background: #0b1721e8; color: #dce9ec; box-shadow: 0 4px 15px #0004; }
-.colony-tools button { width: 44px; height: 44px; font: 24px/1 system-ui; }
+.colony-tools > button { width: 44px; height: 44px; font: 24px/1 system-ui; }
 .colony-tools .colony-orders { width: auto; padding: 0 12px; display: inline-flex; align-items: center; gap: 7px; font: 600 12px/1 system-ui; }
 .colony-orders span { font-size: 17px; }
 .colony-tools [data-colony-labels] { font-size: 13px; }
@@ -49,7 +49,8 @@
 .colony-directory summary::-webkit-details-marker { display: none; }
 .colony-directory summary span { color: #92b5c2; font-size: 10px; }
 .colony-directory > div { margin-top: 6px; padding: 5px; border: 1px solid #89a5b04a; border-radius: 10px; background: #0c1622f5; max-height: min(62vh, 510px); overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
-.colony-directory button { display: flex; align-items: center; justify-content: space-between; width: 100%; text-align: left; min-height: 44px; padding: 8px 10px; background: none; border: none; border-radius: 5px; color: #c9d9e1; font: 12px system-ui; }
+.colony-directory button { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 12px; width: 100%; height: auto; text-align: left; min-height: 48px; padding: 10px; background: none; border: none; border-bottom: 1px solid #8cabb21f; border-radius: 5px; color: #edf6fc; font: 14px/1.35 system-ui; pointer-events: auto; }
+.colony-directory button > span { min-width: 0; white-space: normal; overflow-wrap: break-word; }
 .colony-directory button:hover, .colony-directory button:focus-visible { background: #263b4a; }
 .colony-directory button b { color: #9bbfc9; font-variant-numeric: tabular-nums; }
 .shell.view-home .living-colony .colony-quests { z-index: 30; max-height: calc(100% - 68px); display: flex; flex-direction: column; overflow: hidden; padding: 0; }
@@ -103,7 +104,7 @@
 .living-colony button:focus-visible, .living-colony summary:focus-visible { outline: 2px solid #c9e6eb; outline-offset: 2px; }
 @media (max-width: 760px) {
   .colony-tools { right: 8px; top: 10px; gap: 3px; }
-  .colony-tools button { width: 44px; min-width: 44px; }
+  .colony-tools > button { width: 44px; min-width: 44px; }
   .colony-directory { left: 8px; top: 10px; }
   .colony-directory summary { padding: 0 10px; gap: 9px; }
   .living-colony .city-actions { padding: 12px; }

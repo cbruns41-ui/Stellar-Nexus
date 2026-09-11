@@ -1,11 +1,11 @@
-import { api, getState, getCatalog, getPreview as fetchBuildingPreview, getGalaxy, getSystem, getReports, getRanks, getEmpire, combatPreview, combatSim, getAlliances, getAlliance, getAllianceActivity } from "./api.js?v=3";
+import { api, getState, getCatalog, getPreview as fetchBuildingPreview, getGalaxy, getSystem, getReports, getRanks, getEmpire, combatPreview, combatSim, getAlliances, getAlliance, getAllianceActivity } from "./api.js?v=4";
 import { esc, fmt, eta, when, costHtml, planetCss, planetGlobeUrl, planetColonyUrl, mediaTag, bindMediaFallbacks, toast, showModal, hideModal, shipList, starfield, resourceIcon, icon, beep, notify, tickEta, ticksOf, tickMsFrom } from "./ui.js?v=2";
-import { createMap, systemHtml } from "./map.js?v=62";
+import { createMap, systemHtml } from "./map.js?v=63";
 import { battleReplayHtml, bindBattleReplays } from "./battle.js?v=2";
 import { startAllianceBossEncounter } from "./alliance-boss-game.js?v=16";
 import { CITY_PLOTS } from "./city.mjs?v=10";
 import { shipBudget } from "./ship-budget.mjs?v=1";
-import { colonyRows, colonyHudHtml, paintColonyMarkers, paintColonyFrame } from "./colony-hud.mjs?v=6";
+import { colonyRows, colonyHudHtml, paintColonyMarkers, paintColonyFrame } from "./colony-hud.mjs?v=7";
 import { createColonyUnity, setUnityColonyVisible } from "./colony-unity.js?v=11";
 
 
@@ -829,7 +829,7 @@ function renderAlerts() {
   }
 
   const kind = threat.kind === "raid" ? "Piraten-Raid" : threat.kind === "spy" ? "Scan" : "Angriff";
-  const etaLabel = threat.kind === 'raid' && !threat.defending && threat.arrivesAt <= Date.now() ? 'Wartet auf Verteidigung' : `${threat.defending ? 'Verstärkung in ' : ''}${eta(Math.max(0, threat.arrivesAt - Date.now()))}`;
+  const etaLabel = threat.kind === 'raid' && !threat.defending && threat.arrivesAt <= Date.now() ? (threat.expiresAt > Date.now() ? `Freigabe offen · Abzug in ${eta(threat.expiresAt - Date.now())}` : 'Piraten ziehen ab …') : `${threat.defending ? 'Verstärkung in ' : ''}${eta(Math.max(0, threat.arrivesAt - Date.now()))}`;
   const whenLabel = new Date(threat.arrivesAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
   const planetName = threat.planet || "Zielplanet";
   const defendSystem = Number(threat.systemId || 0);
@@ -1504,7 +1504,7 @@ function cityQuestCard() {
       <div>
         <div class="k">ALARM</div>
         <h3>${esc(hit.from)} greift an</h3>
-        <p>${hit.kind==='raid' && !hit.defending && hit.arrivesAt<=t ? 'Wartet auf Verteidigung' : `${hit.defending ? 'Verstärkung in ' : ''}<span data-live-eta="${hit.arrivesAt}"></span>`} · zur Galaxie</p>
+        <p>${hit.kind==='raid' && !hit.defending && hit.arrivesAt<=t ? `Freigabe offen · Abzug in <span data-live-eta="${hit.expiresAt}"></span>` : `${hit.defending ? 'Verstärkung in ' : ''}<span data-live-eta="${hit.arrivesAt}"></span>`} · zur Galaxie</p>
       </div>
       <span class="go">ÖFFNEN</span>
     </button>`;
@@ -1935,7 +1935,7 @@ const views = {
       <div id="map-raid-banner" class="map-raid-banner hidden" hidden></div>
       <button type="button" id="map-orbit-fire" class="map-orbit-fire" ><i>◎</i><span><b>ORBIT-FEUER</b><small>30 Sek. selbst steuern</small></span></button>
       <div class="map-legend panel">Ziehen: Schwenken · Rad: Zoom · Klick: System
-        <div>Großer Punkt + weißer Ring + Kreuz = dein System · Teal-Puls = dein System · Rotbogen = Remnants · Orange-Ring = Piratenhorst · Goldbogen = Warlord · Cyan-Halo = Nexus-Riss</div></div>
+        <div>Großer Punkt + weißer Ring + Kreuz = dein System · Teal-Puls = dein System · Rotbogen = Piratenbesatzungen · Orange-Ring = Piratenhorst · Goldbogen = Warlord · Cyan-Halo = Nexus-Riss</div></div>
       <div class="map-flight-note">Eigene Flüge: farbige Route mit bewegtem Marker · gestrichelt = Rückflug</div>
       <div id="sysbox"></div></div>`;
   },
@@ -4099,7 +4099,7 @@ function renderCombatReport(r) {
       <span class="report-sum">${win ? "Du hast gewonnen" : "Du hast verloren"}${b.raid ? " (Piraten-Raid)" : ""} · ${atkN} Schiffe vs ${defN} Schiffe${batN ? " + " + batN + " Batterien" : ""} · Verluste ${atkLostN}/${defLostN} · ${esc(lootHint)}</span>
     </summary>
     <div class="report-body">
-      <p class="hint">${esc(b.text || "")} · ${esc(b.planet || "")}${b.system ? " · " + esc(b.system) : ""}${b.remnant ? " · Remnants" : ""}${b.pirate ? " · Piraten" : ""}${b.owner ? " · " + esc(b.owner) : ""}</p>
+      <p class="hint">${esc(b.text || "")} · ${esc(b.planet || "")}${b.system ? " · " + esc(b.system) : ""}${b.remnant ? " · Piratenbesatzungen" : ""}${b.pirate ? " · Piraten" : ""}${b.owner ? " · " + esc(b.owner) : ""}</p>
       ${
         b.acs && (b.attackers || []).length
           ? `<div class="acs-parties">${b.attackers
@@ -4816,7 +4816,7 @@ async function openDefenseMission(targetId, systemId, threat = null) {
     openGroupMission(targetId, sys, "intercept", {
       title: `Verteidigen · ${threat?.planet || sys.name}`,
       raidId: threat?.kind === 'raid' ? Number(String(threat.id).replace(/^r/,'')) : null,
-      warning: threat?.kind === 'raid' ? 'Der Raid wartet auf deine Feuerfreigabe. Alle stationierten Schiffe und Anlagen verteidigen mit. Ausgewählte Verstärkung trifft vor dem Kampf ein.' : threat ? `Angriff in ${eta(Math.max(0, threat.arrivesAt - Date.now()))}` : '',
+      warning: threat?.kind === 'raid' ? 'Ohne Freigabe ziehen die Piraten zwei Stunden nach Ankunft ohne Schaden ab. Bei Freigabe kämpfen alle stationierten Schiffe und Anlagen mit; Verstärkung trifft vor dem Kampf ein. Eine Niederlage kostet Schiffe und 18 % der lokalen Ressourcen.' : threat ? `Angriff in ${eta(Math.max(0, threat.arrivesAt - Date.now()))}` : '',
     });
   } catch (err) {
     toast(err.message || "Verteidigung nicht geöffnet.", true);
@@ -4849,14 +4849,19 @@ function openGroupMission(targetId, sys, mission = "attack", dialogOpts = {}) {
   }).join("");
   const hostile = mission === "attack";
   showModal(`<div class="sheet panel group-fleet-sheet">
+    <div class="group-body">
     <button type="button" class="group-close" id="m-cancel" aria-label="Schließen">×</button>
     <div class="group-kicker">${hostile ? "GEMEINSAMER SCHLAG" : "GEMEINSAME VERTEIDIGUNG"}</div>
     <h2>${esc(dialogOpts.title || `${hostile ? "Angriff" : "Verteidigen"} · ${target.name}`)}</h2>
-    <p>${esc(sys.name)} · ${sys.remnant ? "Remnant NPC" : sys.pirate ? `Piraten Stufe ${sys.pirate}` : target.owner?.name || "freier Orbit"}</p>
+    <p>${esc(sys.name)} · ${sys.pirate ? `Piratenhorst Stufe ${sys.pirate}` : sys.remnant ? "Piratenbesatzung" : target.owner?.name || "freier Orbit"}</p>
     ${dialogOpts.warning ? `<div class="group-warning">${esc(dialogOpts.warning)}</div>` : ""}
     <div class="group-origin-list">${cards}</div>
+    </div>
+    <div class="group-footer">
     <div class="group-summary" id="group-summary">0 Planeten · 0 Schiffe</div>
+    <p id="group-error" class="group-error" role="alert" hidden></p>
     <button type="button" class="btn group-launch ${hostile ? "danger" : "primary"}" id="group-launch">${hostile ? "Flotten schicken" : "Verteidigung starten"}</button>
+    </div>
   </div>`);
   const modal = document.getElementById("modal");
   let submitting=false;
@@ -4885,8 +4890,12 @@ function openGroupMission(targetId, sys, mission = "attack", dialogOpts = {}) {
     const epoch=focusEpoch;
     const button = document.getElementById("group-launch");
     button.disabled = true;
+    const label=button.textContent;
+    button.textContent='Wird gestartet …';
+    const errorLine=modal.querySelector('#group-error');
+    errorLine.hidden=true;
     try {
-      const snap=await api(dialogOpts.raidId ? `/raids/${dialogOpts.raidId}/defend` : '/fleet/group', { method: "POST", body: { targetId, mission, deployments: readDeployments() } });
+      const snap=await api(dialogOpts.raidId ? `/raids/${dialogOpts.raidId}/defend` : '/fleet/group', { method: "POST", timeoutMs:20000, body: { targetId, mission, deployments: readDeployments() } });
       acceptMissionSnapshot(snap,epoch);
       hideModal();
       toast(mission === "attack" ? "Gemeinsamer Schlag unterwegs." : 'Verteidigung gestartet. Ankunft und Ergebnis erscheinen auf der Karte und im Funk.');
@@ -4894,7 +4903,11 @@ function openGroupMission(targetId, sys, mission = "attack", dialogOpts = {}) {
     } catch (err) {
       submitting=false;
       button.disabled = false;
+      button.textContent=label;
+      errorLine.textContent=err.message || 'Verteidigung konnte nicht gestartet werden. Bitte erneut versuchen.';
+      errorLine.hidden=false;
       toast(err.message, true);
+      if(err.timeout)refresh().catch(()=>{});
     }
   };
   paint();
@@ -5121,7 +5134,7 @@ async function openMission(targetId, sys, initialMission = "", dialogOpts = {}) 
           })
           .join("");
         previewEl.innerHTML = `<b>${win ? "Prognose: Durchbruch" : "Prognose: Abwehr hält"}</b>
-          <div class="muted">Feuerkraft ${fmt(data.atkPower)} vs ${fmt(data.defPower)} · ${data.remnant ? "Remnants " : ""}${data.warlord ? "Warlord " : ""}</div>
+          <div class="muted">Feuerkraft ${fmt(data.atkPower)} vs ${fmt(data.defPower)} · ${data.remnant ? "Piratenbesatzungen " : ""}${data.warlord ? "Warlord " : ""}</div>
           <div class="muted" style="margin-top:6px">Verteidiger: ${shipList(data.defShips, state.catalog) || "—"}</div>
           ${data.defenses && Object.keys(data.defenses).length ? `<div class="muted">Batterien: ${Object.entries(data.defenses)
             .map(([id, n]) => n + "× " + (state.catalog.defenses?.[id]?.name || id))
@@ -5555,7 +5568,7 @@ setInterval(() => {
   const due = [
     ...(state.snap.queue || []).filter((q) => q.completesAt <= Date.now()).map((q) => `q:${q.id}:${q.completesAt}`),
     ...(state.snap.fleets || []).filter((f) => f.arrivesAt <= Date.now()).map((f) => `f:${f.id}:${f.arrivesAt}`),
-    ...(state.snap.incoming || []).filter(f=>f.defending && f.arrivesAt<=Date.now()).map(f=>`raid:${f.id}:${f.arrivesAt}`),
+    ...(state.snap.incoming || []).filter(f=>f.kind==='raid' && (f.defending ? f.arrivesAt : f.expiresAt)<=Date.now()).map(f=>`raid:${f.id}:${f.defending ? f.arrivesAt : f.expiresAt}`),
     ...(state.snap.activities || []).filter((a) => a.running && a.readyAt <= Date.now()).map((a) => `a:${a.id}:${a.readyAt}`),
   ];
   const unseen = due.filter((key) => !handledCompletions.has(key));
@@ -5563,7 +5576,7 @@ setInterval(() => {
     unseen.forEach((key) => handledCompletions.add(key));
     refresh(undefined, { rerender: false }).then(applied => {
       // Retry skipped/stale responses, and any arrival which the server still lists.
-      const remaining=new Set([...(state.snap.fleets||[]).map(f=>`f:${f.id}:${f.arrivesAt}`),...(state.snap.queue||[]).map(q=>`q:${q.id}:${q.completesAt}`),...(state.snap.incoming||[]).filter(f=>f.defending).map(f=>`raid:${f.id}:${f.arrivesAt}`),...(state.snap.activities||[]).filter(a=>a.running).map(a=>`a:${a.id}:${a.readyAt}`)]);
+      const remaining=new Set([...(state.snap.fleets||[]).map(f=>`f:${f.id}:${f.arrivesAt}`),...(state.snap.queue||[]).map(q=>`q:${q.id}:${q.completesAt}`),...(state.snap.incoming||[]).filter(f=>f.kind==='raid').map(f=>`raid:${f.id}:${f.defending ? f.arrivesAt : f.expiresAt}`),...(state.snap.activities||[]).filter(a=>a.running).map(a=>`a:${a.id}:${a.readyAt}`)]);
       unseen.forEach(key=>{if(!applied||remaining.has(key))handledCompletions.delete(key);});
       renderDock();if(state.view==='reports' && state.newsTab!=='mail')loadReports(state.newsTab);
     }).catch(() => {unseen.forEach(key=>handledCompletions.delete(key));});

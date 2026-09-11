@@ -22,7 +22,8 @@ const {
   TIME_SPEED_CAP,
   TICK_MS,
 } = require("./catalog");
-const { remnantFleet, setRemnantFleet, remnantFleetForRing } = require("./galaxy");
+const { remnantFleet, setRemnantFleet } = require("./galaxy");
+const npcSites = require('./npc-sites');
 const progress = require("./progress");
 const nexus = require("./nexus");
 const combat = require("./combat");
@@ -378,6 +379,7 @@ function tickWorld(db) {
     const dueQ = db.prepare("SELECT * FROM queue WHERE completes_at <= ? ORDER BY completes_at ASC").all(t);
     for (const q of dueQ) completeQueue(db, q);
     activity.completeDue(db, credit, addShips, addReport);
+    npcSites.tick(db);
     resolveDueFleets(db, t);
     resolveRaids(db);
     db.prepare("DELETE FROM sessions WHERE expires_at < ?").run(t);
@@ -1243,7 +1245,7 @@ function resolveSpy(db, fleet, ships, target, sys, techs, empire) {
     systemId: sys.id,
     system: sys.name,
     typeName: PLANET_TYPES[target.type]?.name || target.type,
-    owner: target.empire_id ? db.prepare("SELECT name FROM empires WHERE id = ?").get(target.empire_id)?.name : sys.remnant ? "Remnants" : "unbesetzt",
+    owner: target.empire_id ? db.prepare("SELECT name FROM empires WHERE id = ?").get(target.empire_id)?.name : sys.remnant ? "Piratenbesatzungen" : "unbesetzt",
     resources: success ? stockBag(target) : null,
     buildings: success
       ? Object.entries(bmap).map(([id, level]) => ({ id, name: BUILDINGS[id]?.name || id, level }))
@@ -1367,6 +1369,23 @@ function resolveAcsAttack(db, fleets) {
   }
   accruePlanet(db, target);
   const sys = db.prepare("SELECT * FROM systems WHERE id = ?").get(target.system_id);
+  const site = npcSites.adopt(db, sys);
+  if (!target.empire_id && (!sys.remnant || !Object.values(remnantFleet(db, sys.id)).some(n => n > 0))) {
+    if (sys.remnant) {
+      npcSites.recordBattle(db, sys, {}, true);
+      db.prepare("UPDATE systems SET remnant=0,pirate=0,warlord='' WHERE id=?").run(sys.id);
+      setRemnantFleet(db, sys.id, {});
+    }
+    for (const f of fleets) {
+      const returning = JSON.parse(f.ships || '{}');
+      addReport(db, f.empire_id, 'fleet', `Ziel bereits frei: ${target.name}`, {
+        text: 'Keine feindliche Flotte mehr vor Ort. Kein Kampf, keine Beute und keine Siegpunkte. Deine Flotte kehrt vollständig zurück.',
+        planetId: target.id, originPlanetId: f.origin_planet_id, fleetId: f.id, ships: returning,
+      });
+      launchReturn(db, f, returning, emptyBag());
+    }
+    return;
+  }
   const groups = fleets.map((f) => {
     const empire = db.prepare("SELECT * FROM empires WHERE id = ?").get(f.empire_id);
     const techs = techsMap(db, f.empire_id);
@@ -1385,8 +1404,6 @@ function resolveAcsAttack(db, fleets) {
   const defShips = target.empire_id ? shipsMap(db, target.id) : {};
   const rem = sys.remnant ? remnantFleet(db, sys.id) : {};
   let merged = mergeShips(defShips, rem);
-  if (sys.warlord) merged = mergeShips(merged, { cruiser: 2, fighter: 8, frigate: 2 });
-  if (sys.pirate) merged = mergeShips(merged, pirates.garrisonFor(sys.pirate));
   const defTechs = target.empire_id ? techsMap(db, target.empire_id) : {};
   const tBuildings = target.empire_id ? buildingsMap(db, target.id) : {};
   const shieldLvl = tBuildings.shield || 0;
@@ -1425,6 +1442,7 @@ function resolveAcsAttack(db, fleets) {
     addDefenses(db, target.id, result.defSurvivorsDefense || {});
   }
   if (sys.remnant) {
+    npcSites.recordBattle(db, sys, result.defSurvivors, result.winner === 'attacker');
     if (result.winner === "attacker") {
       db.prepare("UPDATE systems SET remnant = 0 WHERE id = ?").run(sys.id);
       setRemnantFleet(db, sys.id, {});
@@ -1484,8 +1502,7 @@ function resolveAcsAttack(db, fleets) {
       diamond: Math.floor(Math.random() * 4),
     });
     if (sys.remnant || sys.pirate) {
-      const threat = pirates.threatOf(db);
-      let prize = pirates.rollLoot(sys.pirate || threat.level, sys.pirate ? "occupation" : "raid_attack");
+      let prize = pirates.rollLoot(site?.level || pirates.levelForFleet(merged), sys.pirate ? "occupation" : "raid_attack");
       prize = pirates.maybeGrantRelic(db, leadEmpire.id, prize);
       loot = addBags(loot, prize.loot);
       if (prize.ships) {
@@ -1563,6 +1580,7 @@ function resolveAcsAttack(db, fleets) {
     system: sys.name,
     remnant: !!sys.remnant,
     pirate: sys.pirate || 0,
+    npcLevel: site?.level || null,
     shipsGain: result.prize?.ships || {},
     defGain: result.prize?.defenses || {},
     prizeTitle: result.prize?.title || "",
@@ -1571,7 +1589,7 @@ function resolveAcsAttack(db, fleets) {
     owner: target.empire_id
       ? db.prepare("SELECT name FROM empires WHERE id = ?").get(target.empire_id)?.name
       : sys.remnant
-        ? "Remnants"
+        ? "Piratenbesatzungen"
         : "unbesetzt",
   };
   const title = pirateWin && sys.pirate
@@ -1749,7 +1767,7 @@ function resolveIntercept(db, fleets) {
     owner: target.empire_id
       ? db.prepare("SELECT name FROM empires WHERE id = ?").get(target.empire_id)?.name
       : sys.remnant
-        ? "Remnants"
+        ? "Piratenbesatzungen"
         : "unbesetzt",
   };
   const title = acs ? `Verteidigung: ${target.name}` : `Verteidigung: ${target.name}`;
@@ -1804,7 +1822,7 @@ function resolveColonize(db, fleet, ships, target, sys, techs, empire) {
   }
   if (sys.remnant) {
     addReport(db, fleet.empire_id, "fleet", `Kolonisation von ${target.name} gescheitert`, {
-      ...context, text: "Remnant-Wache blockiert das System. Die Flotte kehrt zurück.",
+      ...context, text: "Piratenbesatzung blockiert das System. Die Flotte kehrt zurück.",
     });
     launchReturn(db, fleet, ships, {});
     return;
@@ -1916,7 +1934,7 @@ function sendFleet(db, empire, origin, target, mission, shipsWanted, cargo, opts
     if ((ships.colony || 0) < 1) throw new Error("Kolonieschiff erforderlich.");
     if (target.empire_id) throw new Error("Planet ist bereits besetzt.");
     if ((originBuild.colony_dock || 0) < 1) throw new Error("Kolonialdock am Startplaneten nötig.");
-    if (db.prepare('SELECT remnant FROM systems WHERE id=?').get(target.system_id)?.remnant) throw new Error('Remnant-Wache blockiert das System. Erst den Orbit sichern.');
+    if (db.prepare('SELECT remnant FROM systems WHERE id=?').get(target.system_id)?.remnant) throw new Error('Piratenbesatzung blockiert das System. Erst den Orbit sichern.');
     if (db.prepare("SELECT id FROM fleets WHERE empire_id=? AND target_planet_id=? AND mission IN ('colonize','ally_colonize') AND is_return=0").get(empire.id,target.id)) throw new Error('Zu diesem Planeten ist bereits ein Kolonieschiff unterwegs.');
     if (mission === 'colonize') {
       const pending = db.prepare("SELECT COUNT(*) AS n FROM fleets WHERE empire_id=? AND mission='colonize' AND is_return=0").get(empire.id).n;
@@ -2364,6 +2382,7 @@ function planetView(db, planet, empire) {
 }
 
 function snapshot(db, user, planetId) {
+  db.prepare("UPDATE empires SET last_seen=? WHERE user_id=?").run(now(), user.id);
   tickWorld(db);
   const empire = db.prepare("SELECT * FROM empires WHERE user_id = ?").get(user.id);
   const personal = db.prepare("SELECT * FROM planets WHERE empire_id = ? AND IFNULL(alliance_id, 0) = 0 ORDER BY id").all(empire.id);
@@ -2706,7 +2725,9 @@ function incomingThreats(db, empireId) {
       id: "r" + r.id,
       kind: "raid",
       defending: !!r.defending,
-      from: r.kind === "pirates" ? "Piraten" : "Nexus-Echo",
+      from: "Piraten",
+      level: r.level || 1,
+      expiresAt: r.expires_at || r.arrives_at + 2 * 3600000,
       planet: r.targetName,
       planetId: r.target_planet_id,
       systemId: r.systemId,
@@ -2721,22 +2742,6 @@ function tickGalaxy(db) {
   if (last && Date.now() - Number(last.value) < 90_000) return;
   db.prepare("INSERT OR REPLACE INTO world_meta(key, value) VALUES('last_galaxy', ?)").run(String(Date.now()));
 
-  const remnantCount = db.prepare("SELECT COUNT(*) AS n FROM systems WHERE remnant = 1").get().n;
-  if (remnantCount < 18) {
-    const empty = db
-      .prepare(
-        `SELECT s.id FROM systems s
-         WHERE s.remnant = 0 AND s.is_hub = 0
-           AND NOT EXISTS (SELECT 1 FROM planets p WHERE p.system_id = s.id AND p.empire_id IS NOT NULL)
-         ORDER BY RANDOM() LIMIT 1`
-      )
-      .get();
-    if (empty) {
-      db.prepare("UPDATE systems SET remnant = 1 WHERE id = ?").run(empty.id);
-      setRemnantFleet(db, empty.id, remnantFleetForRing(2 + Math.floor(Math.random() * 2)));
-    }
-  }
-
   const warlords = db.prepare("SELECT COUNT(*) AS n FROM systems WHERE IFNULL(warlord,'') != ''").get().n;
   if (warlords < 4) {
     const rem = db
@@ -2745,7 +2750,7 @@ function tickGalaxy(db) {
     if (rem) {
       const names = nexus.WARLORD_NAMES;
       const name = names[Math.floor(Math.random() * names.length)];
-      db.prepare("UPDATE systems SET warlord = ? WHERE id = ?").run(name, rem.id);
+      npcSites.addWarlord(db, db.prepare("SELECT * FROM systems WHERE id=?").get(rem.id), name);
     }
   }
 
@@ -2760,7 +2765,7 @@ function tickGalaxy(db) {
   }
 
   pirates.grow(db);
-  if (Math.random() < 0.12) spawnRaid(db);
+  spawnRaid(db);
 }
 
 function pirateShieldWindowMs() {
@@ -2772,6 +2777,7 @@ function defendRaid(db, empire, raidId, deployments = []) {
     const raid = db.prepare('SELECT r.* FROM raids r JOIN planets p ON p.id=r.target_planet_id WHERE r.id=? AND p.empire_id=?').get(raidId, empire.id);
     if (!raid) throw new Error('Raid nicht mehr aktiv. Den Kampfbericht findest du im Funk.');
     if (db.prepare('SELECT raid_id FROM raid_engagements WHERE raid_id=?').get(raid.id)) return { commonArrival: raid.arrives_at, launched: [], raidDefense: true };
+    if ((raid.expires_at || raid.arrives_at + 2 * 3600000) <= now()) throw new Error('Die Piraten sind bereits abgezogen. Es wurden keine Schiffe oder Ressourcen verloren.');
     if (!Array.isArray(deployments) || deployments.length > ACS_MAX_FLEETS) throw new Error('Ungültige Verteidigungsflotte.');
     const target = db.prepare('SELECT * FROM planets WHERE id=?').get(raid.target_planet_id);
     const origins = new Set();
@@ -2821,61 +2827,53 @@ function sendFleetGroup(db, empire, target, mission, deployments) {
 }
 
 function spawnRaid(db) {
-  const pending = db.prepare("SELECT COUNT(*) AS n FROM raids").get().n;
-  if (pending >= 2) return;
-  // NPC raids should create an anticipated return moment, not silently grind a
-  // player's stationed fleet down during an ordinary play session.
-  const cooldown = 6 * 60 * 60 * 1000;
-  const shieldMs = pirateShieldWindowMs();
-  const busy = new Set(
-    db
-      .prepare(
-        `SELECT p.empire_id FROM raids r JOIN planets p ON p.id = r.target_planet_id WHERE p.empire_id IS NOT NULL`
-      )
-      .all()
-      .map((r) => r.empire_id)
-  );
-  const target = db
-    .prepare(
-      `SELECT p.* FROM planets p
-       JOIN empires e ON e.id = p.empire_id
-       WHERE IFNULL(e.last_raid, 0) < ?
-         AND (IFNULL(p.founded_at, 0) = 0 OR ? - IFNULL(p.founded_at, 0) > ?)
-         AND e.id NOT IN (${busy.size ? [...busy].map(() => "?").join(",") : "0"})
-       ORDER BY RANDOM() LIMIT 1`
-    )
-    .get(Date.now() - cooldown, Date.now(), shieldMs, ...busy);
-  if (!target) return;
-  const owner = db.prepare("SELECT * FROM empires WHERE id = ?").get(target.empire_id);
-  const raidLv = pirates.raidLevelFor(db, owner);
-  const ships = pirates.raidFleetFor(db, owner, target);
-  const kind = raidLv >= 6 && Math.random() < 0.2 ? "echo" : "pirates";
-  const arrives = Date.now() + 5 * 60_000 + Math.floor(Math.random() * 3 * 60_000);
-  db.prepare("INSERT INTO raids(target_planet_id, ships, arrives_at, kind) VALUES(?,?,?,?)").run(
-    target.id,
-    JSON.stringify(ships),
-    arrives,
-    kind
-  );
-  db.prepare("UPDATE empires SET last_raid = ? WHERE id = ?").run(Date.now(), target.empire_id);
-  addReport(db, target.empire_id, "alert", `Eingehender Raid: ${target.name}`, {
-    text:
-      kind === "echo"
-        ? `Ein Nexus-Echo (Stufe ${raidLv}) bricht in den Orbit — Stärke an dein Imperium angepasst.`
-        : `Piraten Stufe ${raidLv} auf Abfangkurs — Stärke und Technik an dein Imperium und diesen Orbit angepasst. Bei Abwehr gibt es Prisen.`,
-    planetId: target.id,
-    ships,
-    arrivesAt: arrives,
-    threat: raidLv,
-    jumps: [
-      { view: "galaxy", label: "Zur Galaxie", planetId: target.id },
-      { view: "defense", label: "Orbit verstärken", planetId: target.id },
-      { view: "fleets", label: "Zur Flotte", planetId: target.id },
-    ],
-  });
+  const at = Date.now();
+  const eligible = db.prepare(`SELECT e.id FROM empires e WHERE e.last_seen>? AND IFNULL(e.last_raid,0)<=?
+    AND NOT EXISTS(SELECT 1 FROM raids r JOIN planets p ON p.id=r.target_planet_id WHERE p.empire_id=e.id)
+    ORDER BY e.last_raid,e.id`).all(at - 15 * 60000, at - 6 * 3600000);
+  for (const entry of eligible) {
+    const target = db.prepare(`SELECT * FROM planets WHERE empire_id=? AND IFNULL(alliance_id,0)=0
+      AND (IFNULL(founded_at,0)=0 OR founded_at<=?) ORDER BY RANDOM() LIMIT 1`).get(entry.id, at - pirateShieldWindowMs());
+    if (!target) continue;
+    const owner = db.prepare("SELECT * FROM empires WHERE id = ?").get(target.empire_id);
+    const ships = pirates.raidFleetFor(db, owner, target);
+    const raidLv = pirates.levelForFleet(ships);
+    const kind = "pirates";
+    const arrives = Date.now() + 5 * 60_000 + Math.floor(Math.random() * 3 * 60_000);
+    db.prepare("INSERT INTO raids(target_planet_id, ships, arrives_at, kind, expires_at, level) VALUES(?,?,?,?,?,?)").run(
+      target.id,
+      JSON.stringify(ships),
+      arrives,
+      kind, arrives + 2 * 3600000, raidLv
+    );
+    db.prepare("UPDATE empires SET last_raid = ? WHERE id = ?").run(Date.now(), target.empire_id);
+    addReport(db, target.empire_id, "alert", `Eingehender Raid: ${target.name}`, {
+      text: `Piraten Stufe ${raidLv} auf Abfangkurs. Die Flotte richtet sich nach deinen stationierten Schiffen und der Abwehr dieses Planeten. Verteidigung freigeben, um um Beute zu kämpfen. Ohne Freigabe ziehen sie zwei Stunden nach Ankunft ohne Schaden ab.`,
+      planetId: target.id,
+      ships,
+      arrivesAt: arrives,
+      expiresAt: arrives + 2 * 3600000,
+      threat: raidLv,
+      jumps: [
+        { view: "galaxy", label: "Zur Galaxie", planetId: target.id },
+        { view: "defense", label: "Orbit verstärken", planetId: target.id },
+        { view: "fleets", label: "Zur Flotte", planetId: target.id },
+      ],
+    });
+  }
 }
 
 function resolveRaids(db) {
+  const expired = db.prepare(`SELECT r.*,p.empire_id,p.name FROM raids r JOIN planets p ON p.id=r.target_planet_id
+    WHERE (CASE WHEN r.expires_at>0 THEN r.expires_at ELSE r.arrives_at+7200000 END)<=?
+    AND NOT EXISTS(SELECT 1 FROM raid_engagements e WHERE e.raid_id=r.id)`).all(now());
+  for (const r of expired) {
+    db.prepare('DELETE FROM raids WHERE id=?').run(r.id);
+    if (r.empire_id) addReport(db,r.empire_id,'event',`Piraten abgezogen: ${r.name}`,{
+      text:'Die Verteidigungsfreigabe blieb aus. Der Raid ist beendet; keine Schiffe und keine Ressourcen verloren. Es gibt dafür keine Belohnung.',
+      planetId:r.target_planet_id, raidExpired:true,
+    });
+  }
   const due = db.prepare("SELECT r.* FROM raids r JOIN raid_engagements e ON e.raid_id=r.id WHERE r.arrives_at <= ?").all(now());
   for (const r of due) {
     db.prepare("DELETE FROM raids WHERE id = ?").run(r.id);
@@ -2930,8 +2928,7 @@ function resolveRaids(db) {
         systemId: target.system_id,
       });
     } else {
-      const owner = db.prepare("SELECT * FROM empires WHERE id = ?").get(target.empire_id);
-      const raidLv = pirates.raidLevelFor(db, owner);
+      const raidLv = r.level || 1;
       pirates.bump(db, 0, "losses");
       let prize = pirates.rollLoot(raidLv, "raid_defense");
       prize = pirates.maybeGrantRelic(db, target.empire_id, prize);
@@ -2941,7 +2938,7 @@ function resolveRaids(db) {
       if (prize.defenses) addDefenses(db, target.id, prize.defenses);
       if (prize.xp) db.prepare("UPDATE empires SET xp = IFNULL(xp,0) + ? WHERE id = ?").run(prize.xp, target.empire_id);
       addReport(db, target.empire_id, "combat", `Raid abgewehrt: ${target.name}`, {
-        text: `Orbit gehalten. Prise: ${prize.title}. ${prize.text}`,
+        text: `Orbit gehalten. Beute (Stufe ${raidLv}): ${prize.title}. ${prize.text}`,
         defenders,
         winner: "defender",
         viewer: "defender",
@@ -2983,8 +2980,6 @@ function previewCombat(db, empire, origin, target, shipsWanted) {
   const defShips = target.empire_id ? shipsMap(db, target.id) : {};
   const rem = sys.remnant ? remnantFleet(db, sys.id) : {};
   let merged = mergeShips(defShips, rem);
-  if (sys.warlord) merged = mergeShips(merged, { cruiser: 2, fighter: 8, frigate: 2 });
-  if (sys.pirate) merged = mergeShips(merged, pirates.garrisonFor(sys.pirate));
   const defs = target.empire_id ? defensesMap(db, target.id) : {};
   const defTechs = target.empire_id ? techsMap(db, target.empire_id) : {};
   const atkTechs = techsMap(db, empire.id);

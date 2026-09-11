@@ -131,7 +131,7 @@ function placeRingSystems(rng, usedNames, rings, startId, cx, cy) {
 
 function insertSystemsAndWorld(db, rng, systems, allForLinks) {
   const insertSys = db.prepare(
-    "INSERT INTO systems(id, name, x, y, star_type, is_hub, remnant) VALUES(?, ?, ?, ?, ?, ?, ?)"
+    "INSERT INTO systems(id, name, x, y, star_type, is_hub, remnant, ring) VALUES(?, ?, ?, ?, ?, ?, ?, ?)"
   );
   const insertPlanet = db.prepare(
     "INSERT INTO planets(system_id, slot, name, type, size, empire_id, metal, helium, titan, energy, crystal, diamond, last_tick) VALUES(?, ?, ?, ?, ?, NULL, 0, 0, 0, 0, 0, 0, ?)"
@@ -142,7 +142,7 @@ function insertSystemsAndWorld(db, rng, systems, allForLinks) {
 
   withTx(db, () => {
     for (const s of systems) {
-      insertSys.run(s.id, s.name, s.x, s.y, s.starType, s.isHub, s.remnant);
+      insertSys.run(s.id, s.name, s.x, s.y, s.starType, s.isHub, s.remnant, s.ring);
       const nPlanets = 2 + Math.floor(rng() * 4);
       for (let slot = 0; slot < nPlanets; slot++) {
         const type = pick(rng, PTYPES);

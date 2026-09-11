@@ -1,17 +1,28 @@
-export async function api(path, { method = "GET", body } = {}) {
+export async function api(path, { method = "GET", body, timeoutMs = 0 } = {}) {
+  const controller=timeoutMs ? new AbortController() : null;
+  const timer=controller ? setTimeout(()=>controller.abort(),timeoutMs) : null;
+  try {
   const res = await fetch("/api" + path, {
     method,
     credentials: "include",
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
+    signal: controller?.signal,
   });
-  const data = await res.json().catch(() => ({}));
+  const data = await res.json().catch(err => { if(controller?.signal.aborted)throw err;return {}; });
   if (!res.ok) {
     const error = new Error(data.error || res.statusText);
     error.status = res.status;
     throw error;
   }
   return data;
+  } catch(err) {
+    if(controller?.signal.aborted){
+      const error=new Error('Die Serverantwort fehlt. Die Aktion kann bereits ausgeführt sein. Bitte den Status auf Karte und im Funk prüfen.');
+      error.timeout=true;throw error;
+    }
+    throw err;
+  } finally { if(timer)clearTimeout(timer); }
 }
 
 export const getState = (planetId) => api("/state" + (planetId ? `?planet=${planetId}` : ""));

@@ -14,6 +14,8 @@ export async function verifyQaRegressions({base,headers,databasePath,send,evalua
     for(const [id,level] of [['shipyard',5],['colony_dock',1],['command',4],['archive',2]])db.prepare('INSERT INTO buildings VALUES(?,?,?) ON CONFLICT(planet_id,building_id) DO UPDATE SET level=excluded.level').run(home.id,id,level);
     db.prepare("INSERT INTO research VALUES(?,'colonization',6) ON CONFLICT(empire_id,tech_id) DO UPDATE SET level=6").run(home.empire_id);
     for(const [id,n] of [['colony',2],['fighter',90]])db.prepare('INSERT INTO ships VALUES(?,?,?) ON CONFLICT(planet_id,ship_id) DO UPDATE SET count=excluded.count').run(home.id,id,n);
+    db.exec('DELETE FROM raids;DELETE FROM raid_engagements');
+    db.prepare('UPDATE empires SET last_raid=? WHERE id=?').run(Date.now(),home.empire_id);
     return {home,targets};
   });
   await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
@@ -71,10 +73,25 @@ export async function verifyQaRegressions({base,headers,databasePath,send,evalua
   await tap('[data-yard-close]');
   console.log('QA: real first-touch city/yard/map controls; two live colony arrivals from 5 to 7 planets; sheet/focus sync passed');
 
+  // Unconfirmed raids withdraw on the live client clock; timer ticks keep the first-tap button.
+  const withdrawal=database(db=>{
+    const ships=db.prepare('SELECT ship_id,count FROM ships WHERE planet_id=? ORDER BY ship_id').all(home.id);
+    const id=Number(db.prepare("INSERT INTO raids(target_planet_id,ships,arrives_at,kind,expires_at,level) VALUES(?,'{\"fighter\":1000}',?,'pirates',?,9)").run(home.id,Date.now()-60000,Date.now()+9000).lastInsertRowid);
+    return {id,ships};
+  });
+  await evaluate(`{const s=document.querySelector('#planet-select');s.value='${home.id}';s.dispatchEvent(new Event('change',{bubbles:true}));}`);
+  await until(`document.querySelector('[data-alert-defend]') && document.querySelector('[data-raid-time]').textContent.includes('Abzug in')`);
+  await evaluate(`window.__qaWithdrawButton=document.querySelector('[data-alert-defend]')`);await pause(1600);
+  assert.ok(await evaluate(`window.__qaWithdrawButton===document.querySelector('[data-alert-defend]')`));
+  await until(`!document.querySelector('[data-alert-defend]')`,15000);
+  assert.deepEqual(database(db=>db.prepare('SELECT ship_id,count FROM ships WHERE planet_id=? ORDER BY ship_id').all(home.id)),withdrawal.ships);
+  assert.ok(database(db=>db.prepare("SELECT id FROM reports WHERE empire_id=? AND json_extract(body,'$.raidExpired')=1").get(home.empire_id)));
+  console.log('QA: live raid expiry removes the banner without a hangar loss; first-tap button identity retained');
+
   // Raid at a full small hangar, reinforced from another planet beyond its capacity.
   const raidId=database(db=>{
     db.prepare("INSERT INTO ships VALUES(?,'fighter',60) ON CONFLICT(planet_id,ship_id) DO UPDATE SET count=60").run(targets[0].id);
-    return Number(db.prepare("INSERT INTO raids(target_planet_id,ships,arrives_at,kind) VALUES(?,?,1,'pirates')").run(targets[0].id,JSON.stringify({fighter:35})).lastInsertRowid);
+    return Number(db.prepare("INSERT INTO raids(target_planet_id,ships,arrives_at,kind,expires_at) VALUES(?,?,1,'pirates',unixepoch('now')*1000+7200000)").run(targets[0].id,JSON.stringify({fighter:35})).lastInsertRowid);
   });
   // A normal focus request refreshes the live world, without rebuilding the page.
   await evaluate(`{const s=document.querySelector('#planet-select');s.value='${home.id}';s.dispatchEvent(new Event('change',{bubbles:true}));}`);

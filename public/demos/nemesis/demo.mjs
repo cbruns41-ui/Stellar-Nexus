@@ -10,6 +10,7 @@ let lastSave=0,lastSavedHp=state.hp,storageAvailable=true;
 function saveRaid(){if(live.allianceId){live.persist();lastSavedHp=state.hp;return;}try{localStorage.setItem(raidKey,JSON.stringify(raidSnapshot(state)));lastSavedHp=state.hp;}catch{storageAvailable=false;}}
 window.addEventListener('pagehide',saveRaid);
 const input={fire:false,move:0},firePointers=new Set(),keys=new Set();
+let fireAim=null;
 let w=1000,h=1500,dpr=1,ready=false,last=performance.now(),idle=0,flash=0,shake=0,alertLife=0,finishedAt=-1,shotSide=1,paused=false,stickId=null,aimId=null,stickMove=0,soundOn=false,audio=null,frames=0,frameMs=16;
 const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const rand=(a,b)=>a+Math.random()*(b-a),Y=v=>v*h/1500;
@@ -38,7 +39,8 @@ async function completeLive(close=false){
  finally{liveFinishing=false;$('restart').disabled=false;}
 }
 
-function clearInput(){firePointers.clear();keys.clear();input.fire=false;input.move=0;pendingDodge=0;stickMove=0;stickId=aimId=null;$('fire').classList.remove('active');$('stick-knob').style.transform='translate(-50%,-50%)';}
+function resetFireAim(){fireAim=null;$('fire').style.removeProperty('--aim-x');$('fire').style.removeProperty('--aim-y');}
+function clearInput(){firePointers.clear();resetFireAim();keys.clear();input.fire=false;input.move=0;pendingDodge=0;stickMove=0;stickId=aimId=null;$('fire').classList.remove('active');$('stick-knob').style.transform='translate(-50%,-50%)';}
 function requestDodge(){if(paused||state.mode!=='playing')return;if(live.allianceId)pendingDodge=Math.sign(input.move)||2;else dodge(state,Math.sign(input.move));}
 async function begin(resetBoss=false){if(launching)return;if(live.allianceId){if(recovering){await completeLive();return;}launching=true;$('start').disabled=true;try{const session=await live.beginLive();configureCombat(state,session.config);}catch(err){showAlert(err.message,6);$('storage-note').textContent=err.message;$('start').disabled=false;launching=false;return;}launching=false;}startCombat(state,{resetBoss:!live.allianceId&&(resetBoss||state.hp<=0)});saveRaid();particles.length=beams.length=chunks.length=rings.length=numbers.length=scars.length=0;flash=shake=0;finishedAt=-1;paused=false;clearInput();$('intro').hidden=true;$('result').hidden=true;$('pause-screen').hidden=true;last=performance.now();showAlert(state.broken?'DER BOSS BLEIBT VERWUNDET · ANGRIFF FORTSETZEN':'VISIERE DIE SCHULTERPANZERUNG AN',2.8);}
 $('start').onclick=()=>begin();$('restart').onclick=()=>begin();$('reset').onclick=()=>live.allianceId?completeLive():begin();$('reset-raid').onclick=()=>begin(true);
@@ -47,11 +49,19 @@ $('pause').onclick=()=>pause(!paused);$('resume').onclick=()=>pause(false);
 document.addEventListener('visibilitychange',()=>{if(document.hidden){saveRaid();pause(true);clearInput();}});window.addEventListener('blur',()=>{clearInput();pause(true);});
 
 function pointer(e){const r=stage.getBoundingClientRect();return{x:clamp((e.clientX-r.left)/r.width*1000,0,1000),y:clamp((e.clientY-r.top)/r.height*1500,0,1500)};}
-canvas.addEventListener('pointerdown',e=>{if(state.mode!=='playing'||paused)return;aimId=e.pointerId;canvas.setPointerCapture(e.pointerId);state.aim=pointer(e);if(e.pointerType==='mouse')firePointers.add(e.pointerId);});
+canvas.addEventListener('pointerdown',e=>{if(state.mode!=='playing'||paused)return;e.preventDefault();aimId=e.pointerId;canvas.setPointerCapture(e.pointerId);state.aim=pointer(e);firePointers.add(e.pointerId);});
 canvas.addEventListener('pointermove',e=>{if(e.pointerType==='mouse'||e.pointerId===aimId)state.aim=pointer(e);});
-const release=e=>{firePointers.delete(e.pointerId);if(aimId===e.pointerId)aimId=null;if(stickId===e.pointerId){stickId=null;stickMove=0;$('stick-knob').style.transform='translate(-50%,-50%)';}};
+const release=e=>{firePointers.delete(e.pointerId);if(fireAim?.id===e.pointerId)resetFireAim();if(aimId===e.pointerId)aimId=null;if(stickId===e.pointerId){stickId=null;stickMove=0;$('stick-knob').style.transform='translate(-50%,-50%)';}};
 window.addEventListener('pointerup',release);window.addEventListener('pointercancel',release);canvas.addEventListener('lostpointercapture',release);
-$('fire').addEventListener('pointerdown',e=>{e.preventDefault();if(state.mode!=='playing'||paused)return;e.currentTarget.setPointerCapture(e.pointerId);firePointers.add(e.pointerId);});$('fire').addEventListener('lostpointercapture',release);
+$('fire').addEventListener('pointerdown',e=>{e.preventDefault();if(state.mode!=='playing'||paused||fireAim)return;e.currentTarget.setPointerCapture(e.pointerId);fireAim={id:e.pointerId,x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY};firePointers.add(e.pointerId);});
+$('fire').addEventListener('pointermove',e=>{
+ if(e.pointerId!==fireAim?.id||state.mode!=='playing'||paused)return;
+ const r=stage.getBoundingClientRect(),gain=1.6;
+ state.aim={x:clamp(state.aim.x+(e.clientX-fireAim.x)/r.width*1000*gain,0,1000),y:clamp(state.aim.y+(e.clientY-fireAim.y)/r.height*1500*gain,0,1500)};
+ fireAim.x=e.clientX;fireAim.y=e.clientY;
+ $('fire').style.setProperty('--aim-x',clamp(e.clientX-fireAim.startX,-18,18)+'px');
+ $('fire').style.setProperty('--aim-y',clamp(e.clientY-fireAim.startY,-18,18)+'px');
+});$('fire').addEventListener('lostpointercapture',release);
 $('stick').addEventListener('pointerdown',e=>{e.preventDefault();if(state.mode!=='playing'||paused)return;stickId=e.pointerId;e.currentTarget.setPointerCapture(e.pointerId);moveStick(e);});
 function moveStick(e){if(e.pointerId!==stickId)return;const r=$('stick').getBoundingClientRect(),x=clamp((e.clientX-r.left-r.width/2)/(r.width*.32),-1,1);stickMove=x;$('stick-knob').style.transform=`translate(calc(-50% + ${x*22}px),-50%)`;}
 $('stick').addEventListener('pointermove',moveStick);$('stick').addEventListener('lostpointercapture',release);
@@ -165,4 +175,4 @@ function frame(now){const raw=(now-last)/1000;last=now;let dt=Math.min(.05,raw);
 requestAnimationFrame(frame);
 
 // Read-only inspection used by the browser check; control remains through actual input.
-window.nemesisDemo={snapshot:()=>({ready,mode:state.mode,paused,time:state.time,hp:state.hp,shield:state.shield,maxHp:state.maxHp,attempt:state.attempt,limbs:{legs:2,arms:2},hits:state.hits,misses:state.misses,damage:state.damage,armor:[...state.armor],phase:state.phase,playerX:state.playerX,dodgeLeft:state.dodgeLeft,dodgeCooldown:state.dodgeCooldown,boss:bossPose(state),weakpoints:weakpoints(state),attack:state.attack?{...state.attack}:null,effects:{particles:particles.length,chunks:chunks.length,beams:beams.length,scars:scars.length},fps:Math.round(1000/frameMs),frames})};
+window.nemesisDemo={snapshot:()=>({ready,aim:{...state.aim},firing:input.fire,moving:input.move,mode:state.mode,paused,time:state.time,hp:state.hp,shield:state.shield,maxHp:state.maxHp,attempt:state.attempt,limbs:{legs:2,arms:2},hits:state.hits,misses:state.misses,damage:state.damage,armor:[...state.armor],phase:state.phase,playerX:state.playerX,dodgeLeft:state.dodgeLeft,dodgeCooldown:state.dodgeCooldown,boss:bossPose(state),weakpoints:weakpoints(state),attack:state.attack?{...state.attack}:null,effects:{particles:particles.length,chunks:chunks.length,beams:beams.length,scars:scars.length},fps:Math.round(1000/frameMs),frames})};

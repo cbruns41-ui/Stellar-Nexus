@@ -8,6 +8,7 @@ import { CITY_PLOTS } from "../public/js/city.mjs";
 import { verifyGameFlows } from "./verify-game-flows.mjs";
 import { verifyNavigation } from "./verify-navigation.mjs";
 import { verifyQaRegressions } from './verify-qa-regressions.mjs';
+import { verifyMobileInputs } from './verify-mobile-inputs.mjs';
 const base = "http://localhost:3100";
 const debug = 9347;
 const databasePath = fileURLToPath(new URL(`../tmp/colony-verification-${process.pid}.db`, import.meta.url));
@@ -83,11 +84,15 @@ try {
   console.log("Unity loaded", await evaluate(`({canvas: [document.querySelector('canvas#colony-unity-canvas').width,document.querySelector('canvas#colony-unity-canvas').height],markers:document.querySelectorAll('.colony-marker:not([hidden])').length})`));
   await shot("desktop-base");
   const headers = { "content-type":"application/json", cookie:`sn_session=${token}` };
-  if(process.argv.includes('--qa-regressions-only')) {
+  if(process.argv.includes('--mobile-inputs-only') || process.argv.includes('--boss-inputs-only')) {
+    await verifyMobileInputs({base,headers,databasePath,send,evaluate,until,pause,shot});
+    assert.deepEqual(errors,[], 'No browser exceptions during mobile inputs');
+    await writeFile(new URL(process.argv.includes('--boss-inputs-only')?'boss-inputs-verification.json':'mobile-inputs-verification.json',folder),JSON.stringify({passed:true,checkedAt:new Date().toISOString(),browserErrors:errors},null,2));
+  } else if(process.argv.includes('--qa-regressions-only')) {
     await verifyQaRegressions({base,headers,databasePath,send,evaluate,until,pause});
     await shot('qa-final');
     assert.deepEqual(errors,[], 'No browser exceptions during QA regressions');
-    await writeFile(new URL('qa-regressions-verification.json',folder),JSON.stringify({passed:true,checkedAt:new Date().toISOString(),checks:['real touch building/yard controls','system label tap and search','two colony arrivals: five to seven planets without reload','planet and open sheet synchronize','raid reinforcement beyond destination capacity','combat report and cleared alarm','visible building queue','live activity slots and timer','Orbit touch fire','alliance colony with preserved 89% funding, deposit and research start'],browserErrors:errors},null,2));
+    await writeFile(new URL('qa-regressions-verification.json',folder),JSON.stringify({passed:true,checkedAt:new Date().toISOString(),checks:['real touch building/yard controls','system label tap and search','two colony arrivals: five to seven planets without reload','planet and open sheet synchronize','live raid expiry without hangar loss; stable first-tap button','raid reinforcement beyond destination capacity','combat report and cleared alarm','visible building queue','live activity slots and timer','Orbit touch fire','alliance colony with preserved 89% funding, deposit and research start'],browserErrors:errors},null,2));
   } else if(process.argv.includes('--navigation-only')) {
     await verifyNavigation({base,databasePath,send,evaluate,until,pause});
     assert.deepEqual(errors, [], "No browser errors or warnings");

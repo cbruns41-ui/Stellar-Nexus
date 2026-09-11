@@ -627,9 +627,9 @@ export function systemHtml(sys, catalog, originShips, opts = {}) {
       const owner = p.owner
         ? `${p.owner.alliance ? `<span class="muted">[${esc(p.owner.alliance.tag)}]</span> ` : ""}<button type="button" class="linkish" data-profile="${p.owner.id}" style="color:${p.owner.color}">${esc(p.owner.name)}</button>`
         : sys.pirate
-          ? `<span style="color:#ff8a3a">Piraten S${sys.pirate}</span>`
+          ? `<span style="color:#ff8a3a">Piratenhorst · Stufe ${sys.pirate}</span>`
           : sys.remnant
-            ? `<span class="danger">Remnants</span>`
+            ? `<span class="danger">Piratenbesatzung</span>`
             : `<span class="muted">unbesetzt</span>`;
       const alert = highlightPlanetId && p.id === highlightPlanetId;
       const flights=(opts.flights || []).filter(f=>f.targetPlanetId===p.id && !f.returning);
@@ -707,10 +707,13 @@ export function systemHtml(sys, catalog, originShips, opts = {}) {
       ${orbitPlanet ? `<section class="orbit-launch"><header><span>FLOTTE</span><b>${orbitFleet}</b><small>${orbitFleet ? "Schiffe im Hangar" : "Hangar leer"}</small></header><div class="orbit-mode" role="group" aria-label="Orbit-Feuer"><button type="button" class="on" data-orbit-mode="auto"><i>⌖</i><span><b>AUTO</b><small>Computer fliegt</small></span></button><button type="button" data-orbit-mode="manual" data-orbit-planet="${orbitPlanet.id}" data-orbit-name="${esc(orbitPlanet.name)}" ><i>◎</i><span><b>SELBST STEUERN</b><small>30 Sek. Orbit-Feuer</small></span></button></div><p>ⓘ Minispiel, keine Dauerwelt</p></section>` : ""}
       ${colonizeMode && !colonizeMode.targetPlanetId ? quick : ""}
       ${sys.isHub ? `<p class="hint">Nexus-Hub — Mehrheitskontrolle gewährt Kristall-Bonus.</p>` : ""}
-      ${sys.pirate ? `<p class="hint" style="color:#ff8a3a">Piratenhorst Stufe ${sys.pirate} — Angriff bringt Prisen.</p>` : ""}
-      ${sys.warlord ? `<p class="hint" style="color:#f0c14a">Warlord: ${esc(sys.warlord)} — extra Flotte, Relikt.</p>` : ""}
+      ${sys.pirate ? `<p class="hint" style="color:#ff8a3a">Piratenhorst Stufe ${sys.pirate} — Sieg bringt Beute.</p>` : ""}
+      ${sys.warlord ? `<p class="hint" style="color:#f0c14a">Piratenanführer: ${esc(sys.warlord)} — Eskorte in der angezeigten Wache enthalten; Sieg kann ein noch fehlendes Relikt freischalten.</p>` : ""}
+      ${sys.npc && !sys.pirate && sys.remnant ? `<p class="hint">Piratenbesatzung · Stufe ${sys.npc.level}. Eine gemeinsame Wache schützt alle Planeten im System.</p>` : ""}
+      ${sys.npc?.liberatedUntil && !sys.remnant ? `<p class="hint">Befreit: früheste Wiederbesetzung ${esc(new Date(sys.npc.liberatedUntil).toLocaleString('de-DE'))}. Eigene Kolonien und anfliegende Kolonieschiffe schützen das gesamte System.</p>` : ""}
+      ${sys.npc?.recoveryEndsAt && sys.remnant ? `<p class="hint">Wiederaufbau ab ${esc(new Date(sys.npc.recoveryStartsAt).toLocaleString('de-DE'))}, vollständig ab ${esc(new Date(sys.npc.recoveryEndsAt).toLocaleString('de-DE'))}. Bei anfliegenden Angriffen pausiert er. <a href="/help.html#piraten">Piraten erklärt</a></p>` : ""}
       ${sys.rift ? `<p class="hint" style="color:var(--cyan)">Nexus-Riss aktiv — Expeditionen hier finden mehr.</p>` : ""}
-      ${sys.remnant ? `<p class="hint danger">Remnant-Wache: ${remnant.map(([id, n]) => n + "× " + (catalog.ships[id]?.name || id)).join(", ") || "unbekannt"}</p>` : ""}
+      ${sys.remnant ? `<p class="hint danger">Systemwache: ${remnant.map(([id, n]) => n + "× " + (catalog.ships[id]?.name || id)).join(", ") || "unbekannt"}</p>` : ""}
       <div class="sys-planet-list">${planetRows}</div>
       ${ships.length ? `<p class="muted" style="margin-top:10px">Flotte am Fokus-Planeten bereit.</p>` : `<p class="muted sys-fleet-note">Keine Schiffe am Fokus-Planeten.</p>`}
     </div>`;
