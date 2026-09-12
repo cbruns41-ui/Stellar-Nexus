@@ -124,7 +124,21 @@ body.orbit-siege-open { overflow: hidden; }
   background: linear-gradient(90deg, #ff3a3a, #ff9a4a);
   box-shadow: 0 0 12px #ff4a3a;
 }
-.orbit-game .hud-sub { display: flex; gap: 18px; padding-left: 2px; }
+.orbit-game .hud-sub { display: flex; gap: 12px; padding-left: 2px; align-items: center; flex-wrap: wrap; }
+.orbit-game #build-go {
+  pointer-events: auto;
+  min-height: 28px;
+  padding: 0 10px;
+  margin-left: auto;
+  border: 1px solid #4ec8e4;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #1a5a72, #0e3344);
+  color: #e7f8ff;
+  font: 700 10px Orbitron, sans-serif;
+  letter-spacing: .08em;
+  cursor: pointer;
+}
+.orbit-game #build-go[hidden] { display: none !important; }
 .orbit-game .hud-sub b { display: inline; font-size: 13px; letter-spacing: .04em; margin-left: 6px; }
 
 .orbit-game .wave-banner {
@@ -276,6 +290,11 @@ body.orbit-siege-open { overflow: hidden; }
   border-radius: 14px;
   background: linear-gradient(180deg, rgba(8, 28, 40, .94), rgba(3, 12, 20, .96));
   box-shadow: 0 12px 32px rgba(0,0,0,.45);
+  max-height: min(240px, 42vh);
+}
+.orbit-build.dock-top {
+  bottom: auto;
+  top: calc(158px + env(safe-area-inset-top, 0px));
 }
 .orbit-build[hidden] { display: none !important; }
 .orbit-build header {
@@ -283,10 +302,11 @@ body.orbit-siege-open { overflow: hidden; }
 }
 .orbit-build header b { color: #8ee7ff; font: 800 12px Orbitron, sans-serif; letter-spacing: .12em; }
 .orbit-build header small { flex: 1; color: #8aa0ae; font-size: 11px; }
-.orbit-build #build-go {
-  min-height: 36px; padding: 0 10px; border: 1px solid #4ec8e4; border-radius: 8px;
-  background: linear-gradient(180deg, #1a5a72, #0e3344); color: #e7f8ff;
-  font: 700 11px Orbitron, sans-serif; letter-spacing: .08em; cursor: pointer;
+.orbit-build #build-close {
+  width: 32px; height: 32px; min-height: 32px; padding: 0; flex: 0 0 32px;
+  border: 1px solid #49697b; border-radius: 8px;
+  background: rgba(2,12,20,.78); color: #a9bdc8;
+  font-size: 20px; line-height: 1; cursor: pointer;
 }
 .orbit-shop {
   display: flex; gap: 8px; overflow-x: auto; overscroll-behavior: contain;
@@ -304,8 +324,11 @@ body.orbit-siege-open { overflow: hidden; }
 .orbit-shop-item small { color: #8aa0ae; font-size: 9px; text-align: center; line-height: 1.2; }
 .orbit-shop-item.on { border-color: #5ce4ff; box-shadow: 0 0 16px rgba(60, 220, 255, .35); }
 .orbit-shop-item.poor { opacity: .45; }
+.orbit-game:not(.is-build) .orbit-shop-item { flex-basis: 78px; min-height: 80px; padding: 4px 3px 6px; }
+.orbit-game:not(.is-build) .orbit-shop-item small { display: none; }
+.orbit-game:not(.is-build) .orbit-shop-item img { width: 42px; height: 42px; }
 .pause-overlay { align-items: center !important; }
-.orbit-game .hud .orbit-pause, .orbit-game .hud .orbit-exit { pointer-events: auto; }
+.orbit-game .hud .orbit-pause, .orbit-game .hud .orbit-exit, .orbit-game .hud #build-go { pointer-events: auto; }
 
 @media (max-width: 420px) {
   .orbit-game .chip b { font-size: 17px; }

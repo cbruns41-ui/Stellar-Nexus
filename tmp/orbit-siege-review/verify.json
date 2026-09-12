@@ -1,0 +1,187 @@
+{
+  "ok": {
+    "started": true,
+    "shopHiddenAtStart": true,
+    "slotsUncoveredAtStart": true,
+    "startSalvage": true,
+    "waveButtonVisible": true,
+    "shopOpensOnSlot": true,
+    "mineCost": "45",
+    "laserCost": "72",
+    "shopClosesAfterPlace": true,
+    "oneTower": true,
+    "salvageAfterMine": true
+  },
+  "state0": {
+    "salvage": "48",
+    "dockHidden": true,
+    "goHidden": false,
+    "goText": "Welle starten",
+    "shopItems": 0,
+    "W": 390,
+    "H": 844,
+    "planetR": 22.62,
+    "covered": 0,
+    "slots": [
+      {
+        "ring": 0,
+        "i": 0,
+        "x": 223.8405,
+        "y": 304.52678868430974,
+        "covered": false
+      },
+      {
+        "ring": 0,
+        "i": 1,
+        "x": 252.68099999999998,
+        "y": 354.47999999999996,
+        "covered": false
+      },
+      {
+        "ring": 0,
+        "i": 2,
+        "x": 223.8405,
+        "y": 404.4332113156902,
+        "covered": false
+      },
+      {
+        "ring": 0,
+        "i": 3,
+        "x": 166.1595,
+        "y": 404.4332113156902,
+        "covered": false
+      },
+      {
+        "ring": 0,
+        "i": 4,
+        "x": 137.31900000000002,
+        "y": 354.47999999999996,
+        "covered": false
+      },
+      {
+        "ring": 0,
+        "i": 5,
+        "x": 166.15949999999998,
+        "y": 304.5267886843098,
+        "covered": false
+      },
+      {
+        "ring": 1,
+        "i": 0,
+        "x": 195,
+        "y": 265.131,
+        "covered": false
+      },
+      {
+        "ring": 1,
+        "i": 1,
+        "x": 258.17928379223684,
+        "y": 291.3007162077631,
+        "covered": false
+      },
+      {
+        "ring": 1,
+        "i": 2,
+        "x": 284.349,
+        "y": 354.47999999999996,
+        "covered": false
+      },
+      {
+        "ring": 1,
+        "i": 3,
+        "x": 258.17928379223684,
+        "y": 417.6592837922368,
+        "covered": false
+      },
+      {
+        "ring": 1,
+        "i": 4,
+        "x": 195,
+        "y": 443.82899999999995,
+        "covered": false
+      },
+      {
+        "ring": 1,
+        "i": 5,
+        "x": 131.82071620776316,
+        "y": 417.6592837922368,
+        "covered": false
+      },
+      {
+        "ring": 1,
+        "i": 6,
+        "x": 105.651,
+        "y": 354.47999999999996,
+        "covered": false
+      },
+      {
+        "ring": 1,
+        "i": 7,
+        "x": 131.82071620776316,
+        "y": 291.3007162077631,
+        "covered": false
+      }
+    ]
+  },
+  "state1": {
+    "dockHidden": false,
+    "dockTop": true,
+    "shopItems": [
+      {
+        "id": "laser",
+        "cost": "72"
+      },
+      {
+        "id": "silo",
+        "cost": "90"
+      },
+      {
+        "id": "flak",
+        "cost": "82"
+      },
+      {
+        "id": "gauss",
+        "cost": "118"
+      },
+      {
+        "id": "tesla",
+        "cost": "136"
+      },
+      {
+        "id": "mine",
+        "cost": "45"
+      },
+      {
+        "id": "repair",
+        "cost": "50"
+      },
+      {
+        "id": "rate",
+        "cost": "70"
+      },
+      {
+        "id": "dmg",
+        "cost": "80"
+      },
+      {
+        "id": "range",
+        "cost": "60"
+      }
+    ],
+    "dock": {
+      "top": 158,
+      "bottom": 340.59375,
+      "height": 182.59375
+    }
+  },
+  "state2": {
+    "dockHidden": true,
+    "towers": "1",
+    "salvage": "3"
+  },
+  "wide": {
+    "dockHidden": true,
+    "goHidden": false,
+    "salvage": "3"
+  }
+}

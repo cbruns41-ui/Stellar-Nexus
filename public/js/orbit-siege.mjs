@@ -30,6 +30,7 @@ root.innerHTML = `
       <span>ABSCHÜSSE <b id="kills">0</b></span>
       <span>TÜRME <b id="towers">0</b></span>
       <span id="build-clock" hidden>AUFBAU <b id="build-t">0</b>s</span>
+      <button type="button" id="build-go" hidden>Welle starten</button>
     </div>
   </header>
   <p class="wave-banner" id="banner" hidden></p>
@@ -43,8 +44,8 @@ root.innerHTML = `
   <aside class="orbit-build" id="build-dock" hidden>
     <header>
       <b>STELLUNG</b>
-      <small id="build-hint">Turm wählen, dann einen Ring antippen</small>
-      <button type="button" id="build-go">Welle starten</button>
+      <small id="build-hint">Turm für diesen Bauplatz wählen</small>
+      <button type="button" id="build-close" aria-label="Schließen">×</button>
     </header>
     <div class="orbit-shop" id="shop"></div>
   </aside>
@@ -94,20 +95,26 @@ const buildHint = root.querySelector("#build-hint");
 const ART = {
   bg: img("/assets/orbit-siege/arena.jpg"),
   planet: img("/assets/orbit-siege/planet.png"),
-  battery: img("/assets/orbit-siege/battery.png"),
-  sentinel: img("/assets/orbit-siege/sentinel.png"),
-  silo: img("/assets/orbit-siege/silo.png"),
+  battery: img("/assets/orbit-siege/turret-battery.jpg"),
   interceptor: img("/assets/orbit-siege/interceptor.png"),
   frigate: img("/assets/orbit-siege/frigate.png"),
   rocket: img("/assets/orbit-siege/rocket.png"),
   missile: img("/assets/orbit-siege/missile.png"),
+  turrets: {
+    laser: img("/assets/orbit-siege/turret-laser.jpg"),
+    silo: img("/assets/orbit-siege/turret-silo.jpg"),
+    flak: img("/assets/orbit-siege/turret-flak.jpg"),
+    gauss: img("/assets/orbit-siege/turret-gauss.jpg"),
+    tesla: img("/assets/orbit-siege/turret-tesla.jpg"),
+    mine: img("/assets/orbit-siege/turret-mine.jpg"),
+  },
   icons: {
-    laser: "/assets/orbit-siege/upgrade-tower.jpg",
-    silo: "/assets/orbit-siege/upgrade-silo.jpg",
-    flak: "/assets/orbit-siege/upgrade-flak.jpg",
-    gauss: "/assets/orbit-siege/upgrade-gauss.jpg",
-    tesla: "/assets/orbit-siege/upgrade-tesla.jpg",
-    mine: "/assets/orbit-siege/upgrade-mine.jpg",
+    laser: "/assets/orbit-siege/turret-laser.jpg",
+    silo: "/assets/orbit-siege/turret-silo.jpg",
+    flak: "/assets/orbit-siege/turret-flak.jpg",
+    gauss: "/assets/orbit-siege/turret-gauss.jpg",
+    tesla: "/assets/orbit-siege/turret-tesla.jpg",
+    mine: "/assets/orbit-siege/turret-mine.jpg",
     repair: "/assets/orbit-siege/upgrade-repair.jpg",
     rate: "/assets/orbit-siege/upgrade-rate.jpg",
     dmg: "/assets/orbit-siege/upgrade-dmg.jpg",
@@ -124,24 +131,28 @@ function ready(im) {
 }
 
 const TOWER_DEFS = [
-  { id: "laser", title: "LASER", blurb: "Strahl · schnelle Jäger", cost: 28, kind: "laser" },
-  { id: "silo", title: "SILO", blurb: "Fängt Raketen ab", cost: 36, kind: "silo" },
-  { id: "flak", title: "FLAK", blurb: "Flächenschaden", cost: 32, kind: "flak" },
-  { id: "gauss", title: "GAUSS", blurb: "Durchschlägt Reihen", cost: 48, kind: "gauss" },
-  { id: "tesla", title: "TESLA", blurb: "Kettenblitz", cost: 54, kind: "tesla" },
-  { id: "mine", title: "MINE", blurb: "Explodiert bei Nähe", cost: 18, kind: "mine" },
+  { id: "laser", title: "LASER", blurb: "Strahl · schnelle Jäger", cost: 72, kind: "laser" },
+  { id: "silo", title: "SILO", blurb: "Fängt Raketen ab", cost: 90, kind: "silo" },
+  { id: "flak", title: "FLAK", blurb: "Flächenschaden", cost: 82, kind: "flak" },
+  { id: "gauss", title: "GAUSS", blurb: "Durchschlägt Reihen", cost: 118, kind: "gauss" },
+  { id: "tesla", title: "TESLA", blurb: "Kettenblitz", cost: 136, kind: "tesla" },
+  { id: "mine", title: "MINE", blurb: "Explodiert bei Nähe", cost: 45, kind: "mine" },
 ];
 const BOOSTS = [
-  { id: "repair", title: "SCHILD", blurb: "+28 HP", cost: 24, apply: (g) => { g.hp = Math.min(g.maxHp, g.hp + 28); } },
-  { id: "rate", title: "KADENZ", blurb: "Kanone schneller", cost: 32, apply: (g) => { g.playerRate *= 0.84; } },
-  { id: "dmg", title: "IONEN", blurb: "+1 Schaden", cost: 36, apply: (g) => { g.playerDmg += 1; } },
-  { id: "range", title: "ORTUNG", blurb: "Türme weiter", cost: 28, apply: (g) => { g.range *= 1.16; } },
+  { id: "repair", title: "SCHILD", blurb: "+28 HP", cost: 50, apply: (g) => { g.hp = Math.min(g.maxHp, g.hp + 28); } },
+  { id: "rate", title: "KADENZ", blurb: "Kanone schneller", cost: 70, apply: (g) => { g.playerRate *= 0.84; } },
+  { id: "dmg", title: "IONEN", blurb: "+1 Schaden", cost: 80, apply: (g) => { g.playerDmg += 1; } },
+  { id: "range", title: "ORTUNG", blurb: "Türme weiter", cost: 60, apply: (g) => { g.range *= 1.16; } },
 ];
 
 const INNER_N = 6;
 const OUTER_N = 8;
 let W = 1, H = 1, dpr = 1, cx = 0, cy = 0, planetR = 40, shieldR = 52, innerR = 90, outerR = 140;
 let stars = [], dust = [];
+const ZMIN = 0.8, ZMAX = 2.55;
+let zoom = 1, panX = 0, panY = 0;
+const pointers = new Map();
+let pinch = null, tapIgnore = false;
 const game = fresh();
 let last = 0, dragging = false, firing = false, keys = new Set();
 let bannerT = 0, shakeX = 0, shakeY = 0, stopped = false;
@@ -151,7 +162,7 @@ function fresh() {
     mode: "build",
     paused: false,
     time: 0,
-    hp: 100, maxHp: 100, salvage: 40, wave: 0, kills: 0,
+    hp: 100, maxHp: 100, salvage: 48, wave: 0, kills: 0,
     playerRate: 0.18, playerDmg: 1, playerCd: 0, flak: 0, range: 1,
     playerMissiles: 0, shotN: 0,
     aim: -Math.PI / 2, recoil: 0, flash: 0,
@@ -159,6 +170,7 @@ function fresh() {
     heldWaves: 0,
     aaCd: 0, aaMax: 8.5,
     pick: null,
+    pendingSlot: null,
     buildTimer: 12,
     towers: [],
     enemies: [], rockets: [], interceptors: [],
@@ -178,6 +190,12 @@ function slotPos(ring, i) {
 }
 function occupied(ring, i) {
   return game.towers.some((t) => t.ring === ring && t.slot === i);
+}
+function cheapestTower() {
+  return TOWER_DEFS.filter((t) => t.cost <= game.salvage).sort((a, b) => a.cost - b.cost)[0] || null;
+}
+function canAffordTower() {
+  return TOWER_DEFS.some((t) => t.cost <= game.salvage);
 }
 function towerPos(t) {
   return slotPos(t.ring, t.slot);
@@ -216,10 +234,11 @@ function resize() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   cx = W / 2;
   cy = H * 0.42;
-  planetR = Math.min(W, H) * 0.068;
+  planetR = Math.min(W, H) * 0.058;
   shieldR = planetR * 1.72;
   innerR = planetR * 2.55;
   outerR = planetR * 3.95;
+  clampPan();
   seedSky();
 }
 window.addEventListener("resize", resize);
@@ -250,8 +269,43 @@ function canvasPoint(e) {
   const r = canvas.getBoundingClientRect();
   return { x: e.clientX - r.left, y: e.clientY - r.top };
 }
+function screenToWorld(sx, sy) {
+  return {
+    x: (sx - cx) / zoom + cx - panX,
+    y: (sy - cy) / zoom + cy - panY,
+  };
+}
+function worldToScreen(wx, wy) {
+  return {
+    x: cx + zoom * (wx - cx + panX),
+    y: cy + zoom * (wy - cy + panY),
+  };
+}
+function applyCam() {
+  ctx.translate(cx, cy);
+  ctx.scale(zoom, zoom);
+  ctx.translate(-cx + panX, -cy + panY);
+}
+function clampPan() {
+  const lim = (Math.min(W, H) * 0.45) / Math.max(zoom, 0.01);
+  panX = Math.max(-lim, Math.min(lim, panX));
+  panY = Math.max(-lim, Math.min(lim, panY));
+}
+function zoomAt(sx, sy, factor) {
+  const before = screenToWorld(sx, sy);
+  zoom = Math.max(ZMIN, Math.min(ZMAX, zoom * factor));
+  const after = screenToWorld(sx, sy);
+  panX += after.x - before.x;
+  panY += after.y - before.y;
+  clampPan();
+}
+function resetCam() {
+  zoom = 1;
+  panX = 0;
+  panY = 0;
+}
 function nearestSlot(x, y) {
-  let best = null, bestD = 42;
+  let best = null, bestD = 56 / zoom;
   for (const ring of [0, 1]) {
     const n = ring === 0 ? INNER_N : OUTER_N;
     for (let i = 0; i < n; i++) {
@@ -262,39 +316,120 @@ function nearestSlot(x, y) {
   }
   return best;
 }
-function tryPlace(x, y) {
-  if (game.mode !== "build" || game.paused) return false;
-  const def = TOWER_DEFS.find((t) => t.id === game.pick);
-  if (!def) { showBanner("TURM WÄHLEN"); return true; }
-  const slot = nearestSlot(x, y);
-  if (!slot) return false;
-  if (occupied(slot.ring, slot.i)) { showBanner("BELEGT"); return true; }
-  if (game.salvage < def.cost) { showBanner("ZU WENIG PUNKTE"); return true; }
+function placeOn(slot, def) {
+  if (!slot || !def) return false;
+  if (occupied(slot.ring, slot.i)) { showBanner("BELEGT"); return false; }
+  if (game.salvage < def.cost) { showBanner("ZU WENIG PUNKTE"); return false; }
   game.salvage -= def.cost;
+  game.pick = def.id;
   game.towers.push({
     ring: slot.ring, slot: slot.i, ang: slot.ang, kind: def.kind,
     cd: 0.2, lock: null, flash: 0, armed: 1,
   });
-  burst(slot.x, slot.y, "#7fe7ff", 10);
+  const p = slotPos(slot.ring, slot.i);
+  burst(p.x, p.y, "#7fe7ff", 12);
   showBanner(def.title);
-  paintShop();
+  closeShop();
   paintHud();
   return true;
 }
-canvas.addEventListener("pointerdown", (e) => {
+function shopDockSide(slot) {
+  const p = slotPos(slot.ring, slot.i);
+  const s = worldToScreen(p.x, p.y);
+  buildDock.classList.toggle("dock-top", s.y > H * 0.46);
+}
+function openShop(slot) {
+  if (game.paused || game.mode === "dead") return;
+  game.pendingSlot = { ring: slot.ring, i: slot.i, ang: slot.ang };
+  if (!TOWER_DEFS.some((t) => t.id === game.pick && t.cost <= game.salvage)) {
+    game.pick = cheapestTower()?.id || "laser";
+  }
+  buildDock.hidden = false;
+  shopDockSide(slot);
+  const def = TOWER_DEFS.find((t) => t.id === game.pick);
+  buildHint.textContent = def
+    ? `${def.title} · ${def.cost} Punkte · antippen zum Bauen`
+    : "Turm wählen";
+  paintShop();
+}
+function closeShop() {
+  game.pendingSlot = null;
+  buildDock.hidden = true;
+}
+function onCanvasDown(e) {
+  if (game.mode === "dead") return;
   const p = canvasPoint(e);
-  if (game.mode === "build") {
-    tryPlace(p.x, p.y);
+  pointers.set(e.pointerId, p);
+  try { canvas.setPointerCapture(e.pointerId); } catch {}
+  if (pointers.size >= 2) {
+    tapIgnore = true;
+    const pts = [...pointers.values()];
+    const a = pts[0], b = pts[1];
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    pinch = {
+      dist: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+      world: screenToWorld(mid.x, mid.y),
+      zoom,
+    };
+  }
+}
+function onCanvasMove(e) {
+  const p = canvasPoint(e);
+  if (pointers.has(e.pointerId)) pointers.set(e.pointerId, p);
+  if (pointers.size >= 2) {
+    const pts = [...pointers.values()];
+    const a = pts[0], b = pts[1];
+    const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    if (!pinch) {
+      pinch = { dist, world: screenToWorld(mid.x, mid.y), zoom };
+    }
+    zoom = Math.max(ZMIN, Math.min(ZMAX, pinch.zoom * (dist / pinch.dist)));
+    panX = (mid.x - cx) / zoom + cx - pinch.world.x;
+    panY = (mid.y - cy) / zoom + cy - pinch.world.y;
+    clampPan();
+    tapIgnore = true;
     return;
   }
-  if (game.mode !== "play" || game.paused) return;
-  game.aim = Math.atan2(p.y - cy, p.x - cx);
-});
-canvas.addEventListener("pointermove", (e) => {
-  if (game.mode !== "play" || game.paused || e.buttons === 0) return;
+  if (pointers.size !== 1) return;
+  if (tapIgnore || game.mode !== "play" || game.paused) return;
+  const w = screenToWorld(p.x, p.y);
+  game.aim = Math.atan2(w.y - cy, w.x - cx);
+}
+function onCanvasUp(e) {
   const p = canvasPoint(e);
-  game.aim = Math.atan2(p.y - cy, p.x - cx);
-});
+  pointers.delete(e.pointerId);
+  if (pointers.size < 2) pinch = null;
+  if (tapIgnore) {
+    if (pointers.size === 0) tapIgnore = false;
+    return;
+  }
+  if (game.paused || game.mode === "dead") return;
+  const w = screenToWorld(p.x, p.y);
+  const slot = nearestSlot(w.x, w.y);
+  if (slot) {
+    if (occupied(slot.ring, slot.i)) { showBanner("BELEGT"); return; }
+    openShop(slot);
+    return;
+  }
+  if (!buildDock.hidden) { closeShop(); return; }
+  if (game.mode === "play") game.aim = Math.atan2(w.y - cy, w.x - cx);
+}
+function onWheel(e) {
+  if (game.mode === "dead") return;
+  if (e.target?.closest?.(".overlay, .orbit-build, .controls")) return;
+  if (e.cancelable) e.preventDefault();
+  e.stopPropagation();
+  const p = canvasPoint(e);
+  const factor = Math.exp(-(e.deltaY || 0) * 0.0022);
+  zoomAt(p.x, p.y, Math.max(0.82, Math.min(1.22, factor)));
+}
+canvas.addEventListener("pointerdown", onCanvasDown);
+canvas.addEventListener("pointermove", onCanvasMove);
+canvas.addEventListener("pointerup", onCanvasUp);
+canvas.addEventListener("pointercancel", onCanvasUp);
+canvas.addEventListener("wheel", onWheel, { passive: false });
+root.addEventListener("wheel", onWheel, { passive: false });
 fireBtn.addEventListener("pointerdown", (e) => { e.preventDefault(); fireBtn.setPointerCapture(e.pointerId); firing = true; fireBtn.classList.add("pressed"); });
 const stopFire = () => { firing = false; fireBtn.classList.remove("pressed"); };
 fireBtn.addEventListener("pointerup", stopFire); fireBtn.addEventListener("pointercancel", stopFire);
@@ -302,6 +437,7 @@ aaBtn.addEventListener("pointerdown", (e) => { e.preventDefault(); aaBurst(); })
 function togglePause() {
   if (game.mode === "dead") return;
   game.paused = !game.paused;
+  if (game.paused) closeShop();
   root.querySelector("#pause").hidden = !game.paused;
   root.querySelector(".orbit-pause").textContent = game.paused ? "▶" : "II";
 }
@@ -310,10 +446,14 @@ root.querySelector("#pause-resume").onclick = togglePause;
 const onKeyDown = (e) => {
   keys.add(e.code);
   if (e.code === "Space") e.preventDefault();
+  if (e.code === "Escape" && !buildDock.hidden) { e.preventDefault(); closeShop(); return; }
   if (e.code === "KeyP" || e.code === "Escape") {
     if (e.code === "KeyP") { e.preventDefault(); togglePause(); }
   }
   if (e.code === "KeyE" || e.code === "KeyQ") { e.preventDefault(); aaBurst(); }
+  if (e.code === "Equal" || e.code === "NumpadAdd") { e.preventDefault(); zoomAt(cx, cy, 1.12); }
+  if (e.code === "Minus" || e.code === "NumpadSubtract") { e.preventDefault(); zoomAt(cx, cy, 1 / 1.12); }
+  if (e.code === "Digit0" || e.code === "Numpad0") { e.preventDefault(); resetCam(); }
 };
 const onKeyUp = (e) => keys.delete(e.code);
 window.addEventListener("keydown", onKeyDown);
@@ -321,6 +461,8 @@ window.addEventListener("keyup", onKeyUp);
 
 function begin() {
   Object.assign(game, fresh());
+  resetCam();
+  closeShop();
   root.querySelector("#dead").hidden = true;
   root.querySelector("#pause").hidden = true;
   openBuild(true);
@@ -335,7 +477,7 @@ let finishing = false, claimedOk = false, startFailed = null;
 function paintResult({ lootText, error } = {}) {
   game.mode = "dead";
   game.paused = false;
-  buildDock.hidden = true;
+  closeShop();
   root.querySelector("#pause").hidden = true;
   root.querySelector("#dead").hidden = false;
   root.querySelector("#dead-label").textContent = error ? "ABBRUCH" : "RUNDE BEENDET";
@@ -377,6 +519,12 @@ function teardown() {
   window.removeEventListener("keydown", onKeyDown);
   window.removeEventListener("keyup", onKeyUp);
   window.removeEventListener("resize", resize);
+  canvas.removeEventListener("pointerdown", onCanvasDown);
+  canvas.removeEventListener("pointermove", onCanvasMove);
+  canvas.removeEventListener("pointerup", onCanvasUp);
+  canvas.removeEventListener("pointercancel", onCanvasUp);
+  canvas.removeEventListener("wheel", onWheel);
+  root.removeEventListener("wheel", onWheel);
   const vv = window.visualViewport;
   if (vv) {
     vv.removeEventListener("resize", resize);
@@ -403,8 +551,8 @@ function nextWave() {
   game.wave += 1;
   game.waveLive = true;
   game.mode = "play";
-  game.pick = null;
-  buildDock.hidden = true;
+  closeShop();
+  root.querySelector("#build-go").hidden = true;
   const n = 4 + game.wave * 2;
   game.spawnLeft = n;
   game.spawnWait = 0.15;
@@ -419,14 +567,12 @@ function waveDone() {
 function openBuild(first) {
   game.mode = "build";
   game.waveLive = false;
-  game.pick = first ? "laser" : game.pick;
   game.buildTimer = first ? 12 : 10 + Math.min(8, game.wave);
   if (!first) game.heldWaves = game.wave;
-  buildDock.hidden = false;
+  closeShop();
+  root.querySelector("#build-go").hidden = false;
   const loot = first ? "" : lootLine(game.wave);
-  showBanner(first ? "STELLUNG AUFBAUEN" : `WELLE ${game.wave} GEHALTEN`);
-  buildHint.textContent = loot ? `${loot} · Turm wählen, Ring antippen` : "Turm wählen, dann einen Ring antippen";
-  paintShop();
+  showBanner(first ? "BAUPLATZ ANTIPPEN" : (loot ? `WELLE ${game.wave} GEHALTEN · ${loot}` : `WELLE ${game.wave} GEHALTEN`));
 }
 function startCombat() {
   if (game.mode !== "build") return;
@@ -434,8 +580,10 @@ function startCombat() {
   paintHud();
 }
 root.querySelector("#build-go").onclick = startCombat;
+root.querySelector("#build-close").onclick = closeShop;
 
 function paintShop() {
+  if (buildDock.hidden) return;
   const items = [
     ...TOWER_DEFS.map((t) => ({ ...t, type: "tower" })),
     ...BOOSTS.map((t) => ({ ...t, type: "boost" })),
@@ -463,10 +611,20 @@ function paintShop() {
         paintHud();
         return;
       }
-      game.pick = game.pick === id ? null : id;
+      const def = TOWER_DEFS.find((t) => t.id === id);
+      if (!def) return;
+      game.pick = id;
+      if (game.pendingSlot) {
+        if (game.salvage < def.cost) {
+          showBanner("ZU WENIG PUNKTE");
+          paintShop();
+          return;
+        }
+        placeOn(game.pendingSlot, def);
+        return;
+      }
       paintShop();
-      const def = TOWER_DEFS.find((t) => t.id === game.pick);
-      buildHint.textContent = def ? `${def.title} · ${def.cost} Punkte · inneren oder äußeren Ring antippen` : "Turm wählen, dann einen Ring antippen";
+      buildHint.textContent = `${def.title} · ${def.cost} Punkte · Bauplatz antippen`;
     };
   });
 }
@@ -608,11 +766,13 @@ function zap(from, to) {
 function kill(e, salvage) {
   game.kills += 1;
   game.salvage += salvage;
+  paintShop();
   boom(e.x, e.y, e.heavy);
   const chip = salvageEl.getBoundingClientRect();
   const cr = canvas.getBoundingClientRect();
+  const from = worldToScreen(e.x, e.y);
   game.orbs.push({
-    x: e.x, y: e.y,
+    x: from.x, y: from.y,
     tx: chip.left + chip.width / 2 - cr.left,
     ty: chip.top + chip.height / 2 - cr.top,
     t: 0, n: salvage,
@@ -843,10 +1003,10 @@ function step(dt) {
     if (hit) m.life = 0;
   }
   for (const e of game.enemies) {
-    if (e.hp <= 0 && !e.hitPlanet) kill(e, e.heavy ? 12 : 5);
+    if (e.hp <= 0 && !e.hitPlanet) kill(e, e.heavy ? 8 : 4);
   }
   for (const r of game.rockets) {
-    if (r.hp <= 0 && !r.hitPlanet) kill(r, 3);
+    if (r.hp <= 0 && !r.hitPlanet) kill(r, 2);
   }
   game.enemies = game.enemies.filter((e) => e.hp > 0);
   game.rockets = game.rockets.filter((r) => r.hp > 0);
@@ -896,12 +1056,12 @@ function hexPath(r, rot = -Math.PI / 2) {
 }
 
 function drawSlots() {
-  const building = game.mode === "build" && !game.paused;
-  const pulse = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(game.time * 3.4));
+  const lit = canAffordTower() && !game.paused && game.mode !== "dead";
+  const pulse = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(game.time * 4.2));
   ctx.save();
   for (const [r, color] of [[innerR, "80,220,255"], [outerR, "255,186,80"]]) {
-    ctx.strokeStyle = `rgba(${color},${building ? 0.28 + 0.18 * pulse : 0.12})`;
-    ctx.lineWidth = building ? 2 : 1.2;
+    ctx.strokeStyle = `rgba(${color},${lit ? 0.32 + 0.22 * pulse : 0.12})`;
+    ctx.lineWidth = lit ? 2.2 : 1.2;
     ctx.setLineDash([6, 8]);
     ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.stroke();
   }
@@ -911,11 +1071,24 @@ function drawSlots() {
     for (let i = 0; i < n; i++) {
       const p = slotPos(ring, i);
       const taken = occupied(ring, i);
-      const col = ring === 0 ? "90,230,255" : "255,190,80";
-      ctx.fillStyle = taken ? `rgba(${col},0.12)` : `rgba(${col},${building ? 0.16 + 0.14 * pulse : 0.06})`;
-      ctx.strokeStyle = `rgba(${col},${taken ? 0.2 : building ? 0.7 : 0.28})`;
-      ctx.lineWidth = building && !taken ? 2 : 1;
-      ctx.beginPath(); ctx.arc(p.x, p.y, building ? 11 : 7, 0, TAU); ctx.fill(); ctx.stroke();
+      const pending = game.pendingSlot && game.pendingSlot.ring === ring && game.pendingSlot.i === i;
+      const hot = lit && !taken;
+      const col = pending ? "255,240,140" : ring === 0 ? "90,230,255" : "255,190,80";
+      if (hot || pending) {
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        const g = ctx.createRadialGradient(p.x, p.y, 2, p.x, p.y, pending ? 28 : 22);
+        g.addColorStop(0, `rgba(255,255,210,${0.55 * pulse})`);
+        g.addColorStop(0.45, `rgba(${col},${0.45 * pulse})`);
+        g.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(p.x, p.y, pending ? 28 : 22, 0, TAU); ctx.fill();
+        ctx.restore();
+      }
+      ctx.fillStyle = taken ? `rgba(${col},0.1)` : `rgba(${col},${hot || pending ? 0.22 + 0.18 * pulse : 0.07})`;
+      ctx.strokeStyle = `rgba(${col},${taken ? 0.18 : pending ? 1 : hot ? 0.85 : 0.28})`;
+      ctx.lineWidth = pending ? 3 : hot ? 2.4 : 1;
+      ctx.beginPath(); ctx.arc(p.x, p.y, pending ? 14 : hot ? 12 : 7, 0, TAU); ctx.fill(); ctx.stroke();
     }
   }
   ctx.restore();
@@ -1026,31 +1199,24 @@ function drawTurret(t, player) {
   const p = player ? { x: cx + Math.cos(game.aim) * shieldR * 0.96, y: cy + Math.sin(game.aim) * shieldR * 0.96, ang: game.aim } : towerPos(t);
   const kind = player ? "battery" : t.kind;
   const span = Math.min(W, H);
-  const h = player ? span * 0.1 : kind === "mine" ? span * 0.055 : kind === "silo" ? span * 0.07 : span * 0.066;
-  const spr = player || kind === "gauss" ? ART.battery : kind === "silo" ? ART.silo : kind === "mine" ? ART.missile : ART.sentinel;
-  const aspect = player || kind === "gauss" ? 831 / 1002 : kind === "silo" ? 808 / 842 : kind === "mine" ? 479 / 1031 : 855 / 865;
-  const w = h * aspect;
+  const size = player ? span * 0.118 : kind === "mine" ? span * 0.07 : span * 0.086;
+  const spr = player ? ART.battery : ART.turrets[kind] || ART.turrets.laser;
   ctx.save();
   ctx.translate(p.x, p.y);
   ctx.rotate((player ? game.aim : t.ang) + Math.PI / 2);
   ctx.translate(0, player ? game.recoil * 0.35 : 0);
-  if (kind === "tesla") ctx.filter = "hue-rotate(20deg) saturate(1.3)";
-  if (kind === "flak") ctx.filter = "hue-rotate(-30deg) saturate(1.2)";
-  if (kind === "gauss") ctx.filter = "saturate(0.6) brightness(1.2)";
-  if (ready(spr)) ctx.drawImage(spr, -w / 2, -h * (kind === "silo" || kind === "mine" ? 0.5 : 0.62), w, h);
-  else { ctx.fillStyle = "#4ec8e4"; ctx.fillRect(-3, -h * 0.6, 6, h * 0.6); }
-  ctx.filter = "none";
+  if (ready(spr)) ctx.drawImage(spr, -size / 2, -size / 2, size, size);
+  else { ctx.fillStyle = "#4ec8e4"; ctx.fillRect(-3, -size * 0.5, 6, size * 0.7); }
   const flash = player ? game.flash : t.flash || 0;
   if (flash > 0) {
     ctx.globalCompositeOperation = "lighter";
     ctx.globalAlpha = flash;
-    const muzzleY = kind === "silo" || kind === "mine" ? -h * 0.35 : -h * 0.6;
-    const g = ctx.createRadialGradient(0, muzzleY, 1, 0, muzzleY, 26);
+    const g = ctx.createRadialGradient(0, -size * 0.28, 1, 0, -size * 0.28, 28);
     g.addColorStop(0, "#fff");
-    g.addColorStop(0.35, kind === "gauss" ? "#ffe08a" : kind === "flak" ? "#ffb060" : "#7fe7ff");
+    g.addColorStop(0.35, kind === "gauss" ? "#ffe08a" : kind === "flak" || kind === "mine" ? "#ffb060" : "#7fe7ff");
     g.addColorStop(1, "rgba(70,220,255,0)");
     ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(0, muzzleY, 26, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, -size * 0.28, 28, 0, TAU); ctx.fill();
   }
   ctx.restore();
 }
@@ -1166,6 +1332,11 @@ function drawFx() {
     ctx.fillRect(p.x, p.y, p.size, p.size);
   }
   ctx.globalAlpha = 1;
+  ctx.restore();
+}
+function drawOrbs() {
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
   for (const o of game.orbs) {
     const u = o.t;
     const e = 1 - (1 - u) * (1 - u);
@@ -1180,14 +1351,15 @@ function drawFx() {
 
 function drawIncoming() {
   if (game.mode !== "play") return;
-  const pad = 18, padT = 92, padB = 250;
+  const pad = 18, padT = 92, padB = 140;
   const marks = game.enemies.map((e) => ({ e, rocket: false })).concat(game.rockets.map((e) => ({ e, rocket: true })));
   for (const m of marks) {
     const e = m.e;
-    if (e.x > pad && e.x < W - pad && e.y > padT && e.y < H - padB) continue;
+    const s = worldToScreen(e.x, e.y);
+    if (s.x > pad && s.x < W - pad && s.y > padT && s.y < H - padB) continue;
     const ang = Math.atan2(e.y - cy, e.x - cx);
-    const x = Math.min(W - pad, Math.max(pad, e.x));
-    const y = Math.min(H - padB, Math.max(padT, e.y));
+    const x = Math.min(W - pad, Math.max(pad, s.x));
+    const y = Math.min(H - padB, Math.max(padT, s.y));
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(ang);
@@ -1218,6 +1390,7 @@ function draw() {
   drawBg();
   ctx.save();
   ctx.translate(shakeX, shakeY);
+  applyCam();
   drawPlanet();
   drawSlots();
   drawAimGuide();
@@ -1229,7 +1402,11 @@ function draw() {
   for (const m of game.interceptors) drawInterceptor(m);
   for (const s of game.shots) drawShot(s);
   drawFx();
+  ctx.restore();
+  ctx.save();
+  ctx.translate(shakeX, shakeY);
   drawIncoming();
+  drawOrbs();
   ctx.restore();
   const vig = ctx.createRadialGradient(cx, cy, Math.min(W, H) * 0.18, cx, cy, Math.hypot(W, H) * 0.62);
   vig.addColorStop(0, "rgba(0,0,0,0)");
@@ -1250,7 +1427,10 @@ function paintHud() {
   const building = game.mode === "build";
   buildClock.hidden = !building;
   if (building) buildT.textContent = String(Math.max(0, Math.ceil(game.buildTimer)));
+  const go = root.querySelector("#build-go");
+  if (go) go.hidden = !building || game.paused || !buildDock.hidden;
   root.classList.toggle("is-build", building);
+  root.classList.toggle("shop-open", !buildDock.hidden);
   hpTrack.classList.toggle("danger", hp01 < 0.28);
   stage.classList.toggle("hurt", game.mode === "play" && hp01 < 0.28);
   const readyAa = game.aaCd <= 0 && game.mode === "play" && !game.paused;
