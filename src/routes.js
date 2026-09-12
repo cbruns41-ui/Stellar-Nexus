@@ -1007,27 +1007,27 @@ function attachRoutes(app, db) {
     }
   });
 
-  app.post("/api/orbit-fire/start", auth, (req, res) => {
+  app.post("/api/orbit-siege/start", auth, (req, res) => {
     try {
       const result = withTx(db, () => {
         const { empire, planet } = loadCtx(req);
-        return game.startOrbitFire(db, empire, planet);
+        return game.startOrbitSiege(db, empire, planet);
       });
-      res.json({ orbitFire: result });
+      res.json({ orbitSiege: result });
     } catch (err) {
       fail(res, 400, err.message);
     }
   });
 
-  app.post("/api/orbit-fire/claim", auth, (req, res) => {
+  app.post("/api/orbit-siege/claim", auth, (req, res) => {
     try {
       const result = withTx(db, () => {
         game.tickWorld(db);
         const empire = db.prepare("SELECT * FROM empires WHERE user_id = ?").get(req.user.id);
-        return game.claimOrbitFire(db, empire, Number(req.body?.sessionId), Number(req.body?.hits));
+        return game.claimOrbitSiege(db, empire, Number(req.body?.sessionId), Number(req.body?.waves), Number(req.body?.kills));
       });
       const empire = db.prepare("SELECT * FROM empires WHERE user_id = ?").get(req.user.id);
-      res.json({ ...game.snapshot(db, req.user, result.planetId), orbitFire: result });
+      res.json({ ...game.snapshot(db, req.user, result.planetId), orbitSiege: result });
     } catch (err) {
       fail(res, 400, err.message);
     }

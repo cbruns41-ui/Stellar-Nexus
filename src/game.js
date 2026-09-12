@@ -38,6 +38,7 @@ const { withTx } = require("./tx");
 const premium = require("./premium");
 const commanders = require("./commanders");
 const sectorSeason = require("./sectorSeason");
+const orbitSiege = require("./orbitSiege");
 
 function now() {
   return Date.now();
@@ -1272,57 +1273,22 @@ function mergeShips(a, b) {
   return o;
 }
 
-const ORBIT_FIRE_DURATION = 30_000;
-const ORBIT_RESOURCE_SHORT = { metal: "MET", helium: "HEL", titan: "TIT", energy: "EN", crystal: "KRI", diamond: "DIA" };
-
-function orbitFireReward(hits, random = Math.random) {
-  const score = Math.max(0, Math.min(40, Math.floor(Number(hits) || 0)));
-  const roll = (min, max) => Math.floor(min + Math.max(0, Math.min(0.999999, Number(random()) || 0)) * (max - min + 1));
-  const loot = {
-    metal: roll(70, 120) + score * 7,
-    helium: roll(35, 70) + score * 4,
-    titan: roll(25, 55) + score * 3,
-    energy: roll(55, 100) + score * 5,
-    crystal: roll(8, 18) + score * 2,
-    diamond: score >= 8 ? roll(0, 1 + Math.floor(score / 14)) : 0,
-  };
-  return { hits: score, loot, ...loot };
+function startOrbitSiege(db, empire, planet) {
+  return orbitSiege.start(db, empire, planet, now());
 }
 
-function startOrbitFire(db, empire, planet) {
-  if (!planet || Number(planet.empire_id) !== Number(empire.id)) {
-    throw new Error("Orbit-Feuer ist nur über einer eigenen Kolonie verfügbar.");
-  }
-  if (!Object.values(shipsMap(db,planet.id)).some(n=>n>0)) throw new Error('Keine Schiffe am Fokus. Stationiere zuerst Schiffe auf diesem Planeten.');
-  const startedAt = now();
-  const active = db.prepare(
-    "SELECT id FROM orbit_fire_sessions WHERE empire_id = ? AND claimed_at = 0 AND expires_at > ? ORDER BY id DESC LIMIT 1"
-  ).get(empire.id, startedAt);
-  if (active) db.prepare("UPDATE orbit_fire_sessions SET claimed_at = -1 WHERE id = ?").run(active.id);
-  const expiresAt = startedAt + 75_000;
-  const row = db.prepare(
-    "INSERT INTO orbit_fire_sessions(empire_id, planet_id, started_at, expires_at, claimed_at) VALUES(?,?,?,?,0)"
-  ).run(empire.id, planet.id, startedAt, expiresAt);
-  return { id: Number(row.lastInsertRowid), durationMs: ORBIT_FIRE_DURATION, startedAt, expiresAt };
-}
-
-function claimOrbitFire(db, empire, sessionId, hits) {
-  const session = db.prepare("SELECT * FROM orbit_fire_sessions WHERE id = ? AND empire_id = ?").get(Number(sessionId), empire.id);
-  if (!session) throw new Error("Orbit-Feuer-Runde nicht gefunden.");
-  if (session.claimed_at) throw new Error("Diese Belohnung wurde bereits abgeholt.");
-  const claimedAt = now();
-  if (claimedAt - session.started_at < ORBIT_FIRE_DURATION - 1_500) throw new Error("Die 30 Sekunden sind noch nicht vorbei.");
-  if (claimedAt > session.expires_at) throw new Error("Die Orbit-Feuer-Runde ist abgelaufen.");
-  const updated = db.prepare("UPDATE orbit_fire_sessions SET claimed_at = ? WHERE id = ? AND claimed_at = 0").run(claimedAt, session.id);
-  if (!updated.changes) throw new Error("Diese Belohnung wurde bereits abgeholt.");
-  const planet = db.prepare("SELECT * FROM planets WHERE id = ? AND empire_id = ?").get(session.planet_id, empire.id);
+function claimOrbitSiege(db, empire, sessionId, waves, kills) {
+  const session = orbitSiege.readSession(db, empire, sessionId);
+  const reward = orbitSiege.finalize(db, empire, session, waves, kills, now());
+  const planet = db.prepare("SELECT * FROM planets WHERE id = ? AND empire_id = ?").get(reward.planetId, empire.id);
   if (!planet) throw new Error("Kolonie nicht mehr verfügbar.");
-  const reward = orbitFireReward(hits);
   credit(db, accruePlanet(db, planet), bag(reward.loot));
-  const lootText = Object.entries(reward.loot).filter(([, amount]) => amount > 0).map(([id, amount]) => `+${amount} ${ORBIT_RESOURCE_SHORT[id] || id.toUpperCase()}`).join(" · ");
-  addReport(db, empire.id, "event", "Orbit-Feuer abgeschlossen", {
-    text: `${reward.hits} Abschüsse · ${lootText}`,
+  const text = orbitSiege.lootText(reward.loot);
+  addReport(db, empire.id, "event", "Orbit-Belagerung gehalten", {
+    text: `Welle ${reward.waves} · ${reward.kills} Abschüsse · ${text}`,
     loot: reward.loot,
+    waves: reward.waves,
+    kills: reward.kills,
     jumps: [{ view: "command", planetId: planet.id, label: "Zum Planeten" }],
   });
   return { ...reward, planetId: planet.id };
@@ -2614,6 +2580,7 @@ function snapshot(db, user, planetId) {
     progress: prog,
     bookmarks: db.prepare("SELECT planet_id AS planetId, system_id AS systemId, label, created_at AS createdAt FROM planet_bookmarks WHERE empire_id = ? ORDER BY created_at DESC").all(empire.id),
     daily,
+    orbitSiege: orbitSiege.publicStatus(db, empireFresh, planet),
     debrisHere,
     planet: planetV,
     planets: fresh.map((p) => {
@@ -3284,9 +3251,8 @@ module.exports = {
   grantNex,
   grantResources,
   grantShipsToHome,
-  startOrbitFire,
-  claimOrbitFire,
-  orbitFireReward,
+  startOrbitSiege,
+  claimOrbitSiege,
   buyNexItem,
   recallFleet,
   assignHome,

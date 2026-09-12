@@ -1,0 +1,252 @@
+body.orbit-siege-open { overflow: hidden; }
+.orbit-lock h2 { margin: 0 0 8px; }
+.orbit-lock-tasks { display: grid; gap: 8px; margin-top: 12px; }
+.orbit-lock-tasks button { text-align: left; }
+.orbit-lock-tasks b { display: block; }
+.orbit-lock-tasks small { display: block; color: #8aa0ae; font-weight: 600; }
+.orbit-game {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  height: 100dvh !important;
+  max-width: none !important;
+  border: 0 !important;
+  z-index: 10000;
+  isolation: isolate;
+  margin: 0;
+  background: #02060d;
+  color: #e7f6ff;
+  font: 15px/1.4 Sora, "Segoe UI", system-ui, sans-serif;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+}
+.orbit-game.hurt::after {
+  content: ""; pointer-events: none; position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 50% 44%, transparent 34%, rgba(70, 6, 4, .58) 100%);
+  z-index: 2;
+}
+.orbit-game .orbit-canvas {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+  z-index: 0;
+}
+.orbit-game .orbit-exit {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 8;
+  width: 36px;
+  height: 36px;
+  border: 1px solid #49697b;
+  background: rgba(2,12,20,.78);
+  color: #a9bdc8;
+  font-size: 24px;
+  border-radius: 8px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.orbit-game .orbit-stick,
+.orbit-game .orbit-fire {
+  position: relative !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  top: auto !important;
+}
+.orbit-game .orbit-stick::before,
+.orbit-game .orbit-stick::after {
+  display: none !important;
+}
+
+.orbit-game .hud {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  left: 50%;
+  width: min(560px, calc(100% - 24px));
+  transform: translateX(-50%);
+  display: grid; gap: 8px; pointer-events: none; z-index: 4;
+}
+.orbit-game:has(.overlay:not([hidden])) .hud { visibility: hidden; }
+.orbit-game .demo-tag {
+  font: 700 9px/1 Orbitron, ui-sans-serif;
+  letter-spacing: .16em; color: #6d8fa0;
+}
+.orbit-game .hud-top {
+  display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: end;
+}
+.orbit-game .chip {
+  min-width: 64px; padding: 6px 10px 7px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(10, 28, 40, .78), rgba(4, 12, 20, .72));
+  border: 1px solid rgba(80, 200, 230, .28);
+  box-shadow: 0 0 18px rgba(40, 180, 220, .12), inset 0 1px 0 rgba(255,255,255,.08);
+}
+.orbit-game .chip small, .hp-lab span, .orbit-game .hud-sub {
+  font-size: 9px; letter-spacing: .18em; color: #8fb3c4; font-weight: 700;
+}
+.orbit-game .chip b, .orbit-game .hp-lab b, .orbit-game .hud-sub b {
+  display: block; font: 800 20px/1 Rajdhani, ui-sans-serif;
+  color: #f4fcff; text-shadow: 0 0 10px rgba(90, 230, 255, .35);
+}
+.orbit-game .wave-chip b { color: #9ffff0; }
+.orbit-game .salvage-chip {
+  text-align: right;
+  border-color: rgba(240, 190, 80, .4);
+  box-shadow: 0 0 18px rgba(240, 180, 60, .14), inset 0 1px 0 rgba(255,255,255,.08);
+}
+.orbit-game .salvage-chip small { color: #e0c07a; }
+.orbit-game .salvage-chip b { color: #ffe7a8; text-shadow: 0 0 10px rgba(255, 200, 80, .4); }
+.orbit-game .hp-block { display: grid; gap: 5px; padding-bottom: 2px; }
+.orbit-game .hp-lab { display: flex; justify-content: space-between; align-items: baseline; }
+.orbit-game .hp-lab b { font-size: 16px; }
+.orbit-game .hp-track {
+  display: block; height: 11px; border-radius: 99px; overflow: hidden;
+  background: #07141c;
+  box-shadow: inset 0 0 0 1px #1c4458, 0 0 14px rgba(62, 232, 196, .18);
+}
+.orbit-game .hp-track em {
+  display: block; height: 100%; width: 100%;
+  background: linear-gradient(90deg, #2ee0b4, #7fe7ff 55%, #e9fff8);
+  box-shadow: 0 0 12px #3ee8c4;
+  border-radius: 99px;
+}
+.orbit-game .hp-track.danger { box-shadow: inset 0 0 0 1px #6a2030, 0 0 14px rgba(255, 70, 50, .28); }
+.orbit-game .hp-track.danger em {
+  background: linear-gradient(90deg, #ff3a3a, #ff9a4a);
+  box-shadow: 0 0 12px #ff4a3a;
+}
+.orbit-game .hud-sub { display: flex; gap: 18px; padding-left: 2px; }
+.orbit-game .hud-sub b { display: inline; font-size: 13px; letter-spacing: .04em; margin-left: 6px; }
+
+.orbit-game .wave-banner {
+  position: absolute; left: 50%; top: 26%; transform: translateX(-50%);
+  margin: 0; padding: 12px 22px; z-index: 4; pointer-events: none;
+  border-radius: 10px;
+  border: 1px solid rgba(62, 232, 196, .45);
+  background: rgba(4, 16, 26, .78);
+  color: #bffff4;
+  letter-spacing: .28em;
+  font: 800 18px/1 Orbitron, ui-sans-serif;
+  text-shadow: 0 0 18px #3ee8c4, 0 0 40px #1aa8c8;
+  box-shadow: 0 0 28px rgba(40, 200, 220, .2);
+  animation: bannerIn .28s ease-out;
+}
+@keyframes bannerIn {
+  from { opacity: 0; transform: translateX(-50%) scale(.86); }
+  to { opacity: 1; transform: translateX(-50%) scale(1); }
+}
+
+.orbit-game .controls {
+  position: absolute; left: 10px; right: 10px;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  display: flex; justify-content: space-between; align-items: flex-end;
+  pointer-events: none; z-index: 7;
+}
+.orbit-game:has(.overlay:not([hidden])) #stick,
+.orbit-game:has(.overlay:not([hidden])) #fire,
+.orbit-game:has(.overlay:not([hidden])) #aa { pointer-events: none; }
+.orbit-game #stick, .orbit-game #fire { pointer-events: auto; -webkit-tap-highlight-color: transparent; }
+.orbit-game #stick {
+  width: 128px; height: 128px; position: relative;
+  background: url("/assets/orbit-siege/stick.png") center / contain no-repeat;
+  filter: drop-shadow(0 0 12px rgba(50, 200, 255, .25));
+}
+.orbit-game #stick b {
+  position: absolute; left: 50%; top: 50%; width: 42px; height: 42px; margin: -21px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #e7ffff, #4fd0ea 45%, #1a6a88);
+  box-shadow: 0 0 16px #2ad4ffaa, inset 0 1px 0 #fff8;
+}
+.orbit-game #stick small, .orbit-game #fire small {
+  position: absolute; left: 0; right: 0; bottom: -18px;
+  text-align: center; font-size: 10px; letter-spacing: .2em;
+  color: #8fb3c4; font-weight: 700; pointer-events: none;
+}
+.orbit-game #fire {
+  width: 112px; height: 112px; border: 0; padding: 0; color: inherit;
+  border-radius: 50%; appearance: none; -webkit-appearance: none;
+  background: transparent url("/assets/orbit-siege/fire.png") center / contain no-repeat;
+  filter: drop-shadow(0 0 16px rgba(255, 90, 40, .45));
+  cursor: pointer;
+}
+.orbit-game #fire.pressed { filter: brightness(1.35) drop-shadow(0 0 22px rgba(255, 120, 50, .7)); transform: scale(.96); }
+.orbit-game .fire-col {
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  pointer-events: none;
+}
+.orbit-game .fire-col #aa, .orbit-game .fire-col #fire { pointer-events: auto; }
+.orbit-game #aa {
+  width: 74px; height: 74px; border-radius: 50%; padding: 0;
+  border: 2px solid rgba(90, 230, 255, .7);
+  background: radial-gradient(circle at 38% 30%, #2a6a7c, #07141c 68%);
+  color: #d7fbff; letter-spacing: .1em;
+  font: 700 9px/1 Orbitron, sans-serif;
+  position: relative; overflow: hidden; cursor: pointer;
+  box-shadow: 0 0 14px rgba(60, 220, 255, .25);
+}
+.orbit-game #aa b { position: relative; z-index: 1; }
+.orbit-game #aa .aa-cd {
+  position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background: conic-gradient(from -90deg, transparent calc(var(--cd, 100) * 1%), rgba(2, 8, 14, .72) 0);
+}
+.orbit-game #aa.ready { box-shadow: 0 0 18px rgba(80, 255, 220, .45); border-color: #8ff7e0; }
+.orbit-game #aa.cool { filter: saturate(.7) brightness(.85); }
+
+.orbit-game .overlay {
+  position: absolute; inset: 0; display: grid;
+  align-items: end; justify-items: center;
+  background: radial-gradient(ellipse at 50% 32%, rgba(4, 16, 28, .28), rgba(2, 6, 13, .72) 70%);
+  padding: 16px 16px calc(210px + env(safe-area-inset-bottom)); z-index: 6;
+  overflow: auto;
+}
+.orbit-game .overlay[hidden] { display: none !important; }
+.orbit-game .card {
+  width: min(430px, 100%); padding: 18px 16px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(80, 210, 240, .32);
+  background: linear-gradient(180deg, rgba(10, 32, 46, .94), rgba(5, 14, 22, .96));
+  box-shadow: 0 20px 50px rgba(0, 0, 0, .45), 0 0 40px rgba(40, 180, 255, .1), inset 0 1px 0 rgba(255,255,255,.08);
+}
+.orbit-game .card small {
+  color: #6ad0ea; letter-spacing: .2em; font-weight: 700; font-family: Orbitron, sans-serif; font-size: 11px;
+}
+.orbit-game .card h1, .orbit-game .card h2 {
+  margin: 6px 0 8px;
+  font: 800 26px/1.05 Orbitron, ui-sans-serif;
+  letter-spacing: .04em;
+  text-shadow: 0 0 18px rgba(80, 220, 255, .25);
+}
+.orbit-game .card p, .orbit-game .card li { color: #b7cdd8; font-size: 13px; margin: 0 0 8px; }
+.orbit-game .card ul { padding-left: 18px; margin: 6px 0 0; }
+.orbit-game .card button {
+  display: block; width: 100%; min-height: 46px; margin-top: 12px;
+  border: 1px solid #4ec8e4; border-radius: 12px;
+  background: linear-gradient(180deg, #1a5a72, #0e3344);
+  color: #e7f8ff; letter-spacing: .14em;
+  font: 700 15px Orbitron, sans-serif;
+  cursor: pointer;
+  box-shadow: 0 0 18px rgba(50, 200, 230, .18);
+}
+.orbit-game .card button:active { transform: scale(.98); filter: brightness(1.15); }
+.orbit-game .card a { display: block; text-align: center; margin-top: 12px; color: #7aa3b6; font-size: 13px; }
+.orbit-game .picks { display: grid; gap: 8px; margin-top: 12px; }
+.orbit-game .picks button {
+  text-align: left; padding: 12px 14px; letter-spacing: 0;
+  font-family: Rajdhani, sans-serif; text-transform: none;
+  border-left: 3px solid #5ce4ff;
+}
+.orbit-game .picks b { display: block; color: #8ee7ff; margin-bottom: 3px; font: 700 15px Orbitron, sans-serif; letter-spacing: .08em; }
+.orbit-game .picks small { color: #8aa0ae; letter-spacing: 0; font-weight: 600; font-family: Rajdhani, sans-serif; }
+
+@media (max-width: 420px) {
+  .orbit-game .chip b { font-size: 17px; }
+  .orbit-game #stick { width: 112px; height: 112px; }
+  .orbit-game #fire { width: 100px; height: 100px; }
+  .orbit-game #aa { width: 64px; height: 64px; }
+  .orbit-game .card h1, .orbit-game .card h2 { font-size: 24px; }
+}

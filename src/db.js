@@ -494,15 +494,19 @@ function migrate(db) {
     PRIMARY KEY (empire_id, kind)
   )`);
   db.exec("CREATE INDEX IF NOT EXISTS idx_activity_runs_done ON activity_runs(completes_at)");
-  db.exec(`CREATE TABLE IF NOT EXISTS orbit_fire_sessions (
+  db.exec(`CREATE TABLE IF NOT EXISTS orbit_siege_sessions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     empire_id INTEGER NOT NULL,
     planet_id INTEGER NOT NULL,
     started_at INTEGER NOT NULL,
     expires_at INTEGER NOT NULL,
-    claimed_at INTEGER NOT NULL DEFAULT 0
+    claimed_at INTEGER NOT NULL DEFAULT 0,
+    waves INTEGER NOT NULL DEFAULT 0,
+    kills INTEGER NOT NULL DEFAULT 0
   )`);
-  db.exec("CREATE INDEX IF NOT EXISTS idx_orbit_fire_empire ON orbit_fire_sessions(empire_id, started_at)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_orbit_siege_empire ON orbit_siege_sessions(empire_id, started_at)");
+  if (!hasCol(db, "empires", "orbit_siege")) db.exec("ALTER TABLE empires ADD COLUMN orbit_siege TEXT NOT NULL DEFAULT ''");
+  db.exec("DROP TABLE IF EXISTS orbit_fire_sessions");
   db.exec("CREATE INDEX IF NOT EXISTS idx_planets_alliance ON planets(alliance_id)");
   db.exec(`CREATE TABLE IF NOT EXISTS alliance_bosses (
     alliance_id INTEGER NOT NULL, week TEXT NOT NULL, hp INTEGER NOT NULL, max_hp INTEGER NOT NULL, defeated_at INTEGER NOT NULL DEFAULT 0,

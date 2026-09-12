@@ -115,10 +115,19 @@ test('alliance funding persists partial deposits and spends only the missing amo
  assert.equal(planet().metal,0);assert.equal(social.researchRows(db,alliance.id,empire.id).find(r=>r.id==='supply_grid').funded.metal,100);
 });
 
-test('orbit fire requires stationed ships on the selected planet',t=>{
- const {db,empire,home}=fixture(t);db.prepare('DELETE FROM ships WHERE planet_id=?').run(home.id);
- assert.throws(()=>game.startOrbitFire(db,empire,home),/Keine Schiffe am Fokus/);
- game.addShips(db,home.id,{fighter:1});assert.ok(game.startOrbitFire(db,empire,home).id);
+test('orbit siege allows one run per day unless a bonus task is complete',t=>{
+ const {db,empire,home}=fixture(t);
+ const first=game.startOrbitSiege(db,empire,home);
+ assert.ok(first.id);
+ assert.throws(()=>game.startOrbitSiege(db,empire,home),/kein Einsatz|verbraucht|weiteren/);
+ const row=db.prepare('SELECT orbit_siege FROM empires WHERE id=?').get(empire.id);
+ const data=JSON.parse(row.orbit_siege);
+ data.tasks=[{id:'mine_bonus',title:'Erz',blurb:'Mine',view:'infra',check:{type:'building',id:'matter_mine',min:2}}];
+ db.prepare('UPDATE empires SET orbit_siege=? WHERE id=?').run(JSON.stringify(data),empire.id);
+ empire.orbit_siege=JSON.stringify(data);
+ db.prepare("INSERT INTO buildings(planet_id,building_id,level) VALUES(?,?,?) ON CONFLICT(planet_id,building_id) DO UPDATE SET level=excluded.level").run(home.id,'matter_mine',2);
+ const again=game.startOrbitSiege(db,empire,home);
+ assert.ok(again.id);
 });
 
 test('colony slots include outbound missions; rejected launch keeps ships and fuel',t=>{

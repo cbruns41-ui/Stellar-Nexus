@@ -3,7 +3,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { DatabaseSync } = require("node:sqlite");
-const { addShips, shipsMap, splitShipSurvivors, orbitFireReward } = require("../src/game");
+const { addShips, shipsMap, splitShipSurvivors } = require("../src/game");
+const { orbitSiegeReward, capStats, lootForWave } = require("../src/orbitSiege");
 const { withTx } = require("../src/tx");
 
 test("returning ships are never discarded by a station capacity check", () => {
@@ -54,8 +55,17 @@ test("world operations can safely join an existing transaction", () => {
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM events").get().n, 2);
 });
 
-test("orbit fire loot covers all resources, scales and remains score-capped", () => {
-  assert.deepEqual(orbitFireReward(-5, () => 0), { hits: 0, loot: { metal: 70, helium: 35, titan: 25, energy: 55, crystal: 8, diamond: 0 }, metal: 70, helium: 35, titan: 25, energy: 55, crystal: 8, diamond: 0 });
-  assert.deepEqual(orbitFireReward(12.9, () => 0), { hits: 12, loot: { metal: 154, helium: 83, titan: 61, energy: 115, crystal: 32, diamond: 0 }, metal: 154, helium: 83, titan: 61, energy: 115, crystal: 32, diamond: 0 });
-  assert.deepEqual(orbitFireReward(999, () => 1), { hits: 40, loot: { metal: 400, helium: 230, titan: 175, energy: 300, crystal: 98, diamond: 3 }, metal: 400, helium: 230, titan: 175, energy: 300, crystal: 98, diamond: 3 });
+test("orbit siege loot scales with held waves and caps instant claims", () => {
+  const zero = orbitSiegeReward(0, 0, () => 0);
+  assert.equal(zero.waves, 0);
+  assert.ok(zero.loot.metal >= 12);
+  const three = orbitSiegeReward(3, 10, () => 0);
+  assert.equal(three.waves, 3);
+  assert.equal(three.kills, 10);
+  assert.ok(three.loot.metal > lootForWave(1).metal);
+  const capped = capStats(4000, 99, 999);
+  assert.equal(capped.waves, 0);
+  const later = capStats(20000, 99, 999);
+  assert.equal(later.waves, 4);
+  assert.ok(later.kills <= later.waves * 24 + 8);
 });

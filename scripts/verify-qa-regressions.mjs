@@ -173,7 +173,7 @@ export async function verifyQaRegressions({base,headers,databasePath,send,evalua
   const fire=await evaluate(`(()=>{const b=document.querySelector('.orbit-fire'),r=b.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;return {x,y,hit:b.contains(document.elementFromPoint(x,y))};})()`);
   assert.ok(fire.hit);
   await send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:fire.x,y:fire.y,id:1}]});await pause(700);
-  assert.ok(await evaluate(`parseFloat(document.querySelector('[data-orbit-battery]').style.width)<100`));
+  assert.ok(await evaluate(`document.querySelector('.orbit-fire').classList.contains('pressed')`));
   await send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await tap('.orbit-exit');
   assert.equal(await evaluate(`document.querySelector('#game').dataset.view`),'galaxy');
   console.log('QA: Orbit start, held touch fire and return to map passed');
