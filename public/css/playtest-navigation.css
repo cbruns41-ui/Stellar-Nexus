@@ -17,7 +17,7 @@ body[data-mode="play"] .brand{display:flex!important;min-width:0}
 body[data-mode="play"] .brand>div{display:block!important;min-width:0}
 body[data-mode="play"] .brand select{display:block!important;max-width:min(42vw,260px)}
 body[data-mode="play"] .tabbar{z-index:150!important}
-.command-panel{grid-area:main;position:relative;z-index:60;align-self:stretch;justify-self:center;width:min(1100px,100%);min-height:0;max-height:100%;display:flex;flex-direction:column;overflow:hidden;background:#06121bf7;border:1px solid #438da45c;border-radius:12px;pointer-events:auto}
+.command-panel{grid-area:main;position:relative;z-index:60;align-self:stretch;justify-self:center;width:min(1100px,100%);min-height:0;max-height:100%;display:flex;flex-direction:column;overflow:hidden;background:#06121bf7;border:1px solid #438da45c;border-radius:12px;pointer-events:auto;padding-bottom:44px;box-sizing:border-box}
 .command-panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0;padding:10px 14px;background:#081b28;border-bottom:1px solid #438da45c}
 .command-panel-head h2{font-size:16px;margin:0 0 5px}.command-panel-head span{font-size:12px;color:#97becd}.command-panel-head button{min-width:44px;min-height:44px}
 .command-panel .panel-view{min-height:0;flex:1;overflow:auto;overscroll-behavior:contain;padding:12px;touch-action:pan-y;width:100%;max-height:none}
@@ -31,7 +31,7 @@ body[data-mode="play"] .shell:not(.nav-open) .nav-backdrop{display:none!importan
 body[data-mode="play"] .modal{top:var(--game-top,60px);bottom:var(--game-bottom,66px);height:auto;z-index:125}
 body[data-mode="play"] .modal .sheet{max-height:100%}
 .shell.view-home:not(.alliance-planet-open) #view{pointer-events:none}
-.command-panel *{max-width:100%}.focus-pending #view,.focus-pending #command-panel{pointer-events:none;opacity:.5}
+.command-panel img,.command-panel video,.command-panel svg,.command-panel canvas,.command-panel table{max-width:100%}.focus-pending #view,.focus-pending #command-panel{pointer-events:none;opacity:.5}
 /* Unity only receives gestures on uncovered city pixels. Sheets own their hit area. */
 body[data-mode="play"] #command-panel,body[data-mode="play"] #panel-view,body[data-mode="play"] .modal .sheet{pointer-events:auto!important}
 .shell:has(#command-panel:not([hidden])) #colony-unity-layer,.shell:has(#command-panel:not([hidden])) #colony-unity-canvas,
@@ -43,12 +43,12 @@ body:has(#modal:not(.hidden):not([hidden])) #colony-unity-layer,body:has(#modal:
 .shell.view-home .living-colony .colony-tools .colony-directory{position:static;width:auto}
 .shell.view-home .living-colony .colony-directory>div{position:absolute;top:38px;left:0;width:min(260px,calc(100vw - 32px));max-height:min(60vh,420px)}
 .shell.view-home .living-colony .colony-level{visibility:visible!important;opacity:1!important}
-.shell.view-home .living-colony .city-actions{left:50%;top:auto;bottom:8px;max-height:calc(100% - 60px);overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y}
+.shell.view-home .living-colony .city-actions{left:50%;top:auto;bottom:52px;max-height:calc(100% - 104px);overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y}
 .living-colony:has(.city-actions:not([hidden])) .city-commander{visibility:hidden}
 .shell.view-home .living-colony .colony-quests .city-commander{position:static!important;transform:none!important;width:100%!important;margin:0 0 10px;max-width:100%;pointer-events:auto}
 .colony-tools button,.colony-directory summary,.city-actions button,.command-panel button,.map-wrap button{touch-action:manipulation}
 #toasts,.toasts,.toast{pointer-events:none!important}
-.map-wrap:has(#map-raid-banner:not([hidden])) #map-orbit-fire{bottom:calc(var(--raid-height,100px) + 26px)}
+.map-wrap:has(#map-raid-banner:not([hidden])) #map-orbit-fire{bottom:calc(var(--raid-height,100px) + 70px)}
 .focus-pending::after{content:"Planet wird gewechselt …";position:fixed;left:50%;top:calc(var(--game-top,60px) + 15px);transform:translateX(-50%);z-index:155;padding:12px 20px;background:#082c3d;color:#c7f4ff;border:1px solid #54b6cf;pointer-events:none}
 /* Keep the confirmation reachable even with many colonies or an open phone keyboard. */
 body[data-mode="play"] .modal .group-fleet-sheet{display:flex;flex-direction:column;overflow:hidden;min-height:0}
@@ -57,13 +57,18 @@ body[data-mode="play"] .modal .group-fleet-sheet{display:flex;flex-direction:col
 .group-fleet-sheet .group-footer{flex:none;padding-top:8px;background:#06121c;border-top:1px solid #397088;position:relative;z-index:3}
 .group-fleet-sheet .group-error{margin:4px 0 8px;color:#ffc0b0;font-size:13px;line-height:1.35;max-height:70px;overflow-y:auto}
 .group-fleet-sheet .group-summary{margin:4px 0 8px}
-/* A thin, persistent row; the complete list opens upward without resizing the city. */
-body[data-mode="play"] .shell #dock{display:block!important;position:relative;z-index:80;height:44px;max-height:44px;min-height:44px;padding:0;overflow:visible;grid-area:dock;background:#081522;border-top:1px solid #416073}
-#dock::before{display:none!important}#orders{height:100%;position:relative}#orders>summary{height:44px;display:flex;align-items:center;gap:9px;padding:0 12px;list-style:none;cursor:pointer;touch-action:manipulation;font-size:12px;pointer-events:auto}
+/* Overlay above the tab bar so Gebäude/Labor/Werft keep the full main row. */
+body[data-mode="play"] .shell #dock{display:block!important;position:relative;z-index:80;height:0!important;max-height:none;min-height:0!important;padding:0;margin:0;overflow:visible;grid-area:dock;background:transparent;border:0}
+#dock::before{display:none!important}
+#orders{position:absolute;left:0;right:0;bottom:0;height:44px;background:#081522;border-top:1px solid #416073}
+#orders>summary{height:44px;display:flex;align-items:center;gap:9px;padding:0 12px;list-style:none;cursor:pointer;touch-action:manipulation;font-size:12px;pointer-events:auto}
 #orders>summary::-webkit-details-marker{display:none}#orders-count{white-space:nowrap;color:#abddeb}#orders-next{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}#orders-eta{white-space:nowrap;font-variant-numeric:tabular-nums;color:#e9c083}
-#dock-items{position:absolute;bottom:44px;left:0;right:0;max-height:min(50dvh,440px);padding:10px;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;background:#071522fa;border-top:1px solid #5d879d;box-shadow:0 -8px 24px #0005;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(270px,100%),1fr));gap:8px;pointer-events:auto}
+#dock-items{position:absolute;bottom:44px;left:0;right:0;max-height:min(42dvh,360px);padding:10px;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;background:#071522fa;border-top:1px solid #5d879d;box-shadow:0 -8px 24px #0005;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(270px,100%),1fr));gap:8px;pointer-events:auto}
 #orders:not([open])>#dock-items{display:none}#orders[open]>summary>span:last-child{transform:rotate(180deg)}
-#dock #dock-items>.panel{padding:9px;min-width:0;display:grid;gap:5px}#dock #dock-items>.panel>span{white-space:normal}#dock button{min-height:44px}.ship-building{color:#e9c083;border-left:2px solid #d5ad73;padding:6px 9px}.ship-building>span{display:block;font-size:12px;margin-top:4px}
+#dock #dock-items>.panel{padding:9px;min-width:0;display:grid;gap:5px}#dock #dock-items>.panel>span{white-space:normal}#dock button{min-height:44px}
+.og-act [data-ship-building],.og-act [data-defense-building]{color:#e9c083}
+.shell.view-galaxy .sys-panel{bottom:58px}.shell.view-galaxy .map-raid-banner{bottom:62px}
+.shell.view-galaxy .map-orbit-fire{top:auto;bottom:58px}
 /* #modal is a sibling of #game. Scope to body so this rule actually matches. */
 body:has(#modal:not(.hidden):not([hidden])) #alert-strip,body:has(#modal:not(.hidden):not([hidden])) #map-raid-banner,body:has(#modal:not(.hidden):not([hidden])) #dock,
 .map-wrap:has(#sysbox:not(:empty)) .map-raid-banner,.shell:has(#command-panel:not([hidden])) #alert-strip{visibility:hidden!important;pointer-events:none!important}

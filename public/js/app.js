@@ -1731,18 +1731,20 @@ const views = {
         const info = prev[s.id] || { unlocked: false, cost: s.cost, time: s.time };
         const haveN = p.ships[s.id] || 0;
         const jobs=queuedShips.filter(q=>q.itemId===s.id);
+        const jobQty=jobs.reduce((n,q)=>n+q.qty,0);
+        const jobEnd=jobs.reduce((t,q)=>Math.max(t,Number(q.completesAt)||0),0);
         const budget = currentShipBudget(info);
         const canBuild = budget.buildable > 0;
         const action = !info.unlocked
           ? `<div class="lock">Voraussetzungen fehlen</div>`
           : `<label class="muted">Anzahl <input data-qty="${s.id}" type="number" min="1" max="${budget.buildable}" value="1" style="width:64px;margin-left:6px"></label>
              <button class="btn small" data-ship-max="${s.id}">Max</button><button class="btn primary" data-ship="${s.id}" ${!canBuild ? "disabled" : ""}>Bauen</button>
-             <div class="muted">${eta((info.time || s.time) * 1000)}</div>`;
+             <p class="hint" data-action-reason></p>
+             <div class="muted"${jobs.length ? ` data-ship-building="${s.id}"` : ""}>${jobs.length ? `IM BAU · ${jobQty} Schiffe · <span data-live-eta="${jobEnd}">${eta(jobEnd-Date.now())}</span>` : eta((info.time || s.time) * 1000)}</div>`;
         return `<article class="og-row panel">
           ${mediaTag(`/assets/ships/${s.id}.jpg`, "og-art og-art-ship")}
           <div class="og-body">
             <h3>${esc(s.name)} <span class="lvl">vorhanden: ${haveN}</span></h3>
-            ${jobs.length ? `<p class="ship-building" data-ship-building="${s.id}"><b>IM BAU · ${jobs.reduce((n,q)=>n+q.qty,0)} Schiffe</b> · ${esc(p.name)}${jobs.map(q=>`<span>${q.qty} × ${esc(q.name)} · <time data-live-eta="${q.completesAt}">${eta(q.completesAt-Date.now())}</time></span>`).join('')}</p>` : ''}
             <p class="ship-budget" data-ship-budget="${s.id}">Mit Ressourcen bezahlbar: ${budget.affordable.toLocaleString('de-DE')} · Jetzt baubar: ${budget.buildable.toLocaleString('de-DE')}</p>
             <p>${esc(s.blurb)}</p>
             ${reqHtml(s.requires)}

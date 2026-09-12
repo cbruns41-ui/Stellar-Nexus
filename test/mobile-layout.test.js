@@ -92,6 +92,8 @@ test("orders dock, duration choice and planet-local hangar stay reachable", () =
   assert.match(app, /syncColonyPointerEvents/);
   assert.match(app, /ally-quick-actions/);
   assert.match(playCss, /#orders-count/);
+  assert.match(playCss, /height:0!important/);
+  assert.match(playCss, /padding-bottom:44px/);
   assert.match(playCss, /pointer-events:none!important/);
   assert.match(playCss, /\.ally-quick-actions\{position:sticky/);
   assert.match(playCss, /body:has\(#modal:not\(\.hidden\):not\(\[hidden\]\)\) #map-raid-banner/);

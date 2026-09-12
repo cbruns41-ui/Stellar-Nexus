@@ -116,12 +116,14 @@ export async function verifyQaRegressions({base,headers,databasePath,send,evalua
   console.log('QA: first-touch max-fleet raid at full target hangar commits, resolves, clears alarm and reports source losses');
   await tap('#tabbar [data-tab="home"]');await panel('infra');
   assert.equal(await evaluate(`getComputedStyle(document.querySelector('#colony-unity-canvas')).pointerEvents`),'none');
+  const panelFit=await evaluate(`(()=>{const p=document.querySelector('#command-panel'),t=document.querySelector('#tabbar'),b=document.querySelector('#orders>summary');const pr=p.getBoundingClientRect(),tr=t.getBoundingClientRect(),br=b.getBoundingClientRect();return {gap:Math.round(tr.top-pr.bottom),bar:Math.round(br.height),overPanel:br.top+1>=pr.top&&br.bottom-1<=pr.bottom+1};})()`);
+  assert.ok(panelFit.gap<=2&&panelFit.bar===44&&panelFit.overPanel,JSON.stringify(panelFit));
   await tap('[data-build="silo"]');await until(`document.querySelector('[data-build="silo"]').disabled`);
   await until(`document.querySelector('[data-build="command"]').disabled`);
   assert.match(await evaluate(`document.querySelector('[data-build="command"]').parentElement.innerText`),/Bauschleife belegt/);
   await tap('#tabbar [data-tab="home"]');await until(`!document.querySelector('#command-panel:not([hidden])')`);
   assert.notEqual(await evaluate(`getComputedStyle(document.querySelector('#colony-unity-canvas')).pointerEvents`),'none');
-  const dock=await evaluate(`(()=>{const e=document.querySelector('#dock'),r=e.getBoundingClientRect();return {height:r.height,visible:getComputedStyle(e).display,hit:e.contains(document.elementFromPoint(r.x+20,r.y+20))};})()`);
+  const dock=await evaluate(`(()=>{const e=document.querySelector('#orders>summary'),r=e.getBoundingClientRect();return {height:r.height,visible:getComputedStyle(document.querySelector('#dock')).display,hit:e.contains(document.elementFromPoint(r.x+20,r.y+20))};})()`);
   assert.ok(dock.height===44&&dock.visible!=='none'&&dock.hit,JSON.stringify(dock));
   await tap('#orders>summary');assert.ok(await evaluate(`document.querySelector('#orders').open`));
   await evaluate(`window.__qaDockCard=document.querySelector('#dock-items .queue-item')`);await pause(1200);
@@ -151,8 +153,11 @@ export async function verifyQaRegressions({base,headers,databasePath,send,evalua
   const run=database(db=>db.prepare("SELECT * FROM activity_runs WHERE empire_id=? AND kind='salvage'").get(home.empire_id));
   assert.equal(timer,run.completes_at);assert.equal(run.planet_id,home.id);
   assert.equal(run.duration,'long','Main Start button commits chosen duration');
-  const beforeTimer=await evaluate(`document.querySelector('.force-count[data-live-eta]').textContent`);await pause(1200);
+  const beforeTimer=await evaluate(`document.querySelector('.force-count[data-live-eta]').textContent`);
+  await evaluate(`window.__qaRealNow=Date.now;Date.now=()=>window.__qaRealNow()+2500`);
+  await pause(700);
   assert.notEqual(await evaluate(`document.querySelector('.force-count[data-live-eta]').textContent`),beforeTimer);
+  await evaluate(`Date.now=window.__qaRealNow`);
   database(db=>db.exec('UPDATE activity_runs SET completes_at=1'));
   await evaluate(`Date.now=()=>window.__qaNow()+86400000;`);
   await until(`document.querySelector('.activity-slot-summary').innerText.includes('0/6')`,10000);
