@@ -201,7 +201,7 @@ body.orbit-siege-open { overflow: hidden; }
 .orbit-game #aa {
   width: 74px; height: 74px; border-radius: 50%; padding: 0;
   border: 0;
-  background: transparent url("/assets/orbit-siege/aa.jpg") center / cover no-repeat;
+  background: transparent url("/assets/orbit-siege/aa.png") center / contain no-repeat;
   color: #d7fbff; letter-spacing: .1em;
   font: 700 9px/1 Orbitron, sans-serif;
   position: relative; overflow: hidden; cursor: pointer;
@@ -270,8 +270,8 @@ body.orbit-siege-open { overflow: hidden; }
   box-shadow: 0 0 22px rgba(50, 200, 230, .16), inset 0 1px 0 rgba(255,255,255,.08);
 }
 .orbit-game .picks .pick-card img {
-  width: 68px; height: 68px; object-fit: cover; border-radius: 10px;
-  background: #040b12; box-shadow: inset 0 0 0 1px rgba(90, 220, 255, .25);
+  width: 68px; height: 68px; object-fit: contain; border-radius: 10px;
+  background: transparent; box-shadow: inset 0 0 0 1px rgba(90, 220, 255, .25);
 }
 .orbit-game .picks .pick-skip {
   min-height: 48px; border-left-color: #4a6674;
@@ -318,7 +318,7 @@ body.orbit-siege-open { overflow: hidden; }
   border-radius: 10px; background: rgba(6, 20, 30, .9); color: #d7eef6;
   cursor: pointer; min-height: 96px;
 }
-.orbit-shop-item img { width: 48px; height: 48px; object-fit: cover; border-radius: 8px; }
+.orbit-shop-item img { width: 48px; height: 48px; object-fit: contain; border-radius: 8px; background: transparent; }
 .orbit-shop-item b { font: 800 10px Orbitron, sans-serif; letter-spacing: .06em; color: #8ee7ff; }
 .orbit-shop-item em { font-style: normal; color: #ffe08a; font: 800 12px Rajdhani, sans-serif; }
 .orbit-shop-item small { color: #8aa0ae; font-size: 9px; text-align: center; line-height: 1.2; }

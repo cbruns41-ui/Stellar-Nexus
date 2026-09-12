@@ -95,26 +95,26 @@ const buildHint = root.querySelector("#build-hint");
 const ART = {
   bg: img("/assets/orbit-siege/arena.jpg"),
   planet: img("/assets/orbit-siege/planet.png"),
-  battery: img("/assets/orbit-siege/turret-battery.jpg"),
+  battery: img("/assets/orbit-siege/turret-battery.png"),
   interceptor: img("/assets/orbit-siege/interceptor.png"),
   frigate: img("/assets/orbit-siege/frigate.png"),
   rocket: img("/assets/orbit-siege/rocket.png"),
   missile: img("/assets/orbit-siege/missile.png"),
   turrets: {
-    laser: img("/assets/orbit-siege/turret-laser.jpg"),
-    silo: img("/assets/orbit-siege/turret-silo.jpg"),
-    flak: img("/assets/orbit-siege/turret-flak.jpg"),
-    gauss: img("/assets/orbit-siege/turret-gauss.jpg"),
-    tesla: img("/assets/orbit-siege/turret-tesla.jpg"),
-    mine: img("/assets/orbit-siege/turret-mine.jpg"),
+    laser: img("/assets/orbit-siege/turret-laser.png"),
+    silo: img("/assets/orbit-siege/turret-silo.png"),
+    flak: img("/assets/orbit-siege/turret-flak.png"),
+    gauss: img("/assets/orbit-siege/turret-gauss.png"),
+    tesla: img("/assets/orbit-siege/turret-tesla.png"),
+    mine: img("/assets/orbit-siege/turret-mine.png"),
   },
   icons: {
-    laser: "/assets/orbit-siege/turret-laser.jpg",
-    silo: "/assets/orbit-siege/turret-silo.jpg",
-    flak: "/assets/orbit-siege/turret-flak.jpg",
-    gauss: "/assets/orbit-siege/turret-gauss.jpg",
-    tesla: "/assets/orbit-siege/turret-tesla.jpg",
-    mine: "/assets/orbit-siege/turret-mine.jpg",
+    laser: "/assets/orbit-siege/turret-laser.png",
+    silo: "/assets/orbit-siege/turret-silo.png",
+    flak: "/assets/orbit-siege/turret-flak.png",
+    gauss: "/assets/orbit-siege/turret-gauss.png",
+    tesla: "/assets/orbit-siege/turret-tesla.png",
+    mine: "/assets/orbit-siege/turret-mine.png",
     repair: "/assets/orbit-siege/upgrade-repair.jpg",
     rate: "/assets/orbit-siege/upgrade-rate.jpg",
     dmg: "/assets/orbit-siege/upgrade-dmg.jpg",
@@ -154,6 +154,7 @@ let zoom = 1, panX = 0, panY = 0;
 const pointers = new Map();
 let pinch = null, tapIgnore = false;
 const game = fresh();
+root.orbitGame = game;
 let last = 0, dragging = false, firing = false, keys = new Set();
 let bannerT = 0, shakeX = 0, shakeY = 0, stopped = false;
 
@@ -231,6 +232,8 @@ function resize() {
   canvas.style.height = `${H}px`;
   canvas.width = Math.max(2, Math.round(W * dpr));
   canvas.height = Math.max(2, Math.round(H * dpr));
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   cx = W / 2;
   cy = H * 0.42;
@@ -1157,6 +1160,9 @@ function drawPlanet() {
   }
 }
 
+function sprAspect(im, fallback) {
+  return ready(im) && im.naturalHeight ? im.naturalWidth / im.naturalHeight : fallback;
+}
 function drawSprite(im, x, y, rot, w, h, ox = 0.5, oy = 0.5) {
   ctx.save();
   ctx.translate(x, y);
@@ -1199,24 +1205,34 @@ function drawTurret(t, player) {
   const p = player ? { x: cx + Math.cos(game.aim) * shieldR * 0.96, y: cy + Math.sin(game.aim) * shieldR * 0.96, ang: game.aim } : towerPos(t);
   const kind = player ? "battery" : t.kind;
   const span = Math.min(W, H);
-  const size = player ? span * 0.118 : kind === "mine" ? span * 0.07 : span * 0.086;
+  const size = player ? span * 0.155 : kind === "mine" ? span * 0.082 : span * 0.108;
   const spr = player ? ART.battery : ART.turrets[kind] || ART.turrets.laser;
+  const glowCol = kind === "gauss" ? "255,210,90" : kind === "flak" || kind === "mine" ? "255,150,70" : kind === "silo" ? "255,180,70" : kind === "tesla" ? "120,240,255" : "80,230,255";
   ctx.save();
   ctx.translate(p.x, p.y);
   ctx.rotate((player ? game.aim : t.ang) + Math.PI / 2);
   ctx.translate(0, player ? game.recoil * 0.35 : 0);
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  const halo = ctx.createRadialGradient(0, 0, size * 0.12, 0, 0, size * 0.62);
+  halo.addColorStop(0, `rgba(${glowCol},0.28)`);
+  halo.addColorStop(0.45, `rgba(${glowCol},0.08)`);
+  halo.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = halo;
+  ctx.beginPath(); ctx.arc(0, 0, size * 0.62, 0, TAU); ctx.fill();
+  ctx.restore();
   if (ready(spr)) ctx.drawImage(spr, -size / 2, -size / 2, size, size);
   else { ctx.fillStyle = "#4ec8e4"; ctx.fillRect(-3, -size * 0.5, 6, size * 0.7); }
   const flash = player ? game.flash : t.flash || 0;
   if (flash > 0) {
     ctx.globalCompositeOperation = "lighter";
     ctx.globalAlpha = flash;
-    const g = ctx.createRadialGradient(0, -size * 0.28, 1, 0, -size * 0.28, 28);
+    const g = ctx.createRadialGradient(0, -size * 0.32, 1, 0, -size * 0.32, size * 0.42);
     g.addColorStop(0, "#fff");
     g.addColorStop(0.35, kind === "gauss" ? "#ffe08a" : kind === "flak" || kind === "mine" ? "#ffb060" : "#7fe7ff");
     g.addColorStop(1, "rgba(70,220,255,0)");
     ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(0, -size * 0.28, 28, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, -size * 0.32, size * 0.42, 0, TAU); ctx.fill();
   }
   ctx.restore();
 }
@@ -1237,9 +1253,8 @@ function drawTrail(pts, color, width) {
 function drawEnemy(e) {
   drawTrail(e.trail, e.heavy ? "rgba(255,110,50,0.28)" : "rgba(255,80,40,0.22)", e.heavy ? 5 : 3);
   const spr = e.heavy ? ART.frigate : ART.interceptor;
-  const h = e.heavy ? planetR * 0.95 : planetR * 0.68;
-  const aspect = e.heavy ? 712 / 1041 : 861 / 949;
-  const w = h * aspect;
+  const h = e.heavy ? planetR * 1.05 : planetR * 0.78;
+  const w = h * sprAspect(spr, e.heavy ? 0.67 : 0.68);
   const ang = Math.atan2(cy - e.y, cx - e.x);
   if (e.flash > 0) {
     ctx.save();
@@ -1260,16 +1275,16 @@ function drawEnemy(e) {
 
 function drawRocket(r) {
   drawTrail(r.trail, "rgba(255,120,40,0.45)", 3.5);
-  const h = planetR * 0.64;
-  const w = h * (361 / 1019);
+  const h = planetR * 0.72;
+  const w = h * sprAspect(ART.rocket, 0.34);
   const ang = Math.atan2(r.vy, r.vx);
   drawSprite(ART.rocket, r.x, r.y, ang + Math.PI / 2, w, h, 0.5, 0.38);
 }
 
 function drawInterceptor(m) {
   drawTrail(m.trail, "rgba(90,230,255,0.5)", 2.4);
-  const h = planetR * 0.54;
-  const w = h * (479 / 1031);
+  const h = planetR * 0.62;
+  const w = h * sprAspect(ART.missile, 0.31);
   const ang = Math.atan2(m.vy, m.vx);
   drawSprite(ART.missile, m.x, m.y, ang + Math.PI / 2, w, h, 0.5, 0.38);
 }
@@ -1387,6 +1402,8 @@ function drawLocks() {
 
 function draw() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
   drawBg();
   ctx.save();
   ctx.translate(shakeX, shakeY);
