@@ -1,0 +1,15 @@
+{
+  "passed": true,
+  "checkedAt": "2026-09-11T11:12:39.208Z",
+  "checks": [
+    "textures loaded",
+    "door has intermediate animation positions",
+    "pause",
+    "open view pixel-identical to original",
+    "overview",
+    "mobile first touch",
+    "no horizontal overflow",
+    "no game APIs"
+  ],
+  "errors": []
+}

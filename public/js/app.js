@@ -1,12 +1,12 @@
 import { api, getState, getCatalog, getPreview as fetchBuildingPreview, getGalaxy, getSystem, getReports, getRanks, getEmpire, combatPreview, combatSim, getAlliances, getAlliance, getAllianceActivity } from "./api.js?v=4";
-import { esc, fmt, eta, when, costHtml, planetCss, planetGlobeUrl, planetColonyUrl, mediaTag, bindMediaFallbacks, toast, showModal, hideModal, shipList, starfield, resourceIcon, icon, beep, notify, tickEta, ticksOf, tickMsFrom } from "./ui.js?v=2";
+import { esc, fmt, eta, when, costHtml, planetCss, planetGlobeUrl, planetColonyUrl, mediaTag, bindMediaFallbacks, toast, showModal as showModalEl, hideModal as hideModalEl, shipList, starfield, resourceIcon, icon, beep, notify, tickEta, ticksOf, tickMsFrom } from "./ui.js?v=2";
 import { createMap, systemHtml } from "./map.js?v=63";
 import { battleReplayHtml, bindBattleReplays } from "./battle.js?v=2";
 import { startAllianceBossEncounter } from "./alliance-boss-game.js?v=16";
 import { CITY_PLOTS } from "./city.mjs?v=10";
 import { shipBudget } from "./ship-budget.mjs?v=1";
 import { colonyRows, colonyHudHtml, paintColonyMarkers, paintColonyFrame } from "./colony-hud.mjs?v=7";
-import { createColonyUnity, setUnityColonyVisible } from "./colony-unity.js?v=11";
+import { createColonyUnity, setUnityColonyVisible } from "./colony-unity.js?v=13";
 
 
 const $ = (id) => document.getElementById(id);
@@ -35,6 +35,9 @@ const state = {
   colonizeMode: null, // { sourcePlanetId, targetSystemId, targetPlanetId } bei Kolonie-Auswahl
   lastInteractionAt: 0,
   lastBusyToastAt: 0,
+  activityDurations: {},
+  allianceResearchChoice: "",
+  allianceQuickMessage: "",
 };
 
 const TUTORIAL = [
@@ -253,14 +256,58 @@ function renderResources() {
   }
 }
 
+function showModal(html) {
+  showModalEl(html);
+  const modal = $("modal");
+  if (modal) modal.onclick = (e) => { if (e.target === modal) hideModal(); };
+  syncColonyPointerEvents();
+}
+function hideModal() {
+  hideModalEl();
+  syncColonyPointerEvents();
+}
+
+function overlayBlocksColony() {
+  const modal = $("modal");
+  return !!(
+    $("command-panel") ||
+    $("game")?.classList.contains("nav-open") ||
+    $("orders")?.open ||
+    (modal && !modal.hidden && !modal.classList.contains("hidden"))
+  );
+}
+function syncColonyPointerEvents() {
+  const block = overlayBlocksColony();
+  for (const id of ["colony-unity-layer", "colony-unity-canvas"]) {
+    const el = $(id);
+    if (el) el.style.pointerEvents = block ? "none" : "";
+  }
+}
+
 function renderDock() {
-  const dock = $("dock");
+  const dock = $("dock-items");
   if (!dock) return;
   const q = state.snap?.queue || [];
   const f = state.snap?.fleets || [];
   const acts = (state.snap?.activities || []).filter((a) => a.running);
+  const count=q.length+f.length+acts.length;
+  const planetId=state.snap?.planet?.id;
+  const jobs=[
+    ...q.map((x)=>({end:x.completesAt,label:`${x.planetName || "Welt"} · ${x.name}${x.qty>1?" ×"+x.qty:""}`,local:x.planetId===planetId})),
+    ...f.map((x)=>({end:x.arrivesAt,label:`${x.originName} → ${x.targetName}`,local:x.originPlanetId===planetId||x.targetPlanetId===planetId})),
+    ...acts.map((x)=>({end:x.readyAt,label:[x.planetName,x.name].filter(Boolean).join(" · "),local:x.planetId===planetId})),
+  ].filter((x)=>x.end);
+  jobs.sort((a,b)=>a.end-b.end);
+  const next=jobs.find((x)=>x.local) || jobs[0];
+  const countEl=$("orders-count"), nextEl=$("orders-next"), etaEl=$("orders-eta");
+  if(countEl)countEl.textContent=`Aufträge · ${count}`;
+  if(nextEl)nextEl.textContent=next ? next.label : "Keine aktiven Aufträge";
+  if(etaEl){
+    if(next){etaEl.dataset.liveEta=String(next.end);etaEl.textContent=eta(next.end-Date.now());}
+    else{delete etaEl.dataset.liveEta;etaEl.textContent="";}
+  }
   const signature = JSON.stringify([
-    q.map((x) => [x.id, x.startedAt, x.completesAt, x.qty, x.planetId]),
+    q.map((x) => [x.id, x.startedAt, x.completesAt, x.qty, x.planetId, x.planetName, x.name]),
     f.map((x) => [x.id, x.departedAt, x.arrivesAt, x.returning]),
     acts.map((x) => [x.id, x.startedAt, x.readyAt, x.durationName]),
   ]);
@@ -508,6 +555,7 @@ function closeNavSheet() {
   const backdrop = $("nav-backdrop");
   if (shell) shell.classList.remove("nav-open");
   hide(backdrop);
+  syncColonyPointerEvents();
   const more = $("tabbar")?.querySelector("[data-tab='more']");
   if (more) more.classList.toggle("on", tabIdFor(state.view) === "more");
 }
@@ -520,6 +568,7 @@ function openNavSheet() {
   if (shell) shell.classList.add("nav-open");
   if (nav) nav.scrollTop = 0;
   show(backdrop);
+  syncColonyPointerEvents();
   $("tabbar")?.querySelector("[data-tab='more']")?.classList.add("on");
 }
 
@@ -893,7 +942,7 @@ function renderView({preserveForm=true}={}) {
   }else panel?.remove();
   for(const el of $('tabbar').querySelectorAll('[data-tab]'))el.classList.toggle('on',el.dataset.tab===(hasCommandPanel()?'cmd':tabIdFor(base)));
   for(const el of $('nav').querySelectorAll('[data-view]'))el.classList.toggle('on',el.dataset.view===active);
-  applyResourceChrome();setUnityColonyVisible(base==='command'&&!state.snap.planet?.isAlliance);syncCityLive();updateBuildActions();
+  applyResourceChrome();setUnityColonyVisible(base==='command'&&!state.snap.planet?.isAlliance);syncColonyPointerEvents();syncCityLive();updateBuildActions();
  }catch(err){state.view=active;console.error(err);toast('Ansicht fehlgeschlagen: '+err.message,true);}
 }
 
@@ -1343,6 +1392,35 @@ function allianceBoostChips() {
   return `<div class="ally-boosts">${bits.map(([n, v]) => `<span class="chip ok">${esc(n)} +${Math.round(v * 100)}%</span>`).join("")}</div>`;
 }
 
+function allianceQuickActionsHtml(rows,planetId,canManage) {
+  const available=rows.filter(r=>r.level<r.max);
+  const chosen=available.some(r=>r.id===state.allianceResearchChoice)?state.allianceResearchChoice:available[0]?.id;
+  return `<section class="ally-quick-actions panel" data-alliance-quick-planet="${planetId || ''}">
+    <label>Allianzforschung · Zahlung aus dem Allianzlager<select data-alliance-project aria-label="Allianzforschung auswählen" ${!available.length?'disabled':''}>${available.map(r=>`<option value="${r.id}" ${r.id===chosen?'selected':''}>${esc(r.name)} · ${Math.round((r.progress||0)*100)} % finanziert</option>`).join('')}</select></label>
+    ${!planetId ? '<p class="hint">Zuerst einen Allianzplaneten gründen. Gespeicherte Einzahlungen bleiben erhalten.</p>' : !canManage ? '<p class="hint">Die Allianzführung muss deinen Zugang zum Allianzplaneten freigeben.</p>' : !available.length ? '<p class="hint">Alle Allianzforschungen sind abgeschlossen.</p>' : `<div class="ally-quick-buttons"><button type="button" class="btn small" data-alliance-quick="fund">Einzahlen</button><button type="button" class="btn primary small" data-alliance-quick="start">Finanzieren & starten</button></div>`}
+    <p class="ally-quick-message" role="status" ${state.allianceQuickMessage?'':'hidden'}>${esc(state.allianceQuickMessage || '')}</p>
+  </section>`;
+}
+function bindAllianceQuickActions(root) {
+  root.querySelectorAll('[data-alliance-project]').forEach(s=>s.addEventListener('change',()=>{state.allianceResearchChoice=s.value;}));
+  root.querySelectorAll('[data-alliance-quick]').forEach(button=>button.addEventListener('click',async()=>{
+    const bar=button.closest('[data-alliance-quick-planet]');if(bar.dataset.pending)return;
+    const id=bar.querySelector('[data-alliance-project]').value,planetId=Number(bar.dataset.allianceQuickPlanet),focusId=state.snap.planet.id;
+    if(!id||!planetId)return;
+    state.allianceResearchChoice=id;state.allianceQuickMessage='';bar.dataset.pending='1';
+    bar.querySelectorAll('button,select').forEach(b=>b.disabled=true);
+    const message=bar.querySelector('.ally-quick-message');message.hidden=false;message.textContent='Wird verarbeitet …';
+    await act(async()=>{
+      try {
+        await api('/alliances/research',{method:'POST',body:{id,planetId,donate:button.dataset.allianceQuick==='fund'}});
+        toast(button.dataset.allianceQuick==='fund'?'Aus dem Allianzlager eingezahlt.':'Allianzforschung gestartet. Fortschritt unter Aufträge.');
+        return await getState(focusId);
+      }catch(err){state.allianceQuickMessage=err.message;message.textContent=err.message;throw err;}
+    });
+    if(bar.isConnected){delete bar.dataset.pending;bar.querySelectorAll('button,select').forEach(b=>b.disabled=false);}
+  }));
+}
+
 function allianceResearchHtml() {
   const rows = state.snap.alliance?.research || [];
   const busy = (state.snap.queue || []).some((q) => q.kind === "ally_research" && q.planetId === state.snap.planet?.id);
@@ -1371,7 +1449,8 @@ function allianceResearchHtml() {
       </article>`;
     })
     .join("");
-  return `<div class="section-title"><h2>Allianzforschung</h2><span class="muted">Boni für alle Mitglieder</span></div>
+  return `${allianceQuickActionsHtml(rows,state.snap.planet.id,canQueue)}
+    <div class="section-title"><h2>Allianzforschung</h2><span class="muted">Boni für alle Mitglieder</span></div>
     ${allianceBoostChips()}
     <button class="btn" data-alliance-transport="${state.snap.planet.id}">Allianzlager per Transport finanzieren</button>
     <p class="hint">Ressourcen werden per Transportflug im Allianzlager gesammelt. Forschungsaufträge bezahlen ausschließlich aus diesem gemeinsamen Bestand.</p>
@@ -1381,8 +1460,10 @@ function allianceResearchHtml() {
 function hangarSummaryHtml(p) {
   const audit=state.snap.fleetAudit?.colonies?.find(c=>c.id===p.id);
   if(!audit)return '';
-  const construction=audit.construction || [],movements=audit.movements || [];
+  const construction=(state.snap.queue || []).filter(q=>q.kind==='ship' && q.planetId===p.id);
+  const movements=(state.snap.fleets || []).filter(f=>f.originPlanetId===p.id || f.targetPlanetId===p.id);
   const count=bag=>Object.values(bag || {}).reduce((n,v)=>n+Number(v),0);
+  const hangarMoving=movements.reduce((n,f)=>n+count(f.ships),0);
   const events=new Map();
   for(const event of state.snap.fleetAudit?.ledger || []){
     if(event.planetId!==p.id)continue;
@@ -1392,7 +1473,7 @@ function hangarSummaryHtml(p) {
     else events.set(key,{...event,delta:event.afterCount-event.beforeCount});
   }
   const journal=[...events.values()].filter(e=>e.delta).slice(0,15).map(e=>`<p>${when(e.createdAt)} · ${esc(e.cause)} · ${esc(state.catalog.ships[e.shipId]?.name || e.shipId)} ${e.delta>0?'+':''}${e.delta} ${e.reportId ? `<button type="button" class="btn small" data-ledger-report="${e.reportId}">Bericht</button>` : ''}</p>`).join('');
-  return `<section class="panel hangar-summary"><h3>Hangar · ${esc(p.name)}</h3><p><b>Bestand ${audit.total} / ${audit.cap}</b> · Im Bau ${construction.reduce((n,q)=>n+q.qty,0)} · Reserve ${count(audit.reserve)}</p><p>${unitList(audit.ships,state.catalog.ships)}</p><details><summary>Unterwegs: ${movements.reduce((n,f)=>n+count(f.ships),0)} Schiffe · ${movements.length} Flottenbewegungen</summary>${movements.map(f=>`<p>${esc(f.originName)} → ${esc(f.targetName)}: ${unitList(f.ships,state.catalog.ships)} · <span data-live-eta="${f.arrivesAt}">${eta(f.arrivesAt-Date.now())}</span></p>`).join('') || '<p>Keine Flotte unterwegs.</p>'}</details><details class="hangar-journal"><summary>Bestandsjournal dieses Planeten</summary>${journal || '<p>Noch keine Änderungen erfasst.</p>'}<p class="hint">Starts verlassen den Hangar; Rückkehr und Bau füllen ihn auf. Ein Kolonieschiff wird erst bei erfolgreicher Gründung verbraucht. Reserve bleibt erhalten.</p></details>${audit.lastLossReportId ? `<button class="btn small" data-ledger-report="${audit.lastLossReportId}">Letzter Verlustbericht</button>` : '<p class="hint">Kein Verlustbericht für diesen Hangar vorhanden.</p>'}</section>`;
+  return `<section class="panel hangar-summary"><h3>Hangar · ${esc(p.name)}</h3><p><b>Bestand ${audit.total} / ${audit.cap}</b> · Im Bau ${construction.reduce((n,q)=>n+q.qty,0)} · Reserve ${count(audit.reserve)}</p><p>${unitList(audit.ships,state.catalog.ships)}</p><details><summary>Unterwegs von/zu ${esc(p.name)}: ${hangarMoving} Schiffe · ${movements.length} Flottenbewegungen</summary>${movements.map(f=>`<p>${esc(f.originName)} → ${esc(f.targetName)}: ${unitList(f.ships,state.catalog.ships)} · <span data-live-eta="${f.arrivesAt}">${eta(f.arrivesAt-Date.now())}</span></p>`).join('') || '<p>Keine Flotte unterwegs.</p>'}</details><details class="hangar-journal"><summary>Bestandsjournal dieses Planeten</summary>${journal || '<p>Noch keine Änderungen erfasst.</p>'}<p class="hint">Starts verlassen den Hangar; Rückkehr und Bau füllen ihn auf. Ein Kolonieschiff wird erst bei erfolgreicher Gründung verbraucht. Reserve bleibt erhalten.</p></details>${audit.lastLossReportId ? `<button class="btn small" data-ledger-report="${audit.lastLossReportId}">Letzter Verlustbericht</button>` : '<p class="hint">Kein Verlustbericht für diesen Hangar vorhanden.</p>'}</section>`;
 }
 
 function buildRailHtml() {
@@ -1649,6 +1730,7 @@ const views = {
       .map((s) => {
         const info = prev[s.id] || { unlocked: false, cost: s.cost, time: s.time };
         const haveN = p.ships[s.id] || 0;
+        const jobs=queuedShips.filter(q=>q.itemId===s.id);
         const budget = currentShipBudget(info);
         const canBuild = budget.buildable > 0;
         const action = !info.unlocked
@@ -1660,6 +1742,7 @@ const views = {
           ${mediaTag(`/assets/ships/${s.id}.jpg`, "og-art og-art-ship")}
           <div class="og-body">
             <h3>${esc(s.name)} <span class="lvl">vorhanden: ${haveN}</span></h3>
+            ${jobs.length ? `<p class="ship-building" data-ship-building="${s.id}"><b>IM BAU · ${jobs.reduce((n,q)=>n+q.qty,0)} Schiffe</b> · ${esc(p.name)}${jobs.map(q=>`<span>${q.qty} × ${esc(q.name)} · <time data-live-eta="${q.completesAt}">${eta(q.completesAt-Date.now())}</time></span>`).join('')}</p>` : ''}
             <p class="ship-budget" data-ship-budget="${s.id}">Mit Ressourcen bezahlbar: ${budget.affordable.toLocaleString('de-DE')} · Jetzt baubar: ${budget.buildable.toLocaleString('de-DE')}</p>
             <p>${esc(s.blurb)}</p>
             ${reqHtml(s.requires)}
@@ -1690,15 +1773,17 @@ const views = {
         const unlocked = p.isAlliance || info.unlocked;
         const haveN = p.defenses?.[d.id] || info.have || 0;
         const canBuild = !busy && canAfford(info.cost || {});
+        const job=state.snap.queue.find(q=>q.kind==="defense" && q.planetId===p.id && q.itemId===d.id);
         const action = !unlocked
           ? `<div class="lock">Voraussetzungen fehlen</div>`
           : `<label class="muted">Anzahl <input data-dqty="${d.id}" type="number" min="1" max="20" value="1" style="width:64px;margin-left:6px"></label>
              <button class="btn primary" data-defense="${d.id}" ${!canBuild ? "disabled" : ""}>Bauen</button>
-             <div class="muted">${eta((info.time || d.time) * 1000)}</div>`;
+             <div class="muted">${job ? `IM BAU · <span data-live-eta="${job.completesAt}">${eta(job.completesAt-Date.now())}</span>` : eta((info.time || d.time) * 1000)}</div>`;
         return `<article class="og-row panel">
           <img class="og-art" src="/assets/defenses/${d.id}.jpg" alt="" />
           <div class="og-body">
             <h3>${esc(d.name)} <span class="lvl">vorhanden: ${haveN}</span></h3>
+            ${job ? `<p class="ship-building" data-defense-building="${d.id}"><b>IM BAU · ${job.qty} ${esc(d.name)}</b> · ${esc(p.name)} · <time data-live-eta="${job.completesAt}">${eta(job.completesAt-Date.now())}</time></p>` : ""}
             <p>${esc(d.blurb)}</p>
             ${reqHtml(d.requires)}
             ${vsPills(d.vs)}
@@ -1945,7 +2030,8 @@ const views = {
     const stationed = p?.ships || {};
     const defs = p?.defenses || {};
     const moving = {};
-    for (const f of state.snap.fleets || []) {
+    const localFleets=(state.snap.fleets || []).filter(f=>f.originPlanetId===p.id || f.targetPlanetId===p.id);
+    for (const f of localFleets) {
       for (const [id, n] of Object.entries(f.ships || {})) if (n) moving[id] = (moving[id] || 0) + n;
     }
     const shipCards = Object.values(state.catalog.ships || {})
@@ -1986,7 +2072,7 @@ const views = {
         </article>`;
       })
       .join("");
-    const missionCards = (state.snap.fleets || [])
+    const missionCards = localFleets
       .map((f) => {
         const arts = Object.entries(f.ships || {})
           .filter(([, n]) => n > 0)
@@ -2007,7 +2093,7 @@ const views = {
         </article>`;
       })
       .join("");
-    const incoming = (state.snap.incoming || [])
+    const incoming = (state.snap.incoming || []).filter((h)=>h.planetId===p.id)
       .map((h) => {
         const arts = Object.entries(h.ships || {})
           .filter(([, n]) => n > 0)
@@ -2252,10 +2338,11 @@ const views = {
       .map((a) => {
         const ready = a.ready;
         const running = a.running;
-        const chosen = a.duration || "short";
+        const choiceKey=`${state.snap.planet.id}:${a.id}`;
+        const chosen = running ? a.duration : state.activityDurations[choiceKey] || a.duration || "short";
         const durs = (a.durations || [])
           .map(
-            (d) => `<button type="button" class="duration-btn ${d.id === chosen ? "on" : ""}" data-duration-choice="${d.id}" data-activity-card="${a.id}" ${running ? "disabled" : ""}>
+            (d) => `<button type="button" class="duration-btn ${d.id === chosen ? "on" : ""}" aria-pressed="${d.id === chosen}" data-duration-choice="${d.id}" data-activity-card="${a.id}" ${running ? "disabled" : ""}>
               <b>${esc(d.name)}</b>
               <span>${eta(d.ms)} · ${esc(d.blurb)}${d.energy ? ` · ${d.energy} E` : ""}</span>
             </button>`
@@ -2265,9 +2352,7 @@ const views = {
         const statusClass = running ? "running" : ready ? "ready" : "waiting";
         const startButton = running
           ? `<button type="button" class="btn ghost" disabled>Aktiv · ${esc(a.durationName || "Einsatz")}</button>`
-          : ready
-            ? `<button type="button" class="btn primary" data-activity="${a.id}" data-duration="${chosen}">Start</button>`
-            : `<button type="button" class="btn primary" data-activity="${a.id}" data-duration="${chosen}">Start</button>`;
+          : `<button type="button" class="btn primary" data-activity="${a.id}" data-duration="${chosen}">Start</button>`;
         return `<article class="force-card panel ${statusClass}">
           <div class="force-art">
             ${mediaTag(a.art)}
@@ -2699,7 +2784,8 @@ function bindView(root) {
       if(root.dataset.submitting)return;
       root.dataset.submitting='1';
       b.disabled = true;
-      await act(async () => {const snap=await api("/ship", { method: "POST", body: { id: b.dataset.ship, qty, planetId: state.snap.planet.id } });if(input)input.value='1';return snap;});
+      const shipId=b.dataset.ship,planetId=state.snap.planet.id;
+      await act(async () => {const snap=await api("/ship", { method: "POST", body: { id: shipId, qty, planetId } });if(input)input.value='1';const job=snap.queue?.filter(q=>q.kind==='ship'&&q.itemId===shipId&&q.planetId===planetId).at(-1);toast(`${qty} × ${state.catalog.ships[shipId]?.name || shipId} im Bau${job?' · '+eta(job.completesAt-Date.now()):''}. Aufträge zeigt den Fortschritt.`);return snap;});
       delete root.dataset.submitting;updateShipBudgets();
     })
   );
@@ -2725,16 +2811,17 @@ function bindView(root) {
   root.querySelectorAll("[data-duration-choice]").forEach((button) => {
     button.addEventListener("click", () => {
       const card = button.closest(".force-card");
-      card?.querySelectorAll("[data-duration-choice]").forEach((item) => item.classList.toggle("on", item === button));
-      const start = card?.querySelector("[data-activity]");
-      if (start) start.dataset.duration = button.dataset.durationChoice;
+      state.activityDurations[`${state.snap.planet.id}:${button.dataset.activityCard}`]=button.dataset.durationChoice;
+      card?.querySelectorAll("[data-duration-choice]").forEach((item) => {item.classList.toggle("on", item === button);item.setAttribute('aria-pressed',String(item===button));});
+      card?.querySelectorAll("[data-activity]").forEach(start=>{start.dataset.duration=button.dataset.durationChoice;});
     });
   });
+  bindAllianceQuickActions(root);
   root.querySelectorAll("[data-activity]").forEach((b) => {
     if (b.disabled) return;
     b.addEventListener("click", () => {
       const kind = b.dataset.activity;
-      const duration = b.dataset.duration || "short";
+      const duration = state.activityDurations[`${state.snap.planet.id}:${kind}`] || b.dataset.duration || "short";
       if (!kind) return;
       root.querySelectorAll(`[data-activity="${kind}"]`).forEach((button) => { button.disabled = true; });
       act(() => api("/activity", { method: "POST", body: { kind, duration, planetId: state.snap.planet.id } }));
@@ -3790,12 +3877,13 @@ async function bootAlliance() {
     const activityHtml = showActivity
       ? `<div id="ally-activity" class="ally-activity panel">${allianceActivityTableHtml(actRows)}</div>`
       : "";
-    host.innerHTML = `<div class="section-title"><h2>Allianzen${actRows.length ? ` <i class="page-badge">${actRows.length > 9 ? "9+" : actRows.length}</i>` : ""}</h2><span class="muted">${alliances.length} Bündnisse</span></div>
+    host.innerHTML = `${detail?.mine ? allianceQuickActionsHtml(detail.research || [],detail.planet?.id,detail.canManagePlanet):''}<div class="section-title"><h2>Allianzen${actRows.length ? ` <i class="page-badge">${actRows.length > 9 ? "9+" : actRows.length}</i>` : ""}</h2><span class="muted">${alliances.length} Bündnisse</span></div>
       <div class="ally-layout">
         <aside class="panel ally-list">${list || `<div class="muted" style="padding:10px">Keine Allianzen.</div>`}</aside>
         <div>${activityHtml}${body}${create}</div>
       </div>`;
     bindAllianceActivityClicks(host);
+    bindAllianceQuickActions(host);
     bindJumps(host);
     host.querySelector("#ally-boss-launch")?.addEventListener("click", () => startAllianceBossEncounter({ detail, onDone: async () => {
       state.allianceFocus = detail.id;
@@ -4979,8 +5067,8 @@ async function openMission(targetId, sys, initialMission = "", dialogOpts = {}) 
     <div id="cargo-fields" class="stack" style="margin-top:8px" hidden></div>
     <div id="combat-preview" class="preview-box" hidden></div>
     <div class="row" style="margin-top:14px">
-      <button class="btn ghost" id="m-cancel">Abbrechen</button>
-      <button class="btn primary" id="m-go">Flotte senden</button>
+      <button type="button" class="btn ghost" id="m-cancel">Abbrechen</button>
+      <button type="button" class="btn primary" id="m-go">Flotte senden</button>
     </div>
   </div>`);
   document.querySelector("#mission-origin").onchange = e => openMission(targetId,sys,initialMission,{...dialogOpts,sourcePlanetId:Number(e.target.value)});
@@ -5327,14 +5415,17 @@ $("dock")?.addEventListener("click", (e) => {
     return;
   }
   const jump = e.target.closest("[data-dock-view]");
-  if (jump) jumpTo(jump.dataset.dockView, jump.dataset.dockPlanet);
+  if (jump) {$('orders').open=false;syncColonyPointerEvents();jumpTo(jump.dataset.dockView, jump.dataset.dockPlanet);}
 });
+$("orders")?.addEventListener("toggle", syncColonyPointerEvents);
 $("dock")?.addEventListener("keydown", (e) => {
   if (e.key !== "Enter" && e.key !== " ") return;
   if (e.target.closest("[data-cancel]")) return;
   const jump = e.target.closest("[data-dock-view]");
   if (!jump) return;
   e.preventDefault();
+  $('orders').open=false;
+  syncColonyPointerEvents();
   jumpTo(jump.dataset.dockView, jump.dataset.dockPlanet);
 });
 const planetSel = $("planet-select");

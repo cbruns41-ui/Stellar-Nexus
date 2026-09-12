@@ -20,7 +20,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/css/style.css?v=122" />
-    <link rel="stylesheet" href="/css/playtest-navigation.css?v=4" />
+    <link rel="stylesheet" href="/css/playtest-navigation.css?v=8" />
     <link rel="stylesheet" href="/css/colony.css?v=7" />
   </head>
   <body class="land">
@@ -310,7 +310,12 @@
       </div>
       <main id="view" class="view"></main>
 
-      <aside class="dock" id="dock"></aside>
+      <aside class="dock" id="dock" aria-label="Laufende Aufträge">
+        <details id="orders">
+          <summary><b id="orders-count">Aufträge</b><span id="orders-next">Keine aktiven Aufträge</span><time id="orders-eta"></time><span aria-hidden="true">⌃</span></summary>
+          <div id="dock-items" role="region" aria-label="Bau, Forschung und Flüge aller Welten"></div>
+        </details>
+      </aside>
       <nav class="tabbar" id="tabbar">
         <button type="button" data-view="command" data-tab="home" class="on">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/></svg>
@@ -363,6 +368,6 @@
         });
     </script>
     <script src="/js/pwa.js?v=1"></script>
-    <script type="module" src="/js/app.js?v=169"></script>
+    <script type="module" src="/js/app.js?v=173"></script>
   </body>
 </html>

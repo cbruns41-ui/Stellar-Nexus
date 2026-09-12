@@ -9,6 +9,7 @@ const root = path.join(__dirname, "..");
 const html = fs.readFileSync(path.join(root, "public", "play.html"), "utf8");
 const landingHtml = fs.readFileSync(path.join(root, "public", "index.html"), "utf8");
 const css = fs.readFileSync(path.join(root, "public", "css", "style.css"), "utf8");
+const playCss = fs.readFileSync(path.join(root, "public", "css", "playtest-navigation.css"), "utf8");
 const app = fs.readFileSync(path.join(root, "public", "js", "app.js"), "utf8");
 const bossGame3d = fs.readFileSync(path.join(root, "public", "js", "alliance-boss-3d.js"), "utf8");
 const city3d = fs.readFileSync(path.join(root, "public", "js", "city-3d.js"), "utf8");
@@ -77,6 +78,23 @@ test("mobile catalog cards are image-first and the colony boots the Unity dioram
   assert.match(css, /\.city-actions/);
   assert.match(html, /maximum-scale=1/);
   assert.equal(fs.existsSync(path.join(root, "public", "assets", "colony", "colony-approved.png")), true);
+});
+
+test("orders dock, duration choice and planet-local hangar stay reachable", () => {
+  for (const shell of [html, landingHtml]) {
+    assert.match(shell, /id="orders"/);
+    assert.match(shell, /id="dock-items"/);
+    assert.match(shell, /id="orders-count"/);
+  }
+  assert.match(app, /activityDurations/);
+  assert.match(app, /data-ship-building/);
+  assert.match(app, /localFleets/);
+  assert.match(app, /syncColonyPointerEvents/);
+  assert.match(app, /ally-quick-actions/);
+  assert.match(playCss, /#orders-count/);
+  assert.match(playCss, /pointer-events:none!important/);
+  assert.match(playCss, /\.ally-quick-actions\{position:sticky/);
+  assert.match(playCss, /body:has\(#modal:not\(\.hidden\):not\(\[hidden\]\)\) #map-raid-banner/);
 });
 
 test("funk splits messages, combat reports and spy reports", () => {

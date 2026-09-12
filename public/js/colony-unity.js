@@ -28,7 +28,16 @@ const scene = {
 };
 window.stellarNexusColony = {
   onReady() { /* Loader resolves after Awake; sync happens below. */ },
-  onSelect(id) { if (visible) { selected = id || ""; listeners.onSelect?.(selected); } },
+  onSelect(id) {
+    const modal = document.getElementById("modal");
+    const blocked = !!(
+      document.getElementById("command-panel") ||
+      document.getElementById("game")?.classList.contains("nav-open") ||
+      document.getElementById("orders")?.open ||
+      (modal && !modal.hidden && !modal.classList.contains("hidden"))
+    );
+    if (visible && !blocked) { selected = id || ""; listeners.onSelect?.(selected); }
+  },
   onFrame(frame) { if (visible) listeners.onFrame?.(frame); },
 };
 document.addEventListener("visibilitychange", () => send("SetVisible", visible && !document.hidden ? "1" : "0"));

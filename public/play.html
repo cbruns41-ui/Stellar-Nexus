@@ -16,8 +16,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Sora:wght@400;500;600;700&family=Tektur:wght@500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/css/style.css?v=122" />
-    <link rel="stylesheet" href="/css/playtest-navigation.css?v=3" />
-    <link rel="stylesheet" href="/css/colony.css?v=6" />
+    <link rel="stylesheet" href="/css/playtest-navigation.css?v=8" />
+    <link rel="stylesheet" href="/css/colony.css?v=7" />
   </head>
   <body data-mode="play">
     <canvas id="stars" aria-hidden="true"></canvas>
@@ -84,7 +84,12 @@
         <div id="colony-unity-loading">Lade Basis…</div>
       </div>
       <main id="view" class="view"><p class="muted" style="padding:24px">Verbinde mit dem Nexus…</p></main>
-      <aside class="dock" id="dock"></aside>
+      <aside class="dock" id="dock" aria-label="Laufende Aufträge">
+        <details id="orders">
+          <summary><b id="orders-count">Aufträge</b><span id="orders-next">Keine aktiven Aufträge</span><time id="orders-eta"></time><span aria-hidden="true">⌃</span></summary>
+          <div id="dock-items" role="region" aria-label="Bau, Forschung und Flüge aller Welten"></div>
+        </details>
+      </aside>
       <nav class="tabbar" id="tabbar">
         <button type="button" data-view="command" data-tab="home" class="on">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/></svg>
@@ -106,6 +111,6 @@
 
     <script src="/js/play-boot.js?v=21"></script>
     <script src="/js/pwa.js?v=2"></script>
-    <script type="module" src="/js/app.js?v=167"></script>
+    <script type="module" src="/js/app.js?v=173"></script>
   </body>
 </html>
