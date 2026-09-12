@@ -40,6 +40,10 @@ if (process.env.VERCEL) {
 app.use(express.static(path.join(__dirname, "public"), { extensions: ["html"] }));
 attachRoutes(app, db);
 
+app.use("/api", (req, res) => {
+  res.status(404).json({ error: "Diese Aktion ist nicht verfügbar. Bitte die Seite neu laden." });
+});
+
 app.use((err, _req, res, _next) => {
   console.error(err);
   res.status(500).json({ error: "Interner Fehler im Nexus." });

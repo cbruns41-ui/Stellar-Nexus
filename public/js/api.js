@@ -11,7 +11,12 @@ export async function api(path, { method = "GET", body, timeoutMs = 0 } = {}) {
   });
   const data = await res.json().catch(err => { if(controller?.signal.aborted)throw err;return {}; });
   if (!res.ok) {
-    const error = new Error(data.error || res.statusText);
+    const fallback = res.status === 404
+      ? "Diese Aktion ist nicht verfügbar. Bitte die Seite neu laden."
+      : res.statusText && !/^not found$/i.test(res.statusText)
+        ? res.statusText
+        : "Die Anfrage ist fehlgeschlagen.";
+    const error = new Error(data.error || fallback);
     error.status = res.status;
     throw error;
   }

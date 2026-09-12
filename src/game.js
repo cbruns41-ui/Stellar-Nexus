@@ -2260,7 +2260,7 @@ function buildHints({
   const weeklyReady = (weekly || []).filter((o) => o.complete && !o.claimed).length;
   const campaignReady = (contracts || []).filter((c) => c.complete && !c.claimed).length;
   const campaignOpen = (contracts || []).some((c) => !c.claimed && !c.locked) ? 1 : 0;
-  const actReady = (activities || []).filter((a) => a.ready).length;
+  const actDue = (activities || []).filter((a) => a.running && Number(a.readyAt) > 0 && Number(a.readyAt) <= Date.now()).length;
   const incomingN = (incoming || []).length;
   const infra = planet ? countAffordable("building", db, empire, planet, buildings, techs) : 0;
   const research = planet ? countAffordable("research", db, empire, planet, buildings, techs) : 0;
@@ -2286,7 +2286,7 @@ function buildHints({
     nexus,
     galaxy: incomingN + (debrisHere ? 1 : 0),
     fleets: incomingN,
-    activity: actReady,
+    activity: actDue,
     reports: unread || 0,
     chat: unreadChat || 0,
     alliance: allianceN,

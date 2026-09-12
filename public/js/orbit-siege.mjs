@@ -587,7 +587,7 @@ function step(dt) {
     r.flash = Math.max(0, (r.flash || 0) - dt * 4);
     r.trail.push({ x: r.x, y: r.y });
     if (r.trail.length > 14) r.trail.shift();
-    if (Math.random() < 0.6) puff(r.x, r.y, "rgba(255,140,60,0.35)", 1);
+    if (game.smoke.length < 70 && Math.random() < 0.18) puff(r.x, r.y, "rgba(255,140,60,0.35)", 1);
     const d = Math.hypot(cx - r.x, cy - r.y);
     if (d < shieldR + r.r) {
       game.hp -= 11;
@@ -626,7 +626,7 @@ function step(dt) {
     m.x += m.vx * dt; m.y += m.vy * dt;
     m.trail.push({ x: m.x, y: m.y });
     if (m.trail.length > 10) m.trail.shift();
-    puff(m.x, m.y, "rgba(120,230,255,0.28)", 1);
+    if (game.smoke.length < 70 && Math.random() < 0.22) puff(m.x, m.y, "rgba(120,230,255,0.28)", 1);
     let hit = false;
     for (const r of game.rockets) {
       if (r.hp <= 0) continue;
@@ -658,6 +658,8 @@ function step(dt) {
   game.rockets = game.rockets.filter((r) => r.hp > 0);
   game.interceptors = game.interceptors.filter((m) => m.life > 0 && m.x > -60 && m.x < W + 60 && m.y > -60 && m.y < H + 60);
   game.shots = game.shots.filter((s) => s.life > 0 && s.x > -40 && s.x < W + 40 && s.y > -40 && s.y < H + 40);
+  if (game.sparks.length > 140) game.sparks.splice(0, game.sparks.length - 140);
+  if (game.smoke.length > 80) game.smoke.splice(0, game.smoke.length - 80);
   if (game.hp <= 0) { game.hp = 0; die(); return; }
   if (waveDone()) openPick();
 }
@@ -1048,13 +1050,21 @@ function paintHud() {
 
 function loop(now) {
   if (stopped) return;
-  const dt = Math.min(0.033, (now - last) / 1000 || 0.016);
-  last = now;
-  bannerT -= dt;
-  step(dt);
-  draw();
-  paintHud();
-  requestAnimationFrame(loop);
+  try {
+    const dt = Math.min(0.033, (now - last) / 1000 || 0.016);
+    last = now;
+    bannerT -= dt;
+    if (!document.hidden) {
+      step(dt);
+      draw();
+      paintHud();
+    } else {
+      last = now;
+    }
+  } catch (err) {
+    console.error("Orbit-Feuer:", err);
+  }
+  if (!stopped) requestAnimationFrame(loop);
 }
 begin();
 requestAnimationFrame(loop);

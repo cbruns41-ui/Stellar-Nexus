@@ -37,7 +37,12 @@ body[data-mode="play"] #command-panel,body[data-mode="play"] #panel-view,body[da
 .shell:has(#command-panel:not([hidden])) #colony-unity-layer,.shell:has(#command-panel:not([hidden])) #colony-unity-canvas,
 body:has(#modal:not(.hidden):not([hidden])) #colony-unity-layer,body:has(#modal:not(.hidden):not([hidden])) #colony-unity-canvas,
 .shell.nav-open #colony-unity-layer,.shell.nav-open #colony-unity-canvas,
-.shell:has(#orders[open]) #colony-unity-layer,.shell:has(#orders[open]) #colony-unity-canvas{pointer-events:none!important}
+.shell:has(#orders[open]) #colony-unity-layer,.shell:has(#orders[open]) #colony-unity-canvas,
+body.orbit-siege-open #colony-unity-layer,body.orbit-siege-open #colony-unity-canvas,
+body:has(.orbit-game) #colony-unity-layer,body:has(.orbit-game) #colony-unity-canvas,
+.shell:has(.city-actions:not([hidden])) #colony-unity-canvas,
+.shell:has(.colony-directory[open]) #colony-unity-canvas,
+.shell:has(.city-sheet) #colony-unity-canvas{pointer-events:none!important}
 .shell.view-home .living-colony .colony-tools{top:8px;left:8px;right:auto;display:flex;gap:5px;width:max-content;max-width:calc(100% - 16px);z-index:24;pointer-events:auto}
 .shell.view-home .living-colony .colony-tools>button,.shell.view-home .living-colony .colony-directory>summary{position:static;width:auto;min-height:38px;height:38px;padding:0 10px;margin:0;display:flex;align-items:center;gap:5px;border:1px solid #8cabb25c;border-radius:8px;background:#0b1721ed;color:#dce9ec;font:600 12px/1 system-ui;box-shadow:0 4px 12px #0004;white-space:nowrap}
 .shell.view-home .living-colony .colony-tools .colony-directory{position:static;width:auto}

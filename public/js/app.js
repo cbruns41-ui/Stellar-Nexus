@@ -1,13 +1,13 @@
-import { api, getState, getCatalog, getPreview as fetchBuildingPreview, getGalaxy, getSystem, getReports, getRanks, getEmpire, combatPreview, combatSim, getAlliances, getAlliance, getAllianceActivity } from "./api.js?v=4";
+import { api, getState, getCatalog, getPreview as fetchBuildingPreview, getGalaxy, getSystem, getReports, getRanks, getEmpire, combatPreview, combatSim, getAlliances, getAlliance, getAllianceActivity } from "./api.js?v=5";
 import { esc, fmt, eta, when, costHtml, planetCss, planetGlobeUrl, planetColonyUrl, mediaTag, bindMediaFallbacks, toast, showModal as showModalEl, hideModal as hideModalEl, shipList, starfield, resourceIcon, icon, beep, notify, tickEta, ticksOf, tickMsFrom } from "./ui.js?v=2";
-import { createMap, systemHtml } from "./map.js?v=64";
+import { createMap, systemHtml } from "./map.js?v=65";
 import { battleReplayHtml, bindBattleReplays } from "./battle.js?v=2";
 import { startAllianceBossEncounter } from "./alliance-boss-game.js?v=16";
 import { CITY_PLOTS } from "./city.mjs?v=10";
 import { shipBudget } from "./ship-budget.mjs?v=1";
 import { colonyRows, colonyHudHtml, paintColonyMarkers, paintColonyFrame } from "./colony-hud.mjs?v=7";
 import { createColonyUnity, setUnityColonyVisible } from "./colony-unity.js?v=13";
-import { startOrbitSiege } from "./orbit-siege.mjs?v=2";
+import { startOrbitSiege } from "./orbit-siege.mjs?v=3";
 
 
 const $ = (id) => document.getElementById(id);
@@ -274,6 +274,8 @@ function overlayBlocksColony() {
     $("command-panel") ||
     $("game")?.classList.contains("nav-open") ||
     $("orders")?.open ||
+    document.querySelector(".orbit-game") ||
+    document.body.classList.contains("orbit-siege-open") ||
     (modal && !modal.hidden && !modal.classList.contains("hidden"))
   );
 }
@@ -2027,7 +2029,7 @@ const views = {
       <div class="map-tools panel" id="map-tools"><div class="map-search-wrap"><span aria-hidden="true">⌕</span><input id="map-search" type="search" autocomplete="off" placeholder="System oder Planet suchen…"><div id="map-search-results" class="map-search-results" hidden></div></div><select id="planet-focus"><option value="">— Planet springen —</option></select>${bookmarks ? `<div class="map-bookmarks"><b>Gespeicherte Ziele</b>${bookmarks}</div>` : ""}</div>
       <div class="map-quick-filters" id="map-filters" hidden aria-label="Kartenfilter"><label><input type="checkbox" data-map-filter="own"> Eigen</label><label><input type="checkbox" data-map-filter="hostile"> Feind</label><label><input type="checkbox" data-map-filter="free"> Frei</label><label><input type="checkbox" data-map-filter="special"> Spezial</label></div>
       <div id="map-raid-banner" class="map-raid-banner hidden" hidden></div>
-      <button type="button" id="map-orbit-fire" class="map-orbit-fire" ><i>◎</i><span><b>ORBIT-BELAGERUNG</b><small id="map-orbit-fire-sub">Einsatz heute</small></span></button>
+      <button type="button" id="map-orbit-fire" class="map-orbit-fire" ><i>◎</i><span><b>ORBIT-FEUER</b><small id="map-orbit-fire-sub">Einsatz heute</small></span></button>
       <div class="map-legend panel">Ziehen: Schwenken · Rad: Zoom · Klick: System
         <div>Großer Punkt + weißer Ring + Kreuz = dein System · Teal-Puls = dein System · Rotbogen = Piratenbesatzungen · Orange-Ring = Piratenhorst · Goldbogen = Warlord · Cyan-Halo = Nexus-Riss</div></div>
       <div class="map-flight-note">Eigene Flüge: farbige Route mit bewegtem Marker · gestrichelt = Rückflug</div>
@@ -2639,10 +2641,16 @@ function bindCity(root) {
     if (sync) state.cityScene?.setSelected(id || "");
   };
   view.querySelectorAll("[data-city-building]").forEach(button => {
-    // Keyboard activation; pointer gestures pass through the badges to Unity.
-    button.addEventListener("click", event => {
+    button.addEventListener("pointerdown", event => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      event.preventDefault();
       event.stopPropagation();
-      select(state.cityBuilding === button.dataset.cityBuilding ? null : button.dataset.cityBuilding);
+      select(button.dataset.cityBuilding);
+    });
+    button.addEventListener("keydown", event => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      select(button.dataset.cityBuilding);
     });
   });
   view.querySelector("[data-guide]").addEventListener("click", () => { if (tutorialIndex() >= TUTORIAL.length) setTutorialIndex(0); openGuide(); });
@@ -4428,6 +4436,7 @@ async function loadReports(filter = "messages") {
 
 let mapBootId = 0;
 let orbitStarting = false;
+let orbitPick = null;
 
 function paintOrbitButton() {
   const sub = $("map-orbit-fire-sub");
@@ -4455,43 +4464,126 @@ function showOrbitLocked(os) {
   });
 }
 
+function rememberOrbitPick(planetId, planetName) {
+  const id = Number(planetId || 0);
+  if (!id) return;
+  orbitPick = { planetId: id, planetName: planetName || "" };
+}
+
+function chosenOrbitTarget() {
+  if (orbitPick?.planetId) return orbitPick;
+  const p = state.snap?.planet;
+  return p?.id ? { planetId: p.id, planetName: p.name } : null;
+}
+
+function orbitErrorMessage(err) {
+  const raw = String(err?.message || "");
+  const status = Number(err?.status || 0);
+  if (status === 404 || /^not found$/i.test(raw) || /cannot post/i.test(raw)) {
+    return "Orbit-Feuer ist gerade nicht erreichbar. Bitte die Seite neu laden.";
+  }
+  if (/failed to fetch|networkerror|load failed/i.test(raw)) {
+    return "Keine Verbindung zum Server. Orbit-Feuer konnte nicht starten.";
+  }
+  return raw || "Orbit-Feuer konnte nicht gestartet werden.";
+}
+
+function orbitSessionFrom(started) {
+  return started?.orbitSiege || started?.orbitFire || null;
+}
+
+async function postOrbit(path, body) {
+  return api(path, { method: "POST", body });
+}
+
+async function startOrbitSession(planetId) {
+  try {
+    return await postOrbit("/orbit-siege/start", { planetId });
+  } catch (err) {
+    if (err.status === 404 || /not found/i.test(err.message || "")) {
+      return postOrbit("/orbit-fire/start", { planetId });
+    }
+    throw err;
+  }
+}
+
+async function claimOrbitSession(session, waves, kills) {
+  const body = { sessionId: session.id, waves, kills, hits: kills };
+  try {
+    return await postOrbit("/orbit-siege/claim", body);
+  } catch (err) {
+    if (err.status === 404 || /not found/i.test(err.message || "")) {
+      return postOrbit("/orbit-fire/claim", body);
+    }
+    throw err;
+  }
+}
+
 async function launchOrbitSiege(planetId, planetName) {
+  rememberOrbitPick(planetId, planetName);
   if (orbitStarting || document.querySelector(".orbit-game")) return;
+  const target = chosenOrbitTarget();
+  if (!target?.planetId) {
+    toast("Wähle zuerst eine eigene Kolonie.", true);
+    return;
+  }
   const os = state.snap?.orbitSiege;
-  if (!os?.playsLeft) {
+  if (os && Number(os.playsLeft) === 0) {
     showOrbitLocked(os);
     return;
   }
   orbitStarting = true;
+  const resumeUnity = rootView() === "command" && !state.snap?.planet?.isAlliance;
+  setUnityColonyVisible(false);
+  syncColonyPointerEvents();
   let started;
   try {
-    started = await api("/orbit-siege/start", { method: "POST", body: { planetId } });
+    started = await startOrbitSession(target.planetId);
   } catch (err) {
     orbitStarting = false;
-    toast(err.message || "Orbit-Belagerung konnte nicht gestartet werden.", true);
+    if (resumeUnity) setUnityColonyVisible(true);
+    syncColonyPointerEvents();
+    const msg = orbitErrorMessage(err);
+    toast(msg, true);
     if (/kein Einsatz|verbraucht|weiteren/i.test(err.message || "")) showOrbitLocked(os);
     return;
   }
+  const session = orbitSessionFrom(started);
   if (started.orbitSiege?.status) state.snap.orbitSiege = started.orbitSiege.status;
+  else if (session?.status) state.snap.orbitSiege = session.status;
   paintOrbitButton();
   orbitStarting = false;
-  startOrbitSiege({
-    session: started.orbitSiege,
-    planetName,
-    onClaim: async ({ waves, kills }) => {
-      const out = await api("/orbit-siege/claim", { method: "POST", body: { sessionId: started.orbitSiege.id, waves, kills } });
-      state.snap = out;
-      paintChrome();
-      paintOrbitButton();
-      const loot = out.orbitSiege?.loot || {};
-      const lootText = Object.entries(loot).filter(([, n]) => Number(n) > 0).map(([id, n]) => `+${n} ${state.catalog.resources?.[id]?.short || id.toUpperCase()}`).join(" · ");
-      if (lootText) toast(`Orbit-Belagerung: ${lootText}`);
-      return out.orbitSiege;
-    },
-    onExit: () => {
-      if (state.view !== "galaxy") setView("galaxy");
-    },
-  });
+  if (!session?.id) {
+    toast("Orbit-Feuer konnte nicht gestartet werden.", true);
+    if (resumeUnity) setUnityColonyVisible(true);
+    syncColonyPointerEvents();
+    return;
+  }
+  try {
+    startOrbitSiege({
+      session,
+      planetName: target.planetName,
+      onClaim: async ({ waves, kills }) => {
+        const out = await claimOrbitSession(session, waves, kills);
+        if (out?.empire) state.snap = out;
+        paintChrome();
+        paintOrbitButton();
+        const loot = out.orbitSiege?.loot || out.orbitFire?.loot || {};
+        const lootText = Object.entries(loot).filter(([, n]) => Number(n) > 0).map(([id, n]) => `+${n} ${state.catalog.resources?.[id]?.short || id.toUpperCase()}`).join(" · ");
+        if (lootText) toast(`Orbit-Feuer: ${lootText}`);
+        return out.orbitSiege || out.orbitFire;
+      },
+      onExit: () => {
+        if (resumeUnity && rootView() === "command") setUnityColonyVisible(true);
+        syncColonyPointerEvents();
+        if (state.view !== "galaxy") setView("galaxy");
+      },
+    });
+  } catch (err) {
+    toast(orbitErrorMessage(err), true);
+    if (resumeUnity) setUnityColonyVisible(true);
+    syncColonyPointerEvents();
+  }
 }
 
 
@@ -4514,7 +4606,13 @@ async function bootMap() {
   if (!canvas) return;
   const bootId = ++mapBootId;
   const stillHere = () => bootId === mapBootId && rootView() === "galaxy" && $("starmap") === canvas;
-  $("map-orbit-fire")?.addEventListener("click", () => launchOrbitSiege(state.snap.planet.id, state.snap.planet.name));
+  const orbitBtn = $("map-orbit-fire");
+  if (orbitBtn) {
+    orbitBtn.onclick = () => {
+      const target = chosenOrbitTarget();
+      launchOrbitSiege(target?.planetId, target?.planetName);
+    };
+  }
   paintOrbitButton();
   if (state.map) {
     try {
@@ -4579,8 +4677,15 @@ async function bootMap() {
     box.querySelectorAll("[data-orbit-mode]").forEach((button) => button.addEventListener("click", () => {
       box.querySelectorAll("[data-orbit-mode]").forEach((item) => item.classList.toggle("on", item === button));
       try { localStorage.setItem(`sn-orbit-${sys.id}`, button.dataset.orbitMode); } catch { /* ignore */ }
+      rememberOrbitPick(Number(button.dataset.orbitPlanet), button.dataset.orbitName || sys.name);
       if (button.dataset.orbitMode === "manual") launchOrbitSiege(Number(button.dataset.orbitPlanet), button.dataset.orbitName || sys.name);
     }));
+    let orbitMode = "auto";
+    try { orbitMode = localStorage.getItem(`sn-orbit-${sys.id}`) || "auto"; } catch { /* ignore */ }
+    if (orbitPick?.planetId && [...box.querySelectorAll("[data-orbit-mode='manual']")].some((item) => Number(item.dataset.orbitPlanet) === orbitPick.planetId)) {
+      orbitMode = "manual";
+    }
+    box.querySelectorAll("[data-orbit-mode]").forEach((item) => item.classList.toggle("on", item.dataset.orbitMode === orbitMode));
     box.querySelectorAll("[data-bookmark]").forEach((b) => b.addEventListener("click", () => {
       const label = window.prompt("Bezeichnung für diesen Planeten:", b.dataset.bookmarkName || "");
       if (label === null) return;

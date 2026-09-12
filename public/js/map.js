@@ -34,7 +34,7 @@ export function createMap(canvas, onSelect, onViewChange) {
     return { x, y };
   }
 
-  function hit(ev) {
+  function hit(ev, radius = 42) {
     if (!data) return null;
     const rect = canvas.getBoundingClientRect();
     if (rect.width < 2 || rect.height < 2) return null;
@@ -43,7 +43,7 @@ export function createMap(canvas, onSelect, onViewChange) {
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
     let best = null;
-    let bd = 42;
+    let bd = Math.max(42, Number(radius) || 42);
     for (const s of data.systems) {
       if (!visible(s)) continue;
       const cx = ((s.x - cam.x) * cam.scale + canvas.width / 2) / scaleX;
@@ -57,7 +57,7 @@ export function createMap(canvas, onSelect, onViewChange) {
     if(!best)for(const s of data.systems){
       if(!visible(s))continue;
       const b=labelBounds.get(s.id);
-      if(b && sx>=b.left-5 && sx<=b.right+5 && sy>=b.top-8 && sy<=b.bottom+8)return s;
+      if(b && sx>=b.left-8 && sx<=b.right+8 && sy>=b.top-12 && sy<=b.bottom+12)return s;
     }
     return best;
   }
@@ -78,12 +78,10 @@ export function createMap(canvas, onSelect, onViewChange) {
   let pinch = null;
 
   canvas.addEventListener("pointerdown", (e) => {
-    if (e.pointerType === "mouse") {
-      try {
-        canvas.setPointerCapture(e.pointerId);
-      } catch {
-        /* ignore */
-      }
+    try {
+      canvas.setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
     }
     drag = {
       x: e.clientX,
@@ -91,7 +89,7 @@ export function createMap(canvas, onSelect, onViewChange) {
       cx: cam.x,
       cy: cam.y,
       moved: false,
-      slop: e.pointerType === "touch" ? 18 : 5,
+      slop: e.pointerType === "touch" ? 22 : 6,
     };
   });
   canvas.addEventListener("pointermove", (e) => {
@@ -109,18 +107,21 @@ export function createMap(canvas, onSelect, onViewChange) {
     hover = hit(e);
     canvas.style.cursor = hover ? "pointer" : drag ? "grabbing" : "grab";
   });
+  function tapRadius(e) {
+    return e.pointerType === "touch" || e.pointerType === "pen" ? 78 : 52;
+  }
   function endPointer(e) {
     if (drag && !drag.moved && typeof onSelect === "function") {
-      const s = hit(e);
-      highlightSystemId = s?.id || null;
-      onSelect(s || null);
+      const s = hit(e, tapRadius(e));
+      if (s) {
+        highlightSystemId = s.id;
+        onSelect(s);
+      }
     }
     drag = null;
   }
   canvas.addEventListener("pointerup", endPointer);
-  canvas.addEventListener("pointercancel", () => {
-    drag = null;
-  });
+  canvas.addEventListener("pointercancel", endPointer);
   canvas.addEventListener("wheel", (e) => {
     e.preventDefault();
     const before = world(e);
@@ -704,7 +705,7 @@ export function systemHtml(sys, catalog, originShips, opts = {}) {
       <i class="sys-sheet-handle" aria-hidden="true"></i>
       <div class="section-title"><h2>${esc(sys.name)}</h2><button type="button" class="sys-close" data-sys-close aria-label="Schließen">×</button></div>
       <p class="muted sys-starline">${esc(sys.star?.name || "")}</p>
-      ${orbitPlanet ? `<section class="orbit-launch"><header><span>ORBIT-BELAGERUNG</span><b>${opts.orbitSiege?.playsLeft ?? "–"}</b><small>${opts.orbitSiege?.playsLeft ? "Einsätze heute" : "Aufgabe für Extra-Einsatz"}</small></header><div class="orbit-mode" role="group" aria-label="Orbit-Belagerung"><button type="button" class="on" data-orbit-mode="manual" data-orbit-planet="${orbitPlanet.id}" data-orbit-name="${esc(orbitPlanet.name)}" ><i>◎</i><span><b>BELAGERUNG</b><small>Planet halten · Wellen-Beute</small></span></button></div><p>ⓘ 1 Einsatz/Tag, extra durch Aufgaben</p></section>` : ""}
+      ${orbitPlanet ? `<section class="orbit-launch"><header><span>ORBIT-FEUER</span><b>${opts.orbitSiege?.playsLeft ?? "–"}</b><small>${opts.orbitSiege?.playsLeft ? "Einsätze heute" : "Aufgabe für Extra-Einsatz"}</small></header><div class="orbit-mode" role="group" aria-label="Orbit-Feuer"><button type="button" class="on" data-orbit-mode="auto" data-orbit-planet="${orbitPlanet.id}" data-orbit-name="${esc(orbitPlanet.name)}"><i>⌖</i><span><b>AUTO</b><small>Computer fliegt</small></span></button><button type="button" data-orbit-mode="manual" data-orbit-planet="${orbitPlanet.id}" data-orbit-name="${esc(orbitPlanet.name)}"><i>◎</i><span><b>SELBST STEUERN</b><small>Orbit-Feuer starten</small></span></button></div><p>ⓘ 1 Einsatz/Tag, extra durch Aufgaben</p></section>` : ""}
       ${colonizeMode && !colonizeMode.targetPlanetId ? quick : ""}
       ${sys.isHub ? `<p class="hint">Nexus-Hub — Mehrheitskontrolle gewährt Kristall-Bonus.</p>` : ""}
       ${sys.pirate ? `<p class="hint" style="color:#ff8a3a">Piratenhorst Stufe ${sys.pirate} — Sieg bringt Beute.</p>` : ""}

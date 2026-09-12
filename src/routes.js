@@ -1007,31 +1007,52 @@ function attachRoutes(app, db) {
     }
   });
 
-  app.post("/api/orbit-siege/start", auth, (req, res) => {
+  function orbitStartPayload(result) {
+    return {
+      orbitSiege: result,
+      orbitFire: {
+        id: result.id,
+        sessionId: result.id,
+        durationMs: 30_000,
+        planetId: result.planetId,
+        startedAt: result.startedAt,
+        expiresAt: result.expiresAt,
+        status: result.status,
+      },
+    };
+  }
+
+  const startOrbit = (req, res) => {
     try {
       const result = withTx(db, () => {
         const { empire, planet } = loadCtx(req);
         return game.startOrbitSiege(db, empire, planet);
       });
-      res.json({ orbitSiege: result });
+      res.json(orbitStartPayload(result));
     } catch (err) {
       fail(res, 400, err.message);
     }
-  });
+  };
+  app.post("/api/orbit-siege/start", auth, startOrbit);
+  app.post("/api/orbit-fire/start", auth, startOrbit);
 
-  app.post("/api/orbit-siege/claim", auth, (req, res) => {
+  const claimOrbit = (req, res) => {
     try {
       const result = withTx(db, () => {
         game.tickWorld(db);
         const empire = db.prepare("SELECT * FROM empires WHERE user_id = ?").get(req.user.id);
-        return game.claimOrbitSiege(db, empire, Number(req.body?.sessionId), Number(req.body?.waves), Number(req.body?.kills));
+        const waves = Number(req.body?.waves || 0);
+        const kills = Number(req.body?.kills ?? req.body?.hits ?? 0);
+        return game.claimOrbitSiege(db, empire, Number(req.body?.sessionId), waves, kills);
       });
       const empire = db.prepare("SELECT * FROM empires WHERE user_id = ?").get(req.user.id);
-      res.json({ ...game.snapshot(db, req.user, result.planetId), orbitSiege: result });
+      res.json({ ...game.snapshot(db, req.user, result.planetId), orbitSiege: result, orbitFire: result });
     } catch (err) {
       fail(res, 400, err.message);
     }
-  });
+  };
+  app.post("/api/orbit-siege/claim", auth, claimOrbit);
+  app.post("/api/orbit-fire/claim", auth, claimOrbit);
 
   app.post("/api/fleet/:id/recall", auth, (req, res) => {
     try {

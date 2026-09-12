@@ -1,6 +1,6 @@
 "use strict";
-const test=require("node:test"),assert=require("node:assert/strict"),fs=require("node:fs"),os=require("node:os"),path=require("node:path");
-const {openDb}=require("../src/db"),game=require("../src/game"),{withTx}=require("../src/tx"),{ensurePlayer}=require("../src/seed");
+const test=require("node:test"),assert=require("node:assert/strict"),fs=require("node:fs"),os=require("node:os"),path=require("node:path"),express=require("express");
+const {openDb}=require("../src/db"),game=require("../src/game"),{withTx}=require("../src/tx"),{ensurePlayer}=require("../src/seed"),{attachRoutes}=require("../src/routes");
 function fixture(t) {
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),"nexus-fleet-")),db=openDb(path.join(dir,"test.db"));
  t.after(()=>{db.close();fs.rmSync(dir,{recursive:true,force:true});});
@@ -128,6 +128,33 @@ test('orbit siege allows one run per day unless a bonus task is complete',t=>{
  db.prepare("INSERT INTO buildings(planet_id,building_id,level) VALUES(?,?,?) ON CONFLICT(planet_id,building_id) DO UPDATE SET level=excluded.level").run(home.id,'matter_mine',2);
  const again=game.startOrbitSiege(db,empire,home);
  assert.ok(again.id);
+});
+
+test('activity badge stays clear when all six desks can start',t=>{
+ const {db,home}=fixture(t);
+ const user=db.prepare("SELECT * FROM users WHERE username='Pilot'").get();
+ const snap=game.snapshot(db,user,home.id);
+ assert.equal((snap.activities||[]).length,6);
+ assert.ok((snap.activities||[]).every(a=>a.ready && !a.running));
+ assert.equal(snap.hints.activity,0);
+});
+
+test("orbit-fire start alias returns a session instead of 404",async t=>{
+ const {db,home}=fixture(t);
+ const app=express();app.use(express.json());attachRoutes(app,db);
+ const server=app.listen(0,"127.0.0.1");await new Promise(resolve=>server.once("listening",resolve));
+ t.after(()=>new Promise(resolve=>server.close(resolve)));
+ const base=`http://127.0.0.1:${server.address().port}/api`;
+ const login=await fetch(base+"/auth/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({username:"Pilot",password:"secret123"})});
+ assert.equal(login.status,200);
+ const cookie=login.headers.get("set-cookie");
+ const fire=await fetch(base+"/orbit-fire/start",{method:"POST",headers:{"content-type":"application/json",cookie},body:JSON.stringify({planetId:home.id})});
+ assert.equal(fire.status,200);
+ const body=await fire.json();
+ assert.ok(body.orbitSiege?.id);
+ assert.equal(body.orbitFire?.id,body.orbitSiege.id);
+ const missing=await fetch(base+"/orbit-missing/start",{method:"POST",headers:{"content-type":"application/json",cookie},body:"{}"});
+ assert.equal(missing.status,404);
 });
 
 test('colony slots include outbound missions; rejected launch keeps ships and fuel',t=>{
