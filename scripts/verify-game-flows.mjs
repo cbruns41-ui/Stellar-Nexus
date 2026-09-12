@@ -71,6 +71,9 @@ export async function verifyGameFlows({base,headers,databasePath,send,evaluate,u
   assert.ok(await evaluate(`!!document.querySelector('.orbit-game canvas')`),"Siege canvas is live");
   await send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});
   await evaluate(`document.querySelector('.orbit-exit').click()`);
+  await until(`document.querySelector('#dead:not([hidden]) #again')`);
+  await evaluate(`document.querySelector('#again').click()`);
+  await until(`!document.querySelector('.orbit-game')`);
   assert.equal(await evaluate(`document.querySelector('#game').dataset.view`),"galaxy");
   const raidDb=new DatabaseSync(databasePath);try {raidDb.exec("PRAGMA busy_timeout=5000");raidDb.prepare("INSERT INTO raids(target_planet_id,ships,arrives_at,kind,expires_at) VALUES(?,?,1,'pirates',unixepoch('now')*1000+7200000)").run(home.id,JSON.stringify({fighter:3}));} finally {raidDb.close();}
   await send("Page.reload");await until(`document.querySelector('.living-colony.is-unity')`);

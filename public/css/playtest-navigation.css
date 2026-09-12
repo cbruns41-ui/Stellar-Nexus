@@ -39,10 +39,7 @@ body:has(#modal:not(.hidden):not([hidden])) #colony-unity-layer,body:has(#modal:
 .shell.nav-open #colony-unity-layer,.shell.nav-open #colony-unity-canvas,
 .shell:has(#orders[open]) #colony-unity-layer,.shell:has(#orders[open]) #colony-unity-canvas,
 body.orbit-siege-open #colony-unity-layer,body.orbit-siege-open #colony-unity-canvas,
-body:has(.orbit-game) #colony-unity-layer,body:has(.orbit-game) #colony-unity-canvas,
-.shell:has(.city-actions:not([hidden])) #colony-unity-canvas,
-.shell:has(.colony-directory[open]) #colony-unity-canvas,
-.shell:has(.city-sheet) #colony-unity-canvas{pointer-events:none!important}
+body:has(.orbit-game) #colony-unity-layer,body:has(.orbit-game) #colony-unity-canvas{pointer-events:none!important}
 .shell.view-home .living-colony .colony-tools{top:8px;left:8px;right:auto;display:flex;gap:5px;width:max-content;max-width:calc(100% - 16px);z-index:24;pointer-events:auto}
 .shell.view-home .living-colony .colony-tools>button,.shell.view-home .living-colony .colony-directory>summary{position:static;width:auto;min-height:38px;height:38px;padding:0 10px;margin:0;display:flex;align-items:center;gap:5px;border:1px solid #8cabb25c;border-radius:8px;background:#0b1721ed;color:#dce9ec;font:600 12px/1 system-ui;box-shadow:0 4px 12px #0004;white-space:nowrap}
 .shell.view-home .living-colony .colony-tools .colony-directory{position:static;width:auto}
@@ -87,9 +84,13 @@ body:has(#modal:not(.hidden):not([hidden])) #alert-strip,body:has(#modal:not(.hi
 .shell.view-home,.shell.view-home #view,.shell.view-home .city-view{touch-action:auto}
 .duration-row{grid-template-columns:repeat(3,minmax(0,1fr))!important}
 .duration-btn.on{border-color:#8ae5ff;background:#153d50;box-shadow:inset 0 0 0 1px #8ae5ff}.duration-btn{min-height:48px;touch-action:manipulation;pointer-events:auto}
+.command-panel>.ally-quick-actions{flex-shrink:0;position:relative;top:auto;z-index:9;margin:0;border-radius:0;border-left:0;border-right:0}
+.ally-research-row{overflow:visible!important;grid-template-columns:minmax(170px,220px) minmax(0,1fr) minmax(160px,210px)}
+.ally-research-row .og-act{order:0;padding:12px}
+.activity-reward{margin:0 0 8px;color:#d7e38a;font:600 12px/1.35 system-ui}
 .ally-quick-actions{position:sticky;top:0;z-index:8;padding:10px!important;margin:0 0 12px;background:#091d2b!important;box-shadow:0 5px 16px #0006;flex-shrink:0}
 .ally-quick-actions label{display:grid;gap:5px;font-size:11px;color:#acd0de}.ally-quick-actions select{width:100%;min-height:40px;margin:0;font-size:12px}.ally-quick-buttons{display:grid;grid-template-columns:1fr 1.4fr;gap:8px;margin-top:7px}.ally-quick-buttons button{min-height:44px}.ally-quick-message{font-size:12px;margin:6px 0 0;color:#f1c18e}.ally-quick-message[hidden]{display:none}
-@media(max-width:720px){.command-panel{border-radius:0;width:100%}.command-panel .panel-view{padding:9px}.command-panel-head{padding:8px 10px}body[data-mode="play"] .brand select{font-size:11px;max-width:43vw}body[data-mode="play"] .nav{left:3%!important;right:3%!important;width:auto!important}}
+@media(max-width:720px){.command-panel{border-radius:0;width:100%}.command-panel .panel-view{padding:9px}.command-panel-head{padding:8px 10px}body[data-mode="play"] .brand select{font-size:11px;max-width:43vw}body[data-mode="play"] .nav{left:3%!important;right:3%!important;width:auto!important}.ally-research-row{display:flex;flex-direction:column}.ally-research-row .og-act{order:0;padding:12px 14px 0}.ally-research-row .og-body{order:1}.ally-research-row .og-art{order:2;width:100%}}
 @media(max-width:760px){
  body[data-mode="play"] .shell{--top:calc(100px + var(--safe-top));}
  body[data-mode="play"] .shell:not(.show-resources){--top:calc(54px + var(--safe-top));}

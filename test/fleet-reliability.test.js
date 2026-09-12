@@ -130,13 +130,13 @@ test('orbit siege allows one run per day unless a bonus task is complete',t=>{
  assert.ok(again.id);
 });
 
-test('activity badge stays clear when all six desks can start',t=>{
+test('activity badge counts free slots and exposes rewards',t=>{
  const {db,home}=fixture(t);
  const user=db.prepare("SELECT * FROM users WHERE username='Pilot'").get();
  const snap=game.snapshot(db,user,home.id);
  assert.equal((snap.activities||[]).length,6);
- assert.ok((snap.activities||[]).every(a=>a.ready && !a.running));
- assert.equal(snap.hints.activity,0);
+ assert.ok((snap.activities||[]).every(a=>a.ready && !a.running && a.reward));
+ assert.equal(snap.hints.activity,6);
 });
 
 test("orbit-fire start alias returns a session instead of 404",async t=>{

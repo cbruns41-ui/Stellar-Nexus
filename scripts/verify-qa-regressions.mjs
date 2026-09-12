@@ -175,6 +175,10 @@ export async function verifyQaRegressions({base,headers,databasePath,send,evalua
   await send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:fire.x,y:fire.y,id:1}]});await pause(700);
   assert.ok(await evaluate(`document.querySelector('.orbit-fire').classList.contains('pressed')`));
   await send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await tap('.orbit-exit');
+  await until(`document.querySelector('#dead:not([hidden]) #again')`,10000);
+  assert.match(await evaluate(`document.querySelector('#dead-title')?.textContent || ''`),/Treffer/);
+  await tap('#again');
+  await until(`!document.querySelector('.orbit-game')`,10000);
   assert.equal(await evaluate(`document.querySelector('#game').dataset.view`),'galaxy');
   console.log('QA: Orbit start, held touch fire and return to map passed');
 
@@ -217,8 +221,8 @@ export async function verifyQaRegressions({base,headers,databasePath,send,evalua
   });
   await focus(home.id);await focus(allyTarget.id);
   await evaluate(`document.querySelector('#panel-view').scrollTop=10000`);
-  const sticky=await evaluate(`(()=>{const b=document.querySelector('[data-alliance-quick="start"]'),p=document.querySelector('#panel-view');const br=b.getBoundingClientRect(),pr=p.getBoundingClientRect(),x=br.x+br.width/2,y=br.y+br.height/2;return {top:br.top-pr.top,hit:b.contains(document.elementFromPoint(x,y)),position:getComputedStyle(b.closest('.ally-quick-actions')).position};})()`);
-  assert.ok(sticky.hit&&sticky.position==='sticky'&&sticky.top>=-8&&sticky.top<140,JSON.stringify(sticky));
+  const pinned=await evaluate(`(()=>{const b=document.querySelector('[data-alliance-quick="start"]'),p=document.querySelector('#panel-view');const br=b.getBoundingClientRect(),pr=p.getBoundingClientRect(),x=br.x+br.width/2,y=br.y+br.height/2;return {above:br.bottom<=pr.top+12,hit:b.contains(document.elementFromPoint(x,y)),outside:!!b.closest('#command-panel')&&!p.contains(b)};})()`);
+  assert.ok(pinned.hit&&pinned.outside&&pinned.above,JSON.stringify(pinned));
   await tap('[data-alliance-quick="start"]');await until(`document.querySelector('#panel-view').innerText.includes('Forschung läuft')`,10000);
   assert.equal(database(db=>db.prepare("SELECT COUNT(*) AS n FROM queue WHERE planet_id=? AND kind='ally_research'").get(allyTarget.id).n),1);
   console.log('QA: uncolonized alliance retains 89% funding; dedicated colonization, deposit and lab start work without reload');

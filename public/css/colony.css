@@ -13,7 +13,7 @@
 .living-colony .colony-marker {
   position: absolute; transform: translate(-50%, -50%); padding: 8px; width: 48px; height: 44px;
   min-width: 44px; min-height: 44px; border: 0; background: none; box-shadow: none;
-  pointer-events: auto; overflow: visible; touch-action: manipulation; z-index: 4;
+  pointer-events: none; overflow: visible; touch-action: none; z-index: 4;
 }
 .colony-marker[hidden] { display: none !important; }
 .colony-level { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 32px; height: 23px; padding: 0 6px;

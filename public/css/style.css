@@ -655,7 +655,7 @@ video.planet-orb-media {
   align-items: stretch;
   padding: 0 14px 0 0;
   margin-bottom: 12px;
-  overflow: hidden;
+  overflow: visible;
 }
 .og-art {
   width: 240px; height: 135px;

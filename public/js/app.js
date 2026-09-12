@@ -1,13 +1,13 @@
 import { api, getState, getCatalog, getPreview as fetchBuildingPreview, getGalaxy, getSystem, getReports, getRanks, getEmpire, combatPreview, combatSim, getAlliances, getAlliance, getAllianceActivity } from "./api.js?v=5";
 import { esc, fmt, eta, when, costHtml, planetCss, planetGlobeUrl, planetColonyUrl, mediaTag, bindMediaFallbacks, toast, showModal as showModalEl, hideModal as hideModalEl, shipList, starfield, resourceIcon, icon, beep, notify, tickEta, ticksOf, tickMsFrom } from "./ui.js?v=2";
-import { createMap, systemHtml } from "./map.js?v=65";
+import { createMap, systemHtml } from "./map.js?v=66";
 import { battleReplayHtml, bindBattleReplays } from "./battle.js?v=2";
 import { startAllianceBossEncounter } from "./alliance-boss-game.js?v=16";
 import { CITY_PLOTS } from "./city.mjs?v=10";
 import { shipBudget } from "./ship-budget.mjs?v=1";
 import { colonyRows, colonyHudHtml, paintColonyMarkers, paintColonyFrame } from "./colony-hud.mjs?v=7";
-import { createColonyUnity, setUnityColonyVisible } from "./colony-unity.js?v=13";
-import { startOrbitSiege } from "./orbit-siege.mjs?v=3";
+import { createColonyUnity, setUnityColonyVisible } from "./colony-unity.js?v=14";
+import { startOrbitSiege } from "./orbit-siege.mjs?v=4";
 
 
 const $ = (id) => document.getElementById(id);
@@ -163,6 +163,22 @@ function currentShipBudget(info) {
   return shipBudget(info.cost,have(),{unlocked:info.unlocked,cap:p.shipCap,stationed:p.shipCount,
     queued:state.snap.queue.filter(q=>q.kind==='ship' && q.planetId===p.id).reduce((n,q)=>n+q.qty,0)});
 }
+function clampYardQty(input, max) {
+  if (!input) return 0;
+  const cap = Math.min(50, Math.max(1, Number(max) || 50));
+  const raw = String(input.value || "").trim();
+  if (raw === "") return 0;
+  const n = Math.floor(Number(raw));
+  if (!Number.isFinite(n)) {
+    input.value = "1";
+    return 1;
+  }
+  if (n > cap) {
+    input.value = String(cap);
+    return cap;
+  }
+  return n;
+}
 function updateShipBudgets() {
   const root=document.querySelector('.yard-sheet');
   if(!root || state.preview?.planetId!==String(state.snap?.planet?.id)) return;
@@ -170,8 +186,10 @@ function updateShipBudgets() {
     const budget=currentShipBudget(info),label=root.querySelector(`[data-ship-budget="${info.id}"]`);
     if(label) label.textContent=`Mit Ressourcen bezahlbar: ${budget.affordable.toLocaleString('de-DE')} · Jetzt baubar: ${budget.buildable.toLocaleString('de-DE')}`;
     const input=root.querySelector(`[data-qty="${info.id}"]`),button=root.querySelector(`[data-ship="${info.id}"]`);
-    if(input) input.max=String(budget.buildable);
-    if(button) button.disabled=!!root.dataset.submitting || !budget.buildable || !Number.isInteger(Number(input?.value)) || Number(input?.value)<1 || Number(input?.value)>budget.buildable;
+    const max=String(Math.max(1, budget.buildable || 1));
+    if(input && input.max!==max) input.max=max;
+    const qty=clampYardQty(input, budget.buildable || 1);
+    if(button) button.disabled=!!root.dataset.submitting || !budget.buildable || qty<1 || qty>budget.buildable;
   }
 }
 
@@ -939,14 +957,16 @@ function renderView({preserveForm=true}={}) {
    const titles={infra:'Gebäude',yard:'Hangar / Werft',research:state.snap.planet?.isAlliance?'Allianz-Labor':'Imperiums-Labor',activity:'Einsatz',alliance:'Allianz',reports:'Funk',defense:'Verteidigung'};
    const scroll=panel.querySelector('#panel-view')?.scrollTop||0;
    panel.dataset.planetId=state.snap.planet.id;panel.dataset.panel=active;
-   panel.innerHTML='<header class="command-panel-head"><div><h2>'+esc(titles[active]||$('nav')?.querySelector('[data-view="'+active+'"]')?.textContent||'Kommando')+'</h2><span>Bauen / Verwalten auf: '+esc(state.snap.planet.name)+'</span></div><button type="button" class="btn" data-panel-close '+(active==='yard'?'data-yard-close':'')+' aria-label="Panel schließen">✕</button></header><div id="panel-view" class="panel-view '+(active==='yard'?'yard-sheet':'')+'">'+views[active]()+'</div>';
+   const tools=alliancePanelTools(active);
+   panel.innerHTML='<header class="command-panel-head"><div><h2>'+esc(titles[active]||$('nav')?.querySelector('[data-view="'+active+'"]')?.textContent||'Kommando')+'</h2><span>Bauen / Verwalten auf: '+esc(state.snap.planet.name)+'</span></div><button type="button" class="btn" data-panel-close '+(active==='yard'?'data-yard-close':'')+' aria-label="Panel schließen">✕</button></header>'+tools+'<div id="panel-view" class="panel-view '+(active==='yard'?'yard-sheet':'')+'">'+views[active]()+'</div>';
    panel.querySelector('[data-panel-close]').onclick=closeCommandPanel;
+   if(tools)bindAllianceQuickActions(panel);
    const content=$('panel-view');bindView(content);bindMediaFallbacks(content);if(draft)restoreViewForm(draft);content.scrollTop=preserveForm?scroll:0;
    if(active==='yard'){content.addEventListener('input',updateShipBudgets);updateShipBudgets();}
   }else panel?.remove();
   for(const el of $('tabbar').querySelectorAll('[data-tab]'))el.classList.toggle('on',el.dataset.tab===(hasCommandPanel()?'cmd':tabIdFor(base)));
   for(const el of $('nav').querySelectorAll('[data-view]'))el.classList.toggle('on',el.dataset.view===active);
-  applyResourceChrome();setUnityColonyVisible(base==='command'&&!state.snap.planet?.isAlliance);syncColonyPointerEvents();syncCityLive();updateBuildActions();
+  applyResourceChrome();setUnityColonyVisible(base==='command'&&!state.snap.planet?.isAlliance&&!hasCommandPanel()&&!document.querySelector('.orbit-game'));syncColonyPointerEvents();syncCityLive();updateBuildActions();
  }catch(err){state.view=active;console.error(err);toast('Ansicht fehlgeschlagen: '+err.message,true);}
 }
 
@@ -1396,6 +1416,17 @@ function allianceBoostChips() {
   return `<div class="ally-boosts">${bits.map(([n, v]) => `<span class="chip ok">${esc(n)} +${Math.round(v * 100)}%</span>`).join("")}</div>`;
 }
 
+function alliancePanelTools(active) {
+  const ally = state.snap?.alliance;
+  if (!ally) return "";
+  if (active === "research" && state.snap.planet?.isAlliance) {
+    return allianceQuickActionsHtml(ally.research || [], state.snap.planet.id, true);
+  }
+  if (active === "alliance") {
+    return allianceQuickActionsHtml(ally.research || [], ally.planet?.id, !!ally.canManagePlanet);
+  }
+  return "";
+}
 function allianceQuickActionsHtml(rows,planetId,canManage) {
   const available=rows.filter(r=>r.level<r.max);
   const chosen=available.some(r=>r.id===state.allianceResearchChoice)?state.allianceResearchChoice:available[0]?.id;
@@ -1440,8 +1471,8 @@ function allianceResearchHtml() {
       const action = done
         ? `<div class="ok">Abgeschlossen</div>`
         : canQueue ? `<button class="btn primary small" data-ally-tech="${r.id}" ${busy || !affordable ? "disabled" : ""}>${r.progress>=1 ? 'Forschung starten' : 'Aus Lager finanzieren & starten'}</button>${!busy && r.progress<1 ? `<button class="btn small" data-ally-fund="${r.id}" ${!partial ? 'disabled' : ''}>Aus Lager einzahlen</button>` : ''}<p class="hint">${job ? `Forschung läuft · Stufe ${job.levelTo} · <span data-live-eta="${job.completesAt}">${eta(job.completesAt-Date.now())}</span>` : busy ? 'Allianz-Labor belegt.' : !affordable ? 'Im Allianzlager fehlen Ressourcen. Teilbeträge bleiben gespeichert.' : ''}</p>` : `<span class="muted">Allianzplanet fokussieren</span>`;
-      return `<article class="og-row panel">
-        <img class="og-art" src="${esc(r.art || "/assets/techs/ai.jpg")}" alt="" />
+      return `<article class="og-row panel ally-research-row">
+        <div class="og-act">${action}</div>
         <div class="og-body">
           <h3>${esc(r.name)} <span class="lvl">Stufe ${r.level} / ${r.max}</span></h3>
           <p>${esc(r.blurb)}</p>
@@ -1449,12 +1480,11 @@ function allianceResearchHtml() {
             <div class="muted">Finanziert ${pct}% · Zahlung aus dem Allianzlager</div>
             ${costHtml(remaining, have(), state.catalog)}`}
         </div>
-        <div class="og-act">${action}</div>
+        <img class="og-art" src="${esc(r.art || "/assets/techs/ai.jpg")}" alt="" />
       </article>`;
     })
     .join("");
-  return `${allianceQuickActionsHtml(rows,state.snap.planet.id,canQueue)}
-    <div class="section-title"><h2>Allianzforschung</h2><span class="muted">Boni für alle Mitglieder</span></div>
+  return `<div class="section-title"><h2>Allianzforschung</h2><span class="muted">Boni für alle Mitglieder</span></div>
     ${allianceBoostChips()}
     <button class="btn" data-alliance-transport="${state.snap.planet.id}">Allianzlager per Transport finanzieren</button>
     <p class="hint">Ressourcen werden per Transportflug im Allianzlager gesammelt. Forschungsaufträge bezahlen ausschließlich aus diesem gemeinsamen Bestand.</p>
@@ -1744,7 +1774,7 @@ const views = {
           : "";
         const action = !info.unlocked
           ? `<div class="lock">Voraussetzungen fehlen</div>`
-          : `<label class="muted">Anzahl <input data-qty="${s.id}" type="number" min="1" max="${budget.buildable}" value="1" style="width:64px;margin-left:6px"></label>
+          : `<label class="muted">Anzahl <input data-qty="${s.id}" type="number" min="1" max="${Math.max(1, budget.buildable)}" value="1" inputmode="numeric" enterkeyhint="done" step="1" style="width:64px;margin-left:6px"></label>
              <button class="btn small" data-ship-max="${s.id}">Max</button><button class="btn primary" data-ship="${s.id}" ${!canBuild ? "disabled" : ""}>Bauen</button>
              <p class="hint" data-action-reason></p>
              <div class="muted"${jobs.length ? ` data-ship-building="${s.id}"` : ""}>${jobs.length ? buildingHtml : eta((info.time || s.time) * 1000)}</div>`;
@@ -2374,6 +2404,7 @@ const views = {
           <div class="force-body">
             <h3>${esc(a.name)}</h3>
             <p>${esc(a.blurb)}</p>
+            ${a.reward ? `<p class="activity-reward">Belohnung: ${esc(a.reward)}</p>` : ""}
             <div class="duration-row">${durs}</div>
             ${running ? `<div class="activity-slot occupied">Slot belegt · Unterwegs (${esc(a.durationName || "Einsatz")}) · Beute bei Rückkehr</div>` : `<div class="activity-start-row">${startButton}</div>`}
           </div>
@@ -2641,15 +2672,8 @@ function bindCity(root) {
     if (sync) state.cityScene?.setSelected(id || "");
   };
   view.querySelectorAll("[data-city-building]").forEach(button => {
-    button.addEventListener("pointerdown", event => {
-      if (event.pointerType === "mouse" && event.button !== 0) return;
-      event.preventDefault();
+    button.addEventListener("click", event => {
       event.stopPropagation();
-      select(button.dataset.cityBuilding);
-    });
-    button.addEventListener("keydown", event => {
-      if (event.key !== "Enter" && event.key !== " ") return;
-      event.preventDefault();
       select(button.dataset.cityBuilding);
     });
   });
@@ -2797,8 +2821,10 @@ function bindView(root) {
   root.querySelectorAll("[data-ship]").forEach((b) =>
     b.addEventListener("click", async () => {
       const input = root.querySelector(`[data-qty="${b.dataset.ship}"]`);
-      const qty = Number(input?.value || 1);
+      const info=state.preview?.ships?.find(s=>s.id===b.dataset.ship);
+      const qty = clampYardQty(input, currentShipBudget(info || {cost:{},unlocked:false}).buildable || 1);
       if(root.dataset.submitting)return;
+      if(qty<1){updateShipBudgets();return;}
       root.dataset.submitting='1';
       b.disabled = true;
       const shipId=b.dataset.ship,planetId=state.snap.planet.id;
@@ -3894,7 +3920,7 @@ async function bootAlliance() {
     const activityHtml = showActivity
       ? `<div id="ally-activity" class="ally-activity panel">${allianceActivityTableHtml(actRows)}</div>`
       : "";
-    host.innerHTML = `${detail?.mine ? allianceQuickActionsHtml(detail.research || [],detail.planet?.id,detail.canManagePlanet):''}<div class="section-title"><h2>Allianzen${actRows.length ? ` <i class="page-badge">${actRows.length > 9 ? "9+" : actRows.length}</i>` : ""}</h2><span class="muted">${alliances.length} Bündnisse</span></div>
+    host.innerHTML = `<div class="section-title"><h2>Allianzen${actRows.length ? ` <i class="page-badge">${actRows.length > 9 ? "9+" : actRows.length}</i>` : ""}</h2><span class="muted">${alliances.length} Bündnisse</span></div>
       <div class="ally-layout">
         <aside class="panel ally-list">${list || `<div class="muted" style="padding:10px">Keine Allianzen.</div>`}</aside>
         <div>${activityHtml}${body}${create}</div>
@@ -4536,34 +4562,27 @@ async function launchOrbitSiege(planetId, planetName) {
   const resumeUnity = rootView() === "command" && !state.snap?.planet?.isAlliance;
   setUnityColonyVisible(false);
   syncColonyPointerEvents();
-  let started;
-  try {
-    started = await startOrbitSession(target.planetId);
-  } catch (err) {
-    orbitStarting = false;
-    if (resumeUnity) setUnityColonyVisible(true);
-    syncColonyPointerEvents();
-    const msg = orbitErrorMessage(err);
-    toast(msg, true);
-    if (/kein Einsatz|verbraucht|weiteren/i.test(err.message || "")) showOrbitLocked(os);
-    return;
-  }
-  const session = orbitSessionFrom(started);
-  if (started.orbitSiege?.status) state.snap.orbitSiege = started.orbitSiege.status;
-  else if (session?.status) state.snap.orbitSiege = session.status;
-  paintOrbitButton();
-  orbitStarting = false;
-  if (!session?.id) {
-    toast("Orbit-Feuer konnte nicht gestartet werden.", true);
-    if (resumeUnity) setUnityColonyVisible(true);
-    syncColonyPointerEvents();
-    return;
-  }
+  const sessionReady = startOrbitSession(target.planetId)
+    .then((started) => {
+      const session = orbitSessionFrom(started);
+      if (started.orbitSiege?.status) state.snap.orbitSiege = started.orbitSiege.status;
+      else if (session?.status) state.snap.orbitSiege = session.status;
+      paintOrbitButton();
+      if (!session?.id) throw new Error("Orbit-Feuer konnte nicht gestartet werden.");
+      return session;
+    })
+    .catch((err) => {
+      throw Object.assign(new Error(orbitErrorMessage(err)), { status: err.status });
+    })
+    .finally(() => {
+      orbitStarting = false;
+    });
   try {
     startOrbitSiege({
-      session,
+      session: {},
+      sessionReady,
       planetName: target.planetName,
-      onClaim: async ({ waves, kills }) => {
+      onClaim: async ({ waves, kills, session }) => {
         const out = await claimOrbitSession(session, waves, kills);
         if (out?.empire) state.snap = out;
         paintChrome();
@@ -4574,12 +4593,14 @@ async function launchOrbitSiege(planetId, planetName) {
         return out.orbitSiege || out.orbitFire;
       },
       onExit: () => {
+        orbitStarting = false;
         if (resumeUnity && rootView() === "command") setUnityColonyVisible(true);
         syncColonyPointerEvents();
         if (state.view !== "galaxy") setView("galaxy");
       },
     });
   } catch (err) {
+    orbitStarting = false;
     toast(orbitErrorMessage(err), true);
     if (resumeUnity) setUnityColonyVisible(true);
     syncColonyPointerEvents();

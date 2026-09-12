@@ -93,10 +93,13 @@ export function resizeUnityColony() {
   if (canvas) fitUnityCanvas(canvas);
 }
 function fitUnityCanvas(canvas) {
-  if (!canvas?.parentElement) return;
+  if (!canvas?.parentElement || !visible) return;
   const { clientWidth, clientHeight } = canvas.parentElement;
   // Hidden panels have no dimensions. Keep the render surface until it is visible again.
   if (!clientWidth || !clientHeight) return;
-  canvas.style.width = `${Math.max(2, clientWidth)}px`;
-  canvas.style.height = `${Math.max(2, clientHeight)}px`;
+  const w = `${Math.max(2, clientWidth)}px`;
+  const h = `${Math.max(2, clientHeight)}px`;
+  if (canvas.style.width === w && canvas.style.height === h) return;
+  canvas.style.width = w;
+  canvas.style.height = h;
 }

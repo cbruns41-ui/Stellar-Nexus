@@ -1,6 +1,9 @@
 export function startOrbitSiege(opts = {}) {
 const TAU = Math.PI * 2;
-const session = opts.session || {};
+let session = opts.session || {};
+const sessionReady = opts.sessionReady && typeof opts.sessionReady.then === "function"
+  ? opts.sessionReady
+  : Promise.resolve(session);
 const onClaim = typeof opts.onClaim === "function" ? opts.onClaim : async () => ({});
 const onExit = typeof opts.onExit === "function" ? opts.onExit : () => {};
 const planetName = opts.planetName || "Kolonie";
@@ -47,10 +50,11 @@ root.innerHTML = `
   </section>
   <section class="overlay" id="dead" hidden>
     <div class="card">
-      <small>SCHILD GEBROCHEN</small>
-      <h2 id="dead-title">WELLE 1</h2>
+      <small id="dead-label">RUNDE BEENDET</small>
+      <h2 id="dead-title">0 Treffer</h2>
+      <p id="dead-hits"></p>
       <p id="dead-detail"></p>
-      <button id="again" type="button">BERGEN</button>
+      <button id="again" type="button">Zurück zur Karte</button>
     </div>
   </section>`;
 document.body.classList.add("orbit-siege-open");
@@ -236,23 +240,43 @@ function lootLine(wave) {
   const parts = Object.entries(loot).filter(([, n]) => Number(n) > 0).map(([id, n]) => `+${n} ${id.slice(0, 3).toUpperCase()}`);
   return parts.join(" · ");
 }
-let finishing = false, claimedOk = false;
+let finishing = false, claimedOk = false, startFailed = null;
+function paintResult({ lootText, error } = {}) {
+  game.mode = "dead";
+  root.querySelector("#pick").hidden = true;
+  root.querySelector("#dead").hidden = false;
+  root.querySelector("#dead-label").textContent = error ? "ABBRUCH" : "RUNDE BEENDET";
+  root.querySelector("#dead-title").textContent = `${game.kills} Treffer`;
+  const hits = root.querySelector("#dead-hits");
+  if (hits) hits.textContent = `${game.heldWaves || game.wave} Wellen gehalten · ${game.kills} Abschüsse`;
+  const detail = root.querySelector("#dead-detail");
+  if (detail) detail.textContent = error || lootText || "Keine Beute";
+  const back = root.querySelector("#again");
+  if (back) back.textContent = "Zurück zur Karte";
+}
 async function finishRun() {
   if (claimedOk) return;
   if (finishing) return;
   finishing = true;
   stopped = true;
+  if (startFailed) {
+    claimedOk = true;
+    paintResult({ error: startFailed.message || "Orbit-Feuer konnte nicht gestartet werden." });
+    return;
+  }
+  paintResult({ lootText: "Beute wird geborgen …" });
   try {
-    const out = await onClaim({ waves: game.heldWaves, kills: game.kills });
+    const ready = await sessionReady;
+    if (ready?.id) session = ready;
+    if (!session.id) throw new Error("Orbit-Feuer konnte nicht gestartet werden.");
+    const out = await onClaim({ waves: game.heldWaves, kills: game.kills, session });
     claimedOk = true;
     const loot = out?.loot || {};
     const text = Object.entries(loot).filter(([, n]) => Number(n) > 0).map(([id, n]) => `+${n} ${id.slice(0, 3).toUpperCase()}`).join(" · ");
-    const detail = root.querySelector("#dead-detail");
-    if (detail) detail.textContent = text || `${game.heldWaves} Wellen gehalten`;
+    paintResult({ lootText: text || "Keine Beute" });
   } catch (err) {
     finishing = false;
-    const detail = root.querySelector("#dead-detail");
-    if (detail) detail.textContent = err.message || "Belohnung fehlgeschlagen";
+    paintResult({ error: err.message || "Belohnung fehlgeschlagen" });
   }
 }
 function teardown() {
@@ -274,9 +298,12 @@ root.querySelector("#again").onclick = async () => {
   teardown();
 };
 root.querySelector(".orbit-exit").onclick = async () => {
-  game.mode = "dead";
+  if (game.mode === "dead") {
+    await finishRun();
+    teardown();
+    return;
+  }
   await finishRun();
-  teardown();
 };
 
 function nextWave() {
@@ -334,10 +361,6 @@ function openPick() {
   root.querySelector("#pick").hidden = false;
 }
 function die() {
-  game.mode = "dead";
-  root.querySelector("#dead-title").textContent = `WELLE ${game.heldWaves || game.wave}`;
-  root.querySelector("#dead-detail").textContent = `${game.kills} Abschüsse · ${game.heldWaves} Wellen gehalten · Beute wird geborgen …`;
-  root.querySelector("#dead").hidden = false;
   finishRun();
 }
 
@@ -1068,5 +1091,12 @@ function loop(now) {
 }
 begin();
 requestAnimationFrame(loop);
+sessionReady.then((ready) => {
+  if (ready?.id) session = ready;
+}).catch((err) => {
+  startFailed = err;
+  stopped = true;
+  paintResult({ error: err.message || "Orbit-Feuer konnte nicht gestartet werden." });
+});
 
 }
