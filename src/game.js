@@ -295,22 +295,13 @@ function readCargo(fleet) {
 }
 
 function researchSpeed(db, empireId) {
-  const rows = db
-    .prepare(
-      `SELECT b.level FROM buildings b
-       JOIN planets p ON p.id = b.planet_id
-       WHERE p.empire_id = ? AND b.building_id = 'archive'`
-    )
-    .all(empireId);
-  const best = rows.reduce((m, r) => Math.max(m, r.level), 0);
-  const labs = db
-    .prepare(
-      `SELECT b.level FROM buildings b
-       JOIN planets p ON p.id = b.planet_id
-       WHERE p.empire_id = ? AND b.building_id = 'quantum_lab'`
-    )
-    .all(empireId);
-  const lab = labs.reduce((m, r) => Math.max(m, r.level), 0);
+  const home = homePlanetOf(db, empireId);
+  const best = home
+    ? Number(db.prepare("SELECT level FROM buildings WHERE planet_id = ? AND building_id = 'archive'").get(home.id)?.level || 0)
+    : 0;
+  const lab = home
+    ? Number(db.prepare("SELECT level FROM buildings WHERE planet_id = ? AND building_id = 'quantum_lab'").get(home.id)?.level || 0)
+    : 0;
   const sci = db.prepare("SELECT COUNT(*) AS n FROM planets WHERE empire_id = ? AND directive = 'science'").get(empireId).n;
   const spec = species.bonusesOf(db, empireId);
   const ally = social.allianceBonuses(db, empireId);
@@ -349,6 +340,20 @@ function techsWithSpecies(techs, spec, ally) {
 
 function personalPlanetCount(db, empireId) {
   return db.prepare("SELECT COUNT(*) AS n FROM planets WHERE empire_id = ? AND IFNULL(alliance_id, 0) = 0").get(empireId).n;
+}
+
+const HOME_RESEARCH_BUILDINGS = new Set(["archive", "quantum_lab"]);
+
+function homePlanetOf(db, empireId) {
+  return db.prepare(
+    "SELECT * FROM planets WHERE empire_id = ? AND IFNULL(alliance_id, 0) = 0 ORDER BY IFNULL(founded_at, 0) ASC, id ASC LIMIT 1"
+  ).get(empireId) || null;
+}
+
+function isHomePlanet(db, empireId, planet) {
+  if (!planet || planet.alliance_id) return false;
+  const home = homePlanetOf(db, empireId);
+  return !!(home && Number(home.id) === Number(planet.id));
 }
 
 const ACS_WINDOW_MS = TICK_MS;
@@ -592,6 +597,9 @@ function queueBusy(db, kind, empireId, planetId) {
 
 function enqueueBuilding(db, empire, planet, buildingId) {
   if (planet?.alliance_id) throw new Error("Auf dem Allianzplaneten gibt es keinen normalen Kolonieausbau.");
+  if (HOME_RESEARCH_BUILDINGS.has(buildingId) && !isHomePlanet(db, empire.id, planet)) {
+    throw new Error("Forschungsarchiv und Quantenlabor stehen nur auf dem Hauptplaneten. Die Forschung gilt für alle Kolonien.");
+  }
   const spec = BUILDINGS[buildingId];
   if (!spec) throw new Error("Unbekanntes Gebäude.");
   const buildings = buildingsMap(db, planet.id);
@@ -678,6 +686,9 @@ function enqueueDefense(db, empire, planet, defenseId, qty) {
 
 function enqueueResearch(db, empire, planet, techId) {
   if (planet.alliance_id) throw new Error("Auf Allianz-Planeten läuft Allianzforschung, keine persönliche Forschung.");
+  if (!isHomePlanet(db, empire.id, planet)) {
+    throw new Error("Forschung läuft nur auf dem Hauptplaneten. Die Stufen gelten für alle Kolonien.");
+  }
   const spec = TECHS[techId];
   if (!spec) throw new Error("Unbekannte Forschung.");
   const buildings = buildingsMap(db, planet.id);
@@ -2175,8 +2186,8 @@ function assignHome(db, empireId, empireName) {
     .get(sysId);
   const t = now();
   db.prepare(
-    "UPDATE planets SET empire_id = ?, name = ?, metal = 1600, helium = 900, titan = 280, energy = 1600, crystal = 380, diamond = 18, last_tick = ? WHERE id = ?"
-  ).run(empireId, `${empireName} Prime`, t, planet.id);
+    "UPDATE planets SET empire_id = ?, name = ?, metal = 1600, helium = 900, titan = 280, energy = 1600, crystal = 380, diamond = 18, last_tick = ?, founded_at = ? WHERE id = ?"
+  ).run(empireId, `${empireName} Prime`, t, t, planet.id);
   setBuilding(db, planet.id, "command", 1);
   setBuilding(db, planet.id, "matter_mine", 1);
   setBuilding(db, planet.id, "energy_array", 1);
@@ -2341,6 +2352,7 @@ function planetView(db, planet, empire) {
     pirateShieldUntil: planet.founded_at ? planet.founded_at + 3 * 60 * 60 * 1000 : 0,
     allianceId: planet.alliance_id || 0,
     isAlliance: !!planet.alliance_id,
+    isHome: isHomePlanet(db, empire.id, planet),
     allianceTag: planet.alliance_id
       ? db.prepare("SELECT tag FROM alliances WHERE id = ?").get(planet.alliance_id)?.tag || ""
       : "",
@@ -2603,6 +2615,7 @@ function snapshot(db, user, planetId) {
         systemId: p.system_id,
         systemName: sys?.name || "",
         isAlliance: !!p.alliance_id,
+        isHome: isHomePlanet(db, empire.id, p),
         allianceId: p.alliance_id || 0,
         ...stockBag(p),
         production: prod,
@@ -3275,6 +3288,8 @@ module.exports = {
   calcStorage,
   hubBonus,
   planetView,
+  homePlanetOf,
+  isHomePlanet,
   scaledCost: require("./catalog").scaledCost,
   scaledTime: require("./catalog").scaledTime,
   meetsReq: require("./catalog").meetsReq,

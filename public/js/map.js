@@ -5,7 +5,7 @@ export function createMap(canvas, onSelect, onViewChange) {
   let cam = { x: 1500, y: 1500, scale: 0.55 };
   let drag = null;
   let hover = null;
-  let filter = { query: "", own: false, hostile: false, free: false, special: false };
+  let filter = { query: "", own: false, hostile: false, free: false, special: false, alliance: false };
   let highlightSystemId = null;
   let pendingFocus=null;
   const labelBounds=new Map();
@@ -66,10 +66,12 @@ export function createMap(canvas, onSelect, onViewChange) {
     const query = filter.query.trim().toLowerCase();
     if (query && ![system.name,...(system.planetNames || [])].some(name=>String(name).toLowerCase().includes(query))) return false;
     const own = system.owners.some((o) => o.empireId === data.self.empireId);
+    const allyId = data.self?.allianceId;
+    const alliance = !!(allyId && system.owners.some((o) => o.allianceId === allyId && o.empireId !== data.self.empireId));
     const hostile = system.remnant || system.pirate || system.warlord;
     const free = !system.owners.length && !hostile;
     const special = system.isHub || system.rift || hostile;
-    const categories={own,hostile,free,special};
+    const categories={own,hostile,alliance,free,special};
     const checked=Object.keys(categories).filter(key=>filter[key]);
     return !checked.length || checked.some(key=>categories[key]);
   }
@@ -436,6 +438,15 @@ export function createMap(canvas, onSelect, onViewChange) {
         ctx.beginPath();
         ctx.arc(s.x, s.y, r + 9, 0, Math.PI * 2);
         ctx.stroke();
+      } else if (data.self?.allianceId && s.owners.some((o) => o.allianceId === data.self.allianceId)) {
+        ctx.globalAlpha = 0.42 + 0.18 * Math.sin(t * 2.4);
+        ctx.strokeStyle = "#5ce4ff";
+        ctx.lineWidth = 1.6 / cam.scale;
+        ctx.setLineDash([5 / cam.scale, 4 / cam.scale]);
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, r + 8, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
       }
       ctx.globalAlpha = 1;
       if (isOwn) {
@@ -634,12 +645,15 @@ export function systemHtml(sys, catalog, originShips, opts = {}) {
             : `<span class="muted">unbesetzt</span>`;
       const alert = highlightPlanetId && p.id === highlightPlanetId;
       const flights=(opts.flights || []).filter(f=>f.targetPlanetId===p.id && !f.returning);
+      const inboundColony = flights.some((f) => f.mission === "colonize" || f.mission === "ally_colonize");
       
       // Im Kolonie-Auswahlmodus: Unterscheide Zielplanet von anderen
       let acts;
       if (colonizeMode && !colonizeMode.targetPlanetId) {
         // Auswahl-Modus aktiv: Nur unbesiedelte Planeten können Ziel sein
-        if (!p.owner && !sys.pirate && !sys.remnant) {
+        if (inboundColony) {
+          acts = `<button class="btn small" disabled>Kolonieschiff unterwegs</button>`;
+        } else if (!p.owner && !sys.pirate && !sys.remnant) {
           acts = `<button class="btn small map-act-colonize" data-target="${p.id}" data-mission-kind="colonize">Kolonisieren</button>`;
         } else {
           acts = `<button class="btn small" disabled>Besetzt</button>`;
@@ -650,7 +664,9 @@ export function systemHtml(sys, catalog, originShips, opts = {}) {
           ? `${p.canManage ? `<button class="btn small" data-focus="${p.id}">HQ</button>` : ""}<button class="btn small" data-target="${p.id}" data-mission-kind="transport">Versorgen</button><button class="btn small" data-target="${p.id}" data-mission-kind="deploy">Stationieren</button>`
           : p.own || p.canManage
             ? `<button class="btn small" data-focus="${p.id}">Planet</button><button class="btn small" data-target="${p.id}" data-mission-kind="deploy">Stationieren / Bewegen</button><button class="btn small" data-target="${p.id}" data-mission-kind="transport">Versorgen</button><button class="btn small" data-target="${p.id}" data-mission-kind="intercept">Verteidigen</button>`
-          : !p.owner && !sys.pirate && !sys.remnant
+          : inboundColony
+            ? `<button class="btn small" data-target="${p.id}" data-mission-kind="spy">Scout</button><button class="btn small map-act-attack" data-target="${p.id}" data-mission-kind="attack">Angriff</button><button class="btn small" disabled>Kolonieschiff unterwegs</button>`
+            : !p.owner && !sys.pirate && !sys.remnant
             ? `<button class="btn small" data-target="${p.id}" data-mission-kind="spy">Scout</button><button class="btn small map-act-attack" data-target="${p.id}" data-mission-kind="attack">Angriff</button><button class="btn small map-act-colonize" data-target="${p.id}" data-mission-kind="colonize">Kolonisieren</button>`
             : `<button class="btn small" data-target="${p.id}" data-mission-kind="spy">Scout</button><button class="btn small map-act-attack" data-target="${p.id}" data-mission-kind="attack">Angriff</button>`;
       }
@@ -705,7 +721,7 @@ export function systemHtml(sys, catalog, originShips, opts = {}) {
       <i class="sys-sheet-handle" aria-hidden="true"></i>
       <div class="section-title"><h2>${esc(sys.name)}</h2><button type="button" class="sys-close" data-sys-close aria-label="Schließen">×</button></div>
       <p class="muted sys-starline">${esc(sys.star?.name || "")}</p>
-      ${orbitPlanet ? `<section class="orbit-launch"><header><span>ORBIT-FEUER</span><b>${opts.orbitSiege?.playsLeft ?? "–"}</b><small>${opts.orbitSiege?.playsLeft ? "Einsätze heute" : "Aufgabe für Extra-Einsatz"}</small></header><div class="orbit-mode" role="group" aria-label="Orbit-Feuer"><button type="button" class="on" data-orbit-mode="auto" data-orbit-planet="${orbitPlanet.id}" data-orbit-name="${esc(orbitPlanet.name)}"><i>⌖</i><span><b>AUTO</b><small>Computer fliegt</small></span></button><button type="button" data-orbit-mode="manual" data-orbit-planet="${orbitPlanet.id}" data-orbit-name="${esc(orbitPlanet.name)}"><i>◎</i><span><b>SELBST STEUERN</b><small>Kampf sofort öffnen</small></span></button></div><p>AUTO hält den Orbit selbst · SELBST STEUERN öffnet sofort das Feuer-Overlay.</p></section>` : ""}
+      ${orbitPlanet ? `<section class="orbit-launch"><header><span>ORBIT-FEUER</span><b>${opts.orbitSiege?.unlimited ? "∞" : (opts.orbitSiege?.playsLeft ?? "–")}</b><small>${opts.orbitSiege?.unlimited ? "Test: unbegrenzt" : opts.orbitSiege?.playsLeft ? "Einsätze heute" : "Aufgabe für Extra-Einsatz"}</small></header><div class="orbit-mode" role="group" aria-label="Orbit-Feuer"><button type="button" class="on" data-orbit-mode="auto" data-orbit-planet="${orbitPlanet.id}" data-orbit-name="${esc(orbitPlanet.name)}"><i>⌖</i><span><b>AUTO</b><small>Kampf öffnen</small></span></button><button type="button" data-orbit-mode="manual" data-orbit-planet="${orbitPlanet.id}" data-orbit-name="${esc(orbitPlanet.name)}"><i>◎</i><span><b>SELBST STEUERN</b><small>Kampf öffnen</small></span></button></div><p>Beide Modi öffnen das Feuer-Overlay über dieser Kolonie.</p></section>` : ""}
       ${colonizeMode && !colonizeMode.targetPlanetId ? quick : ""}
       ${sys.isHub ? `<p class="hint">Nexus-Hub — Mehrheitskontrolle gewährt Kristall-Bonus.</p>` : ""}
       ${sys.pirate ? `<p class="hint" style="color:#ff8a3a">Piratenhorst Stufe ${sys.pirate} — Sieg bringt Beute.</p>` : ""}

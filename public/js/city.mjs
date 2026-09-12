@@ -52,6 +52,9 @@ export function colonyBuildingStatus(id, snap, catalog, now = Date.now()) {
     progress: job ? Math.max(0, Math.min(1, (now - job.startedAt) / Math.max(1, job.completesAt - job.startedAt))) : 0,
   });
   if (upgrade) return response("upgrading", `Ausbau auf Stufe ${upgrade.levelTo || level + 1}`, upgrade);
+  if ((id === "archive" || id === "quantum_lab") && p && p.isHome === false) {
+    return response(level ? "idle" : "dormant", "Nur Hauptplanet · gilt für alle Kolonien");
+  }
   if (!level) return response("dormant", "Nicht in Betrieb · Stufe 0");
   const resource = catalog?.buildings?.[id]?.resource;
   if (resource) {

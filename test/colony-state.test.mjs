@@ -59,4 +59,7 @@ test("support factories follow their actual game bonuses, research follows the e
   assert.equal(status("colony_dock", snap).idle, true);
   snap.queue = [job("ship", "colony")];
   assert.equal(status("colony_dock", snap).active, true);
+  const colony = snapshot({ archive: 1, quantum_lab: 1 }, [job("research", "armor")], { isHome: false });
+  assert.equal(status("archive", colony).statusLabel, "Nur Hauptplanet · gilt für alle Kolonien");
+  assert.equal(status("quantum_lab", colony).idle, true);
 });

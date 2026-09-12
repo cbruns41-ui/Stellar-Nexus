@@ -46,6 +46,12 @@ function capStats(elapsedMs, waves, kills) {
   return { waves: w, kills: k };
 }
 
+function isAdminEmpire(db, empire) {
+  if (!empire?.user_id) return false;
+  const row = db.prepare("SELECT is_admin FROM users WHERE id = ?").get(empire.user_id);
+  return !!row?.is_admin;
+}
+
 function parseState(raw) {
   if (!raw) return null;
   try {
@@ -146,8 +152,9 @@ function loadDay(db, empire, planet, now = Date.now()) {
     view: t.view,
     complete: progress.evalCheck(ctx, t.check),
   }));
-  const playsMax = 1 + tasks.filter((t) => t.complete).length;
-  const playsUsed = Math.max(0, Number(stored.playsUsed) || 0);
+  const admin = isAdminEmpire(db, empire);
+  const playsMax = admin ? 99 : 1 + tasks.filter((t) => t.complete).length;
+  const playsUsed = admin ? 0 : Math.max(0, Number(stored.playsUsed) || 0);
   return {
     day,
     stored,
@@ -155,6 +162,7 @@ function loadDay(db, empire, planet, now = Date.now()) {
     playsUsed,
     playsMax,
     playsLeft: Math.max(0, playsMax - playsUsed),
+    unlimited: admin,
   };
 }
 
@@ -164,7 +172,7 @@ function saveDay(db, empire, stored) {
 }
 
 function publicStatus(db, empire, planet, now = Date.now()) {
-  if (!planet) return { playsLeft: 0, playsUsed: 0, playsMax: 1, day: dayKey(now), tasks: [] };
+  if (!planet) return { playsLeft: 0, playsUsed: 0, playsMax: 1, day: dayKey(now), tasks: [], unlimited: false };
   const s = loadDay(db, empire, planet, now);
   return {
     playsLeft: s.playsLeft,
@@ -172,6 +180,7 @@ function publicStatus(db, empire, planet, now = Date.now()) {
     playsMax: s.playsMax,
     day: s.day,
     tasks: s.tasks,
+    unlimited: !!s.unlimited,
   };
 }
 
@@ -180,12 +189,14 @@ function start(db, empire, planet, now = Date.now()) {
     throw new Error("Orbit-Belagerung ist nur über einer eigenen Kolonie verfügbar.");
   }
   const day = loadDay(db, empire, planet, now);
-  if (day.playsLeft <= 0) {
-    const next = day.tasks.find((t) => !t.complete);
-    throw new Error(next ? `Heute kein Einsatz mehr. ${next.title}, dann gibt es einen weiteren.` : "Heute sind alle Einsätze verbraucht. Morgen um 00:00 UTC gibt es einen neuen.");
+  if (!day.unlimited) {
+    if (day.playsLeft <= 0) {
+      const next = day.tasks.find((t) => !t.complete);
+      throw new Error(next ? `Heute kein Einsatz mehr. ${next.title}, dann gibt es einen weiteren.` : "Heute sind alle Einsätze verbraucht. Morgen um 00:00 UTC gibt es einen neuen.");
+    }
+    day.stored.playsUsed = day.playsUsed + 1;
+    saveDay(db, empire, day.stored);
   }
-  day.stored.playsUsed = day.playsUsed + 1;
-  saveDay(db, empire, day.stored);
   const active = db.prepare(
     "SELECT id FROM orbit_siege_sessions WHERE empire_id = ? AND claimed_at = 0 AND expires_at > ? ORDER BY id DESC LIMIT 1"
   ).get(empire.id, now);

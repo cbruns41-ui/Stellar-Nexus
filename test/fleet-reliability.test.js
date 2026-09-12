@@ -13,6 +13,29 @@ function fixture(t) {
  const target=db.prepare("SELECT * FROM planets WHERE empire_id IS NULL AND system_id=? LIMIT 1").get(home.system_id);
  assert.ok(target);return {db,empire,home:db.prepare("SELECT * FROM planets WHERE id=?").get(home.id),target};
 }
+test("research and archive are locked to the home planet and apply empire-wide",t=>{
+ const {db,empire,home,target}=fixture(t);
+ game.addShips(db,home.id,{colony:1});
+ withTx(db,()=>game.sendFleet(db,empire,home,target,"colonize",{colony:1},{}));
+ db.exec("UPDATE fleets SET arrives_at=1");game.tickWorld(db);
+ const colony=db.prepare("SELECT * FROM planets WHERE id=?").get(target.id);
+ assert.equal(colony.empire_id,empire.id);
+ db.prepare("INSERT INTO buildings(planet_id,building_id,level) VALUES(?,?,?) ON CONFLICT(planet_id,building_id) DO UPDATE SET level=excluded.level").run(home.id,"archive",1);
+ db.prepare("INSERT INTO buildings(planet_id,building_id,level) VALUES(?,?,?) ON CONFLICT(planet_id,building_id) DO UPDATE SET level=excluded.level").run(colony.id,"command",4);
+ db.prepare("UPDATE planets SET metal=8000,helium=8000,energy=8000,titan=8000,crystal=8000 WHERE id IN (?,?)").run(home.id,colony.id);
+ assert.throws(()=>game.enqueueResearch(db,empire,colony,"extraction"),/Hauptplanet|alle Kolonien/);
+ assert.throws(()=>game.enqueueBuilding(db,empire,colony,"archive"),/Hauptplanet|Forschungsarchiv/);
+ const started=game.enqueueResearch(db,empire,home,"extraction");
+ assert.ok(started.completesAt);
+ const user=db.prepare("SELECT * FROM users WHERE username='Pilot'").get();
+ const colonySnap=game.snapshot(db,user,colony.id);
+ const homeSnap=game.snapshot(db,user,home.id);
+ assert.equal(colonySnap.planet.isHome,false);
+ assert.equal(homeSnap.planet.isHome,true);
+ assert.equal(colonySnap.planets.find(p=>p.id===home.id).isHome,true);
+ assert.equal(homeSnap.techs.extraction||0,0);
+});
+
 test("colonization launches real colony ship, consumes exactly one and deployment moves ships",t=>{
  const {db,empire,home,target}=fixture(t);
  game.addShips(db,home.id,{colony:1,fighter:2});
@@ -115,6 +138,19 @@ test('alliance funding persists partial deposits and spends only the missing amo
  assert.equal(planet().metal,0);assert.equal(social.researchRows(db,alliance.id,empire.id).find(r=>r.id==='supply_grid').funded.metal,100);
 });
 
+test("admin can start orbit fire without the daily cap",t=>{
+ const {db,empire,home}=fixture(t);
+ db.prepare("UPDATE users SET is_admin=1 WHERE id=?").run(empire.user_id);
+ const first=game.startOrbitSiege(db,empire,home);
+ const second=game.startOrbitSiege(db,empire,home);
+ const third=game.startOrbitSiege(db,empire,home);
+ assert.ok(first.id && second.id && third.id);
+ const orbitSiege=require("../src/orbitSiege");
+ const status=orbitSiege.publicStatus(db,empire,home);
+ assert.equal(status.unlimited,true);
+ assert.ok(status.playsLeft>0);
+});
+
 test('orbit siege allows one run per day unless a bonus task is complete',t=>{
  const {db,empire,home}=fixture(t);
  const first=game.startOrbitSiege(db,empire,home);
@@ -137,6 +173,29 @@ test('activity badge counts free slots and exposes rewards',t=>{
  assert.equal((snap.activities||[]).length,6);
  assert.ok((snap.activities||[]).every(a=>a.ready && !a.running && a.reward));
  assert.equal(snap.hints.activity,6);
+});
+
+test("galaxy payload exposes alliance members for the map filter",async t=>{
+ const {db,empire,home}=fixture(t);
+ const social=require("../src/social");
+ ensurePlayer(db,"Ally","secret123","Ally Empire","#ff55aa");
+ const ally=db.prepare("SELECT * FROM empires WHERE name='Ally Empire'").get();
+ const allyHome=db.prepare("SELECT * FROM planets WHERE empire_id=?").get(ally.id);
+ const created=social.createAlliance(db,empire,"NXS","Nexus Wing","", "#3ee8c4");
+ db.prepare("INSERT INTO alliance_members(alliance_id,empire_id,rank,joined_at) VALUES(?,?,'member',?)").run(created.id,ally.id,Date.now());
+ const app=express();app.use(express.json());attachRoutes(app,db);
+ const server=app.listen(0,"127.0.0.1");await new Promise(resolve=>server.once("listening",resolve));
+ t.after(()=>new Promise(resolve=>server.close(resolve)));
+ const base=`http://127.0.0.1:${server.address().port}/api`;
+ const login=await fetch(base+"/auth/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({username:"Pilot",password:"secret123"})});
+ assert.equal(login.status,200);
+ const cookie=login.headers.get("set-cookie");
+ const galaxy=await fetch(base+"/galaxy",{headers:{cookie}}).then((r)=>r.json());
+ assert.equal(galaxy.self.allianceId,created.id);
+ const ownSys=galaxy.systems.find((s)=>s.id===home.system_id);
+ const allySys=galaxy.systems.find((s)=>s.id===allyHome.system_id);
+ assert.ok(ownSys.owners.some((o)=>o.empireId===empire.id && o.allianceId===created.id));
+ assert.ok(allySys.owners.some((o)=>o.empireId===ally.id && o.allianceId===created.id));
 });
 
 test("orbit-fire start alias returns a session instead of 404",async t=>{

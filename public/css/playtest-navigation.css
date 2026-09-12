@@ -1,7 +1,7 @@
 
 /* Playtest IA: one persistent world, command panels above it, chrome always reachable. */
 .hangar-summary{padding:12px;margin-bottom:12px}.hangar-summary h3{margin-top:0}.hangar-summary p{overflow-wrap:anywhere}.hangar-summary summary{min-height:44px;cursor:pointer}
-.map-quick-filters{position:absolute;right:8px;top:52px;z-index:16;display:flex;flex-wrap:wrap;gap:5px;pointer-events:auto;width:max-content;max-width:calc(100% - 16px)}
+.map-quick-filters{position:absolute;right:8px;top:52px;z-index:16;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:5px;pointer-events:auto;width:min(320px,calc(100% - 16px));max-width:calc(100% - 16px)}
 .map-quick-filters[hidden]{display:none!important}
 .map-quick-filters label{display:flex;align-items:center;gap:4px;min-height:44px;padding:4px 8px;background:#071b2ef5;border:1px solid #438da480;border-radius:7px;font-size:12px;cursor:pointer}
 .map-quick-filters input{width:16px!important;height:16px;min-height:0!important;margin:0}
@@ -33,11 +33,14 @@ body[data-mode="play"] .modal .sheet{max-height:100%}
 .shell.view-home:not(.alliance-planet-open) #view{pointer-events:none}
 .command-panel img,.command-panel video,.command-panel svg,.command-panel canvas,.command-panel table{max-width:100%}.focus-pending #view,.focus-pending #command-panel{pointer-events:none;opacity:.5}
 /* Unity only receives gestures on uncovered city pixels. Sheets own their hit area. */
-body[data-mode="play"] #command-panel,body[data-mode="play"] #panel-view,body[data-mode="play"] .modal .sheet{pointer-events:auto!important}
+body[data-mode="play"] #command-panel,body[data-mode="play"] #panel-view,body[data-mode="play"] .modal .sheet,body[data-mode="play"] #city-actions{pointer-events:auto!important}
+.command-panel .og-art,.command-panel video.og-art,.command-panel .og-art-ship{pointer-events:none}
+.command-panel .og-act,.command-panel button,.command-panel input,.command-panel label{pointer-events:auto}
 .shell:has(#command-panel:not([hidden])) #colony-unity-layer,.shell:has(#command-panel:not([hidden])) #colony-unity-canvas,
 body:has(#modal:not(.hidden):not([hidden])) #colony-unity-layer,body:has(#modal:not(.hidden):not([hidden])) #colony-unity-canvas,
 .shell.nav-open #colony-unity-layer,.shell.nav-open #colony-unity-canvas,
 .shell:has(#orders[open]) #colony-unity-layer,.shell:has(#orders[open]) #colony-unity-canvas,
+.shell:has(#city-actions:not([hidden])) #colony-unity-layer,.shell:has(#city-actions:not([hidden])) #colony-unity-canvas,
 body.orbit-siege-open #colony-unity-layer,body.orbit-siege-open #colony-unity-canvas,
 body:has(.orbit-game) #colony-unity-layer,body:has(.orbit-game) #colony-unity-canvas{pointer-events:none!important}
 .shell.view-home .living-colony .colony-tools{top:8px;left:8px;right:auto;display:flex;gap:5px;width:max-content;max-width:calc(100% - 16px);z-index:24;pointer-events:auto}
@@ -45,7 +48,7 @@ body:has(.orbit-game) #colony-unity-layer,body:has(.orbit-game) #colony-unity-ca
 .shell.view-home .living-colony .colony-tools .colony-directory{position:static;width:auto}
 .shell.view-home .living-colony .colony-directory>div{position:absolute;top:38px;left:0;width:min(260px,calc(100vw - 32px));max-height:min(60vh,420px)}
 .shell.view-home .living-colony .colony-level{visibility:visible!important;opacity:1!important}
-.shell.view-home .living-colony .city-actions{left:50%;top:auto;bottom:52px;max-height:calc(100% - 104px);overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y}
+.shell.view-home .living-colony .city-actions{left:50%;top:auto;bottom:52px;z-index:40;max-height:calc(100% - 104px);overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y}
 .living-colony:has(.city-actions:not([hidden])) .city-commander{visibility:hidden}
 .shell.view-home .living-colony .colony-quests .city-commander{position:static!important;transform:none!important;width:100%!important;margin:0 0 10px;max-width:100%;pointer-events:auto}
 .colony-tools button,.colony-directory summary,.city-actions button,.command-panel button,.map-wrap button{touch-action:manipulation}

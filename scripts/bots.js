@@ -66,8 +66,8 @@ async function buildDefense(cookie, planetId, defenseId, qty) {
   return res.status === 200;
 }
 
-async function research(cookie, techId) {
-  const res = await request('POST', '/api/research', { id: techId }, `sn_session=${cookie}`);
+async function research(cookie, techId, planetId) {
+  const res = await request('POST', '/api/research', { id: techId, planetId }, `sn_session=${cookie}`);
   return res.status === 200;
 }
 
@@ -87,8 +87,8 @@ function pickBuilding(planet, personality) {
   // Immer zuerst Kommando auf Stufe 2 für Archiv
   if ((b.command || 0) < 2) return 'command';
   
-  // Dann Archiv
-  if (!b.archive || b.archive < 1) return 'archive';
+  // Dann Archiv — nur auf dem Hauptplaneten
+  if (planet.isHome !== false && (!b.archive || b.archive < 1)) return 'archive';
   
   // Priorisiere Ressourcen-Produktion wenn niedrig
   if ((b.matter_mine || 0) < 3) return 'matter_mine';
@@ -238,10 +238,11 @@ async function botTick(bot, cookie) {
       await buildShip(cookie, planet.id, ship.id, ship.qty);
     }
 
-    // 4. Forschung
+    // 4. Forschung — nur vom Hauptplaneten, gilt für alle Kolonien
     const tech = pickTech(state.techs || {}, bot.personality);
-    if (tech && planet.energy > 80) {
-      await research(cookie, tech);
+    const homeId = (state.planets || []).find((p) => p.isHome)?.id || (planet.isHome === false ? null : planet.id);
+    if (tech && planet.energy > 80 && homeId) {
+      await research(cookie, tech, homeId);
     }
 
     // 5. Angriff

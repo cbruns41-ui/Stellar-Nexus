@@ -166,7 +166,7 @@ const BUILDINGS = {
   archive: {
     id: "archive",
     name: "Forschungsarchiv",
-    blurb: "Beschleunigt empireweite Forschung.",
+    blurb: "Labor des Hauptplaneten. Forschung hier gilt für alle Kolonien.",
     icon: "diamond",
     baseCost: bag({ metal: 130, energy: 180, crystal: 70 }),
     baseTime: 85,
@@ -278,7 +278,7 @@ const BUILDINGS = {
   quantum_lab: {
     id: "quantum_lab",
     name: "Quantenlabor",
-    blurb: "Parallelisiert Forschung. Stapelt mit dem Archiv.",
+    blurb: "Nur auf dem Hauptplaneten. Stapelt mit dem Archiv und beschleunigt empireweite Forschung.",
     icon: "diamond",
     baseCost: bag({ metal: 260, energy: 320, crystal: 180, diamond: 10 }),
     baseTime: 140,

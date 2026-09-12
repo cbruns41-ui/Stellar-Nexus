@@ -824,15 +824,23 @@ function attachRoutes(app, db) {
     );
     const owners = db
       .prepare(
-        `SELECT p.system_id, e.id AS empire_id, e.name, e.color, COUNT(*) AS n
+        `SELECT p.system_id, e.id AS empire_id, e.name, e.color, COUNT(*) AS n, m.alliance_id
          FROM planets p JOIN empires e ON e.id = p.empire_id
+         LEFT JOIN alliance_members m ON m.empire_id = e.id
          GROUP BY p.system_id, e.id`
       )
       .all();
     const bySys = {};
     for (const o of owners) {
-      (bySys[o.system_id] ||= []).push({ empireId: o.empire_id, name: o.name, color: o.color, planets: o.n });
+      (bySys[o.system_id] ||= []).push({
+        empireId: o.empire_id,
+        name: o.name,
+        color: o.color,
+        planets: o.n,
+        allianceId: o.alliance_id || 0,
+      });
     }
+    const mine = social.myAlliance(db, empire.id);
     const techs = game.techsMap(db, empire.id);
     const riftRow = db.prepare("SELECT value FROM world_meta WHERE key = 'rift'").get();
     let riftId = 0;
@@ -857,6 +865,7 @@ function attachRoutes(app, db) {
         warp: techs.warp || 0,
         homePlanetId: home?.id || 0,
         homeSystemId: home?.system_id || 0,
+        allianceId: mine?.id || 0,
       },
       riftSystemId: riftId || null,
       systems: systems.map((s) => ({

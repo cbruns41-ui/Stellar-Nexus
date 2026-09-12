@@ -27,7 +27,7 @@ root.innerHTML = `
     </div>
     <div class="hud-sub">
       <span>ABSCHÜSSE <b id="kills">0</b></span>
-      <span>TÜRME <b id="towers">1</b></span>
+      <span>TÜRME <b id="towers">0</b></span>
       <span>RAKETEN <b id="rockets">0</b></span>
     </div>
   </header>
@@ -35,11 +35,10 @@ root.innerHTML = `
   <div class="controls">
     <div id="stick" class="orbit-stick" aria-label="Zielen"><b></b><small>ZIELEN</small></div>
     <div class="fire-col">
-      <button id="aa" type="button" aria-label="Abwehr" class="ready"><span class="aa-cd"></span><b>ABWEHR</b></button>
+      <button id="aa" type="button" aria-label="Abwehr" class="ready"><span class="aa-cd"></span><small>ABWEHR</small></button>
       <button id="fire" class="orbit-fire" type="button" aria-label="Feuer"><small>FEUER</small></button>
     </div>
   </div>
-  <section class="overlay" id="intro" hidden></section>
   <section class="overlay" id="pick" hidden>
     <div class="card">
       <small id="pick-label">WELLE GEHALTEN</small>
@@ -89,6 +88,16 @@ const ART = {
   frigate: img("/assets/orbit-siege/frigate.png"),
   rocket: img("/assets/orbit-siege/rocket.png"),
   missile: img("/assets/orbit-siege/missile.png"),
+  upgrades: {
+    repair: "/assets/orbit-siege/upgrade-repair.jpg",
+    rate: "/assets/orbit-siege/upgrade-rate.jpg",
+    dmg: "/assets/orbit-siege/upgrade-dmg.jpg",
+    tower: "/assets/orbit-siege/upgrade-tower.jpg",
+    silo: "/assets/orbit-siege/upgrade-silo.jpg",
+    missiles: "/assets/orbit-siege/upgrade-missiles.jpg",
+    flak: "/assets/orbit-siege/upgrade-flak.jpg",
+    range: "/assets/orbit-siege/upgrade-range.jpg",
+  },
 };
 function img(src) {
   const el = new Image();
@@ -227,9 +236,6 @@ window.addEventListener("keyup", onKeyUp);
 function begin() {
   Object.assign(game, fresh());
   game.mode = "play";
-  addTower(game, "laser");
-  addTower(game, "silo");
-  root.querySelector("#intro").hidden = true;
   root.querySelector("#dead").hidden = true;
   root.querySelector("#pick").hidden = true;
   nextWave();
@@ -340,6 +346,7 @@ function openPick() {
   if (game.salvage < cost) {
     const skip = document.createElement("button");
     skip.type = "button";
+    skip.className = "pick-skip";
     skip.innerHTML = `<b>WEITER</b><small>Noch ${cost - game.salvage} Salvage bis zur nächsten Verstärkung</small>`;
     skip.onclick = continueWaves;
     host.append(skip);
@@ -348,12 +355,15 @@ function openPick() {
     for (const card of pool) {
       const b = document.createElement("button");
       b.type = "button";
-      b.innerHTML = `<b>${card.title}</b><small>${card.blurb} · ${cost} Salvage</small>`;
+      b.className = "pick-card";
+      const src = ART.upgrades[card.id] || "";
+      b.innerHTML = `${src ? `<img src="${src}" alt="">` : ""}<span><b>${card.title}</b><small>${card.blurb} · ${cost} Salvage</small></span>`;
       b.onclick = () => { game.salvage -= cost; card.apply(game); continueWaves(); };
       host.append(b);
     }
     const skip = document.createElement("button");
     skip.type = "button";
+    skip.className = "pick-skip";
     skip.innerHTML = `<b>OHNE AUSBAU</b><small>Salvage behalten</small>`;
     skip.onclick = continueWaves;
     host.append(skip);
@@ -693,20 +703,20 @@ function drawBg() {
   if (ready(ART.bg)) {
     const s = Math.max(W / ART.bg.naturalWidth, H / ART.bg.naturalHeight);
     const dw = ART.bg.naturalWidth * s, dh = ART.bg.naturalHeight * s;
-    ctx.globalAlpha = 0.92;
+    ctx.globalAlpha = 0.96;
     ctx.drawImage(ART.bg, (W - dw) / 2, (H - dh) / 2, dw, dh);
     ctx.globalAlpha = 1;
   }
   const rot = game.time * 0.018;
   for (const st of stars) {
-    const tw = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(game.time * 2.2 + st.tw));
+    const tw = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(game.time * 2.2 + st.tw));
     ctx.globalAlpha = tw;
-    ctx.fillStyle = "#d7f4ff";
+    ctx.fillStyle = st.s > 1.4 ? "#e8fbff" : "#d7f4ff";
     ctx.fillRect(cx + Math.cos(st.a + rot) * st.r, cy + Math.sin(st.a + rot) * st.r, st.s, st.s);
   }
   ctx.globalAlpha = 1;
   for (const d of dust) {
-    const a = 0.06 + 0.07 * (0.5 + 0.5 * Math.sin(game.time * 0.7 + d.tw));
+    const a = 0.07 + 0.08 * (0.5 + 0.5 * Math.sin(game.time * 0.7 + d.tw));
     ctx.fillStyle = `rgba(120, 210, 255, ${a})`;
     ctx.beginPath();
     ctx.arc(cx + Math.cos(d.a + rot * 0.4) * d.r, cy + Math.sin(d.a + rot * 0.4) * d.r, d.s, 0, TAU);
@@ -807,6 +817,18 @@ function drawPlanet() {
   }
   ctx.lineCap = "butt";
 
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  for (let i = 0; i < 6; i++) {
+    const a = -Math.PI / 2 + i * TAU / 6;
+    const nx = cx + Math.cos(a) * shieldR;
+    const ny = cy + Math.sin(a) * shieldR;
+    const glow = 0.35 + 0.25 * Math.sin(game.time * 3.1 + i);
+    ctx.fillStyle = `rgba(${col}, ${glow})`;
+    ctx.beginPath(); ctx.arc(nx, ny, 3.2, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+
   for (const r of game.ripples) {
     ctx.strokeStyle = `rgba(255, 140, 90, ${Math.max(0, r.life * 1.4)})`;
     ctx.lineWidth = 3;
@@ -830,13 +852,37 @@ function drawAimGuide() {
   if (game.mode !== "play") return;
   const x0 = cx + Math.cos(game.aim) * (shieldR + 10);
   const y0 = cy + Math.sin(game.aim) * (shieldR + 10);
-  const x1 = cx + Math.cos(game.aim) * Math.hypot(W, H) * 0.5;
-  const y1 = cy + Math.sin(game.aim) * Math.hypot(W, H) * 0.5;
+  const reach = Math.hypot(W, H) * 0.5;
+  const x1 = cx + Math.cos(game.aim) * reach;
+  const y1 = cy + Math.sin(game.aim) * reach;
   ctx.save();
-  ctx.strokeStyle = "rgba(90, 230, 255, 0.16)";
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = "rgba(90, 230, 255, 0.22)";
+  ctx.lineWidth = 1.6;
   ctx.setLineDash([5, 9]);
   ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.globalCompositeOperation = "lighter";
+  ctx.strokeStyle = "rgba(180, 255, 255, 0.45)";
+  ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.arc(x0, y0, 7, 0, TAU); ctx.stroke();
+  const px = Math.cos(game.aim + Math.PI / 2);
+  const py = Math.sin(game.aim + Math.PI / 2);
+  for (let i = 1; i <= 4; i++) {
+    const t = i / 4.6;
+    const x = x0 + (x1 - x0) * t;
+    const y = y0 + (y1 - y0) * t;
+    ctx.beginPath();
+    ctx.moveTo(x - px * 5, y - py * 5);
+    ctx.lineTo(x + px * 5, y + py * 5);
+    ctx.stroke();
+  }
+  ctx.translate(x1, y1);
+  ctx.rotate(game.aim);
+  ctx.strokeStyle = "rgba(120, 240, 255, 0.7)";
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(-8, -7); ctx.lineTo(6, 0); ctx.lineTo(-8, 7);
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -847,7 +893,7 @@ function drawTurret(t, player) {
   const x = cx + Math.cos(ang) * r;
   const y = cy + Math.sin(ang) * r;
   const span = Math.min(W, H);
-  const h = player ? span * 0.088 : kind === "silo" ? span * 0.078 : span * 0.072;
+  const h = player ? span * 0.112 : kind === "silo" ? span * 0.082 : span * 0.076;
   const spr = player ? ART.battery : kind === "silo" ? ART.silo : ART.sentinel;
   const aspect = player ? 831 / 1002 : kind === "silo" ? 808 / 842 : 855 / 865;
   const w = h * aspect;
@@ -945,13 +991,13 @@ function drawShot(s) {
   ctx.translate(s.x, s.y);
   ctx.rotate(ang);
   ctx.globalCompositeOperation = "lighter";
-  const len = player ? 46 : 34;
+  const len = player ? 58 : 36;
   const grd = ctx.createLinearGradient(-len, 0, 8, 0);
   grd.addColorStop(0, "rgba(80,220,255,0)");
-  grd.addColorStop(0.55, player ? "rgba(180,255,255,.55)" : "rgba(80,220,255,.4)");
+  grd.addColorStop(0.55, player ? "rgba(180,255,255,.7)" : "rgba(80,220,255,.45)");
   grd.addColorStop(1, "#fff");
   ctx.fillStyle = grd;
-  const thick = player ? 2.6 : 1.7;
+  const thick = player ? 3.2 : 1.8;
   ctx.beginPath();
   ctx.moveTo(-len, -thick * 0.45);
   ctx.lineTo(8, -thick);
@@ -959,7 +1005,11 @@ function drawShot(s) {
   ctx.lineTo(-len, thick * 0.45);
   ctx.fill();
   ctx.fillStyle = "#fff";
-  ctx.beginPath(); ctx.arc(0, 0, player ? 2.6 : 1.8, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(0, 0, player ? 3.4 : 1.8, 0, TAU); ctx.fill();
+  if (player) {
+    ctx.fillStyle = "rgba(160,255,255,0.35)";
+    ctx.beginPath(); ctx.arc(0, 0, 8, 0, TAU); ctx.fill();
+  }
   ctx.restore();
 }
 
@@ -1008,9 +1058,11 @@ function drawIncoming() {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(ang);
-    ctx.fillStyle = m.rocket ? "rgba(255,170,50,.9)" : e.heavy ? "rgba(255,120,60,.85)" : "rgba(255,80,70,.8)";
+    ctx.fillStyle = m.rocket ? "rgba(255,170,50,.95)" : e.heavy ? "rgba(255,120,60,.9)" : "rgba(255,80,70,.88)";
+    ctx.shadowColor = m.rocket ? "#ffaa32" : "#ff5649";
+    ctx.shadowBlur = 10;
     ctx.beginPath();
-    ctx.moveTo(8, 0); ctx.lineTo(-6, -5); ctx.lineTo(-6, 5);
+    ctx.moveTo(10, 0); ctx.lineTo(-7, -6); ctx.lineTo(-7, 6);
     ctx.fill();
     ctx.restore();
   }
@@ -1050,6 +1102,12 @@ function draw() {
   drawFx();
   drawIncoming();
   ctx.restore();
+  const vig = ctx.createRadialGradient(cx, cy, Math.min(W, H) * 0.18, cx, cy, Math.hypot(W, H) * 0.62);
+  vig.addColorStop(0, "rgba(0,0,0,0)");
+  vig.addColorStop(0.72, "rgba(0,4,10,0.12)");
+  vig.addColorStop(1, "rgba(0,3,8,0.58)");
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, W, H);
 }
 
 function paintHud() {

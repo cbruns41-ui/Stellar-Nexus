@@ -1,4 +1,4 @@
-import { CITY_PLOTS, colonyBuildingStatus } from "./city.mjs?v=10";
+import { CITY_PLOTS, colonyBuildingStatus } from "./city.mjs?v=11";
 
 const escape = value => String(value ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]);
 export function colonyRows(snap, catalog, previews, selected, now = Date.now()) {
