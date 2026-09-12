@@ -66,7 +66,12 @@ body[data-mode="play"] .shell #dock{display:block!important;position:relative;z-
 #dock-items{position:absolute;bottom:44px;left:0;right:0;max-height:min(42dvh,360px);padding:10px;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;background:#071522fa;border-top:1px solid #5d879d;box-shadow:0 -8px 24px #0005;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(270px,100%),1fr));gap:8px;pointer-events:auto}
 #orders:not([open])>#dock-items{display:none}#orders[open]>summary>span:last-child{transform:rotate(180deg)}
 #dock #dock-items>.panel{padding:9px;min-width:0;display:grid;gap:5px}#dock #dock-items>.panel>span{white-space:normal}#dock button{min-height:44px}
+.og-row{position:relative}
+.og-build-flag{position:absolute;z-index:3;left:8px;top:8px;display:flex;flex-wrap:wrap;align-items:baseline;gap:6px;max-width:min(240px,calc(100% - 16px));padding:6px 10px;background:#0c1d28f5;border:1px solid #d5ad73;color:#f0d39a;font:700 11px/1.25 var(--display);letter-spacing:.06em;pointer-events:none;box-shadow:0 6px 16px #0006}
+.og-build-flag span,.build-now span{font-variant-numeric:tabular-nums}
+.build-now{margin:0 0 8px;padding:5px 8px;border-left:2px solid #d5ad73;color:#e9c083;font-size:13px}
 .og-act [data-ship-building],.og-act [data-defense-building]{color:#e9c083}
+@media(max-width:860px){.og-build-flag{max-width:calc(100% - 16px)}}
 .shell.view-galaxy .sys-panel{bottom:58px}.shell.view-galaxy .map-raid-banner{bottom:62px}
 .shell.view-galaxy .map-orbit-fire{top:auto;bottom:58px}
 /* #modal is a sibling of #game. Scope to body so this rule actually matches. */

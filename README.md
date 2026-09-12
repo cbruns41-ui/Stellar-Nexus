@@ -88,22 +88,35 @@ und verlängert sich nicht automatisch.
 
 ## Registrierung und Adminfreigabe
 
-Unter **Kommando → Leitung → Zentrale → Closed Beta** die Admin-Empfängeradresse eintragen.
+Unter **Kommando → Leitung → Zentrale → Open Beta** die Admin-Empfängeradresse eintragen.
 Den Mailtransport über `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`,
 `SMTP_FROM` und `PUBLIC_URL` konfigurieren (siehe `.env.example`). Bei Port 587 wird STARTTLS
 verlangt; bei Port 465 `SMTP_SECURE=true` setzen. Ohne Mailkonfiguration bleiben Anmeldungen
 gesperrt; im Adminbereich ist der Fehler sichtbar und die Freigabemail kann erneut gesendet werden.
 Es wurde kein echter Mailversand mit Produktivzugangsdaten getestet.
 
-Neue Accounts erfordern E-Mail, Mensch-Bestätigung und eine einmalige Rechenaufgabe. Erst die
+Neue Accounts erfordern E-Mail, AGB/Datenschutz, Mindestalter 16, Mensch-Bestätigung und eine
+einmalige Rechenaufgabe. Passwort mindestens 8 Zeichen, gespeichert nur als scrypt-Hash. Erst die
 ausdrückliche Bestätigung im Mail-Link durch einen angemeldeten Admin erzeugt das Imperium.
 Links gelten sieben Tage; Mailvorschauen aktivieren keinen Account. Die Rechenaufgabe ist ein
 einfacher Botfilter, kein belastbarer Nachweis einer natürlichen Person.
 
 Eine eindeutige, dauerhaft gespeicherte IP-HMAC begrenzt neue Registrierungen auf eine je IP.
 Geteilte Anschlüsse betreffen mehrere Menschen; VPNs und wechselnde IPs umgehen diese Grenze.
-Die Regel benötigt eine **persistente Datenbank** (siehe Vercel-Hinweis oben). Bei einem eigenen
-Reverse Proxy nur dessen tatsächliche Adressen in `TRUST_PROXY` eintragen.
+Die Regel benötigt eine **persistente Datenbank** (siehe Vercel-Hinweis oben).
+
+### Hetzner / HTTPS-Proxy
+
+Node lauscht intern auf HTTP. TLS gehört vor die App (Caddy oder nginx + Let’s Encrypt).
+
+```
+PUBLIC_URL=https://deine-domain.tld
+TRUST_PROXY=1
+```
+
+`TRUST_PROXY=1` darf nur gesetzt werden, wenn wirklich nur der eigene Reverse-Proxy X-Forwarded-For setzt. Dann gelten Session-Cookie `Secure`, HSTS und Login-Limits je echter Client-IP. Ohne Proxy `TRUST_PROXY` leer lassen, sonst kann jemand fremde IPs vortäuschen.
+
+Session-Cookie: `HttpOnly`, `SameSite=Lax`, bei HTTPS zusätzlich `Secure`. Login: 20 Versuche je IP und 8 je Commander-ID in 15 Minuten.
 
 ## Bereinigung und erhaltene Bestände
 

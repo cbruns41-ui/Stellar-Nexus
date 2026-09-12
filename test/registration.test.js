@@ -7,11 +7,12 @@ function fixture(t) {
 }
 function body(db,ip,username="NewPilot") {
   const challenge=registration.challenge(db,ip),numbers=challenge.question.match(/\d+/g).map(Number);
-  return {username,password:"validpassword",empire:"New Empire",species:"terran",email:`${username}@example.org`,human:"on",challengeId:challenge.id,answer:String(numbers[0]+numbers[1])};
+  return {username,password:"validpassword",empire:"New Empire",species:"terran",email:`${username}@example.org`,human:"on",terms:"on",privacy:"on",age16:"on",challengeId:challenge.id,answer:String(numbers[0]+numbers[1])};
 }
 test("registration requires human proof, one IP and explicit one-use admin approval",async t=>{
   const db=fixture(t),ip="192.0.2.1";
   assert.throws(()=>registration.request(db,ip,{}),/Mensch/);
+  assert.throws(()=>registration.request(db,ip,{...body(db,ip),terms:""}),/AGB|Datenschutz|Mindestalter/);
   const input=body(db,ip),entry=registration.request(db,ip,input);
   const user=db.prepare("SELECT * FROM users WHERE username=?").get(input.username);
   assert.ok(auth.verifyPassword(input.password,user.password_hash));

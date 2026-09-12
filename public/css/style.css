@@ -2180,7 +2180,7 @@ img.og-art-ship[src*="battleship"] {
     padding: max(14px, env(safe-area-inset-top)) 16px 8px;
   }
   .land-nav-actions { display: none; }
-  .land-login, .land-cta, .land-stats, .land-beta-notice, .land-scroll { display: none !important; }
+  .land-login, .land-cta, .land-stats, .land-scroll { display: none !important; }
   .land-hero {
     min-height: 100svh;
     min-height: 100dvh;
@@ -2213,6 +2213,9 @@ img.og-art-ship[src*="battleship"] {
     text-shadow: 0 2px 18px #03050a;
   }
   .land-lead { display: none; }
+  .land-hero-copy { padding-bottom: 8px; }
+  .land-beta-notice { margin: 10px 0 0; font-size: 11px; padding: 8px 10px; }
+  .land-playbar-beta { margin: 0 0 4px; text-align: center; color: #ffcba8; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
   .land-playbar {
     display: grid;
     grid-template-columns: 1fr;
@@ -2519,6 +2522,28 @@ button.linkish {
 }
 .land-steps h3 { margin: 0 0 4px; font-size: 16px; }
 .land-steps p { margin: 0; color: var(--muted); font-size: 13px; }
+.land-fair {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.land-fair article { padding: 16px; min-height: 0; }
+.land-fair b { display: block; margin-bottom: 8px; color: var(--cyan); font-family: var(--display); letter-spacing: .08em; }
+.land-fair p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.land-faq { display: grid; gap: 10px; margin: 0; }
+.land-faq > div { padding: 16px; border: 1px solid var(--line); background: rgba(8,14,24,.72); }
+.land-faq dt { font-family: var(--display); letter-spacing: .06em; margin-bottom: 6px; }
+.land-faq dd { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.land-legal-line { font-size: 11px !important; letter-spacing: .08em; text-transform: uppercase; }
+.land-playbar-beta { display: none; }
+@media (max-width: 900px) {
+  .land-fair { grid-template-columns: 1fr 1fr; }
+  .land-pillars { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 640px) {
+  .land-fair, .land-species { grid-template-columns: 1fr; }
+  .land-playbar-beta { display: block; }
+}
 
 .land-end {
   position: relative;

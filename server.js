@@ -5,7 +5,7 @@ const express = require("express");
 const { openDb } = require("./src/db");
 const { attachRoutes } = require("./src/routes");
 const { ensureAdmin, ensurePlayer } = require("./src/seed");
-const { userFromRequest } = require("./src/auth");
+const { userFromRequest, trustProxySetting, applySecurityHeaders } = require("./src/auth");
 
 const PORT = Number(process.env.PORT) || 3000;
 const db = openDb();
@@ -17,7 +17,8 @@ if (process.env.SEED_DEMO_USERS === "1") {
 
 const app = express();
 app.disable("x-powered-by");
-app.set("trust proxy", process.env.TRUST_PROXY ? process.env.TRUST_PROXY.split(",").map(x=>x.trim()) : false);
+app.set("trust proxy", trustProxySetting());
+app.use(applySecurityHeaders);
 app.use(express.json({ limit: "700kb" }));
 app.use(express.urlencoded({ extended: false }));
 app.use((req, res, next) => {

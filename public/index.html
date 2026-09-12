@@ -19,8 +19,8 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Sora:wght@400;500;600;700&family=Tektur:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/css/style.css?v=122" />
-    <link rel="stylesheet" href="/css/playtest-navigation.css?v=10" />
+    <link rel="stylesheet" href="/css/style.css?v=123" />
+    <link rel="stylesheet" href="/css/playtest-navigation.css?v=11" />
     <link rel="stylesheet" href="/css/colony.css?v=7" />
   </head>
   <body class="land">
@@ -49,6 +49,7 @@
           </div>
           <div class="land-nav-actions">
             <a class="btn ghost" href="#spezies">Spezies</a>
+            <a class="btn ghost" href="#fair">Fair Play</a>
             <a class="btn ghost" href="/help.html">Hilfe</a>
             <button class="btn ghost" type="button" data-pwa-install hidden onclick="stellarInstallApp()">App</button>
             <button class="btn ghost" type="button" data-gate="login">Anmelden</button>
@@ -57,14 +58,15 @@
         </header>
         <div class="land-hero-copy">
           <div class="land-hero-text">
-            <p class="land-kicker"><span></span> Persistente Galaxie · 4X im Browser</p>
+            <p class="land-kicker"><span></span> Open Beta · Persistente Galaxie · 4X im Browser</p>
             <h1>STELLAR<br />NEXUS</h1>
             <p class="land-lead">
               Ein Hauptplanet. Eine Spezies. Ein Reich, das nicht schläft, wenn du offline gehst.
               Baue, expandiere, kämpfe — asynchron, tickgenau, gegen Spieler und Piraten.
             </p>
             <div class="land-beta-notice">
-              <b>Closed Beta:</b> Aktuell sind keine Zahlungen möglich. Das Spiel dient ausschließlich privaten Testzwecken. Es besteht kein Anspruch auf Funktionsfähigkeit, Verfügbarkeit oder einen späteren Release. <a href="/legal.html">Mehr erfahren</a>
+              <b>Open Beta</b>
+              <p>Kostenlos spielen. Keine In-App-Käufe, kein Pay-to-win. Wer mag, kann die Serverkosten freiwillig unterstützen — Spenden geben keinen Spielvorteil. Testbetrieb: Inhalte können sich ändern. <a href="/legal.html">AGB, Datenschutz &amp; Hinweise</a></p>
             </div>
             <div class="land-cta">
               <button class="btn primary land-cta-main" type="button" data-gate="login">Anmelden</button>
@@ -88,6 +90,7 @@
           </form>
         </div>
         <div class="land-playbar">
+          <p class="land-playbar-beta">Open Beta · kostenlos · keine Käufe</p>
           <button class="btn primary" type="button" data-gate="login">Anmelden</button>
           <button class="btn" type="button" data-gate="register">Imperium gründen</button>
         </div>
@@ -202,6 +205,30 @@
         </ol>
       </section>
 
+      <section id="fair" class="land-block">
+        <p class="land-kicker"><span></span> Fair Play</p>
+        <h2>Kein Pay-to-win. Kein Shop ums Kämpfen.</h2>
+        <p class="land-intro">In der Open Beta gibt es keine Käufe von Schiffen, Ressourcen oder Vorteilen. Nex ist eine spielinterne Währung aus Tagesbonus und Spielverlauf — nicht gegen Geld. Wer den Betrieb unterstützen will, kann spenden. Eine Spende ändert den Spielstand nicht.</p>
+        <div class="land-fair">
+          <article class="panel"><b>Open Beta</b><p>Jeder mit Freigabe kann mitspielen. Regeln, Balance und Welten können sich ändern oder zurückgesetzt werden.</p></article>
+          <article class="panel"><b>Keine Käufe</b><p>Kein Premium-Shop gegen Echtgeld. Keine Lootboxen, keine Countdown-Angebote, kein Glücksspiel.</p></article>
+          <article class="panel"><b>Nur Serverspenden</b><p>Freiwillig, ohne Gegenleistung im Spiel. Details stehen in den AGB und im Nexus, sobald ein Spendenlink eingerichtet ist.</p></article>
+          <article class="panel"><b>Ab 16 Jahren</b><p>Registrierung nur mit bestätigtem Mindestalter. Kampf und Chat sind Teil des Spiels; Jugendschutzhinweise findest du unter Rechtliches.</p></article>
+        </div>
+      </section>
+
+      <section id="faq" class="land-block">
+        <p class="land-kicker"><span></span> Kurz erklärt</p>
+        <h2>Bevor du gründest</h2>
+        <dl class="land-faq">
+          <div><dt>Brauche ich eine App?</dt><dd>Nein. Der Browser reicht. Optional kannst du die Seite als App auf dem Startbildschirm ablegen.</dd></div>
+          <div><dt>Läuft die Welt weiter, wenn ich offline bin?</dt><dd>Ja. Gebäude, Forschung, Flüge und Angriffe nutzen Server-Ticks. Andere Spieler und Piraten hören nicht auf, weil du das Handy zuklappst.</dd></div>
+          <div><dt>Kostet das Spiel etwas?</dt><dd>Nein. Es gibt in der Open Beta keine In-App-Käufe. Spenden sind freiwillig und bringen keine Spielvorteile.</dd></div>
+          <div><dt>Kann mein Fortschritt verloren gehen?</dt><dd>In der Beta ja. Wipes, Regeländerungen und Wartung sind möglich. Es gibt keinen Anspruch auf dauerhafte Welten.</dd></div>
+          <div><dt>Wie alt muss ich sein?</dt><dd>Mindestens 16 Jahre. Ohne diese Bestätigung kommt kein Vertrag zustande.</dd></div>
+        </dl>
+      </section>
+
       <section class="land-end">
         <video class="land-end-vid" autoplay muted loop playsinline poster="/assets/splash.jpg" src="/assets/splash.mp4" data-fallback="/assets/splash.jpg"></video>
         <div class="land-end-veil"></div>
@@ -209,9 +236,10 @@
         <p>Gründe dein Imperium. Wähle deine Spezies. Der erste Tick läuft bereits.</p>
         <button class="btn primary land-cta-main" type="button" data-gate="register">Jetzt gründen</button>
         <p class="muted" style="margin-top:18px">
-          <a href="/legal.html">Rechtliches</a> · <a href="/help.html">Hilfe</a>
+          <a href="/legal.html">Rechtliches</a> · <a href="/agb.html">AGB</a> · <a href="/datenschutz.html">Datenschutz</a> · <a href="/impressum.html">Impressum</a> · <a href="/help.html">Hilfe</a>
           · <span id="beta-counter-wrap">Bisher <b id="beta-count">—</b> Beta-Anmeldungen</span>
         </p>
+        <p class="land-legal-line">Open Beta · kostenloser Testbetrieb · keine Verkäufe von Spielinhalten · 16+</p>
       </section>
     </section>
 
@@ -234,11 +262,14 @@
           <p class="hint">Zugang erst nach Freigabe durch den Admin. Pro IP-Adresse ist eine Registrierung möglich.</p>
           <label>E-Mail<input name="email" type="email" autocomplete="email" required maxlength="180"></label>
           <label class="row"><input type="checkbox" name="human" required> Ich bestätige, dass ich ein Mensch bin.</label>
+          <label class="row"><input type="checkbox" name="age16" required> Ich bin mindestens 16 Jahre alt.</label>
+          <label class="row"><input type="checkbox" name="terms" required> Ich akzeptiere die <a href="/agb.html" target="_blank" rel="noopener">AGB</a>.</label>
+          <label class="row"><input type="checkbox" name="privacy" required> Ich habe die <a href="/datenschutz.html" target="_blank" rel="noopener">Datenschutzerklärung</a> gelesen.</label>
           <label><span id="human-question">Prüfaufgabe wird geladen …</span><input name="answer" inputmode="numeric" autocomplete="off" required></label>
           <input name="challengeId" type="hidden"><button type="button" class="btn ghost" id="human-refresh">Neue Prüfaufgabe</button>
           <label>Commander-ID<input name="username" autocomplete="username" required maxlength="16" /></label>
           <label>Imperium<input name="empire" required maxlength="24" placeholder="z. B. Vesper-Dynastie" /></label>
-          <label>Passwort<input name="password" type="password" autocomplete="new-password" required minlength="6" /></label>
+          <label>Passwort (mind. 8 Zeichen)<input name="password" type="password" autocomplete="new-password" required minlength="8" maxlength="72" /></label>
           <div class="species-field">
             <span>Spezies</span>
             <input type="hidden" name="species" id="species-input" value="terran" />
@@ -368,6 +399,6 @@
         });
     </script>
     <script src="/js/pwa.js?v=1"></script>
-    <script type="module" src="/js/app.js?v=174"></script>
+    <script type="module" src="/js/app.js?v=176"></script>
   </body>
 </html>

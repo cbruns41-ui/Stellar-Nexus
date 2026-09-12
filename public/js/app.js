@@ -1735,16 +1735,21 @@ const views = {
         const jobEnd=jobs.reduce((t,q)=>Math.max(t,Number(q.completesAt)||0),0);
         const budget = currentShipBudget(info);
         const canBuild = budget.buildable > 0;
+        const buildingHtml=jobs.length
+          ? `<b>IM BAU · ${jobQty} Schiffe</b> · <span data-live-eta="${jobEnd}">${eta(jobEnd-Date.now())}</span>`
+          : "";
         const action = !info.unlocked
           ? `<div class="lock">Voraussetzungen fehlen</div>`
           : `<label class="muted">Anzahl <input data-qty="${s.id}" type="number" min="1" max="${budget.buildable}" value="1" style="width:64px;margin-left:6px"></label>
              <button class="btn small" data-ship-max="${s.id}">Max</button><button class="btn primary" data-ship="${s.id}" ${!canBuild ? "disabled" : ""}>Bauen</button>
              <p class="hint" data-action-reason></p>
-             <div class="muted"${jobs.length ? ` data-ship-building="${s.id}"` : ""}>${jobs.length ? `IM BAU · ${jobQty} Schiffe · <span data-live-eta="${jobEnd}">${eta(jobEnd-Date.now())}</span>` : eta((info.time || s.time) * 1000)}</div>`;
-        return `<article class="og-row panel">
+             <div class="muted"${jobs.length ? ` data-ship-building="${s.id}"` : ""}>${jobs.length ? buildingHtml : eta((info.time || s.time) * 1000)}</div>`;
+        return `<article class="og-row panel${jobs.length ? " is-building" : ""}" id="ship-${s.id}">
           ${mediaTag(`/assets/ships/${s.id}.jpg`, "og-art og-art-ship")}
+          ${jobs.length ? `<div class="og-build-flag" data-ship-building="${s.id}" aria-live="polite">${buildingHtml}</div>` : ""}
           <div class="og-body">
             <h3>${esc(s.name)} <span class="lvl">vorhanden: ${haveN}</span></h3>
+            ${jobs.length ? `<p class="build-now">${buildingHtml}</p>` : ""}
             <p class="ship-budget" data-ship-budget="${s.id}">Mit Ressourcen bezahlbar: ${budget.affordable.toLocaleString('de-DE')} · Jetzt baubar: ${budget.buildable.toLocaleString('de-DE')}</p>
             <p>${esc(s.blurb)}</p>
             ${reqHtml(s.requires)}
@@ -2501,7 +2506,7 @@ const views = {
             <label class="row"><span>Chat/PMs automatisch übersetzen</span><input name="translate" type="checkbox" ${e.translate !== false ? "checked" : ""}></label>
             <label class="row"><span>Sound</span><input name="sound" type="checkbox" ${e.sound ? "checked" : ""}></label>
             <label class="row"><span>Desktop-Hinweise</span><input name="notify" type="checkbox" ${e.notify ? "checked" : ""}></label>
-            <label>Neues Passwort (optional)<input name="password" type="password" minlength="6" autocomplete="new-password"></label>
+            <label>Neues Passwort (optional, mind. 8 Zeichen)<input name="password" type="password" minlength="8" maxlength="72" autocomplete="new-password"></label>
             <label>Aktuelles Passwort (nur bei Änderung)<input name="oldPassword" type="password" autocomplete="current-password"></label>
             <button class="btn primary" type="submit">Speichern</button>
           </form>

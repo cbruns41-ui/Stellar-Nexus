@@ -80,6 +80,24 @@ test("mobile catalog cards are image-first and the colony boots the Unity dioram
   assert.equal(fs.existsSync(path.join(root, "public", "assets", "colony", "colony-approved.png")), true);
 });
 
+test("open beta landing and legal pages are reachable", () => {
+  assert.match(landingHtml, /Open Beta/);
+  assert.match(landingHtml, /Kein Pay-to-win/);
+  assert.match(landingHtml, /name="age16"/);
+  assert.match(landingHtml, /name="terms"/);
+  assert.match(landingHtml, /name="privacy"/);
+  for (const file of ["agb.html", "datenschutz.html", "impressum.html", "legal.html"]) {
+    assert.equal(fs.existsSync(path.join(root, "public", file)), true, file);
+  }
+  const agb = fs.readFileSync(path.join(root, "public", "agb.html"), "utf8");
+  assert.match(agb, /unentgeltlich/);
+  assert.match(agb, /Spende/);
+  assert.match(agb, /16/);
+  const privacy = fs.readFileSync(path.join(root, "public", "datenschutz.html"), "utf8");
+  assert.match(privacy, /TDDDG/);
+  assert.match(privacy, /Session-Cookie/);
+});
+
 test("orders dock, duration choice and planet-local hangar stay reachable", () => {
   for (const shell of [html, landingHtml]) {
     assert.match(shell, /id="orders"/);
@@ -88,6 +106,8 @@ test("orders dock, duration choice and planet-local hangar stay reachable", () =
   }
   assert.match(app, /activityDurations/);
   assert.match(app, /data-ship-building/);
+  assert.match(app, /og-build-flag/);
+  assert.match(app, /build-now/);
   assert.match(app, /localFleets/);
   assert.match(app, /syncColonyPointerEvents/);
   assert.match(app, /ally-quick-actions/);

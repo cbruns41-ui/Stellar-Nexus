@@ -3,12 +3,43 @@
 const crypto = require("crypto");
 const { isIP } = require("node:net");
 
+function trustProxySetting() {
+  if (process.env.VERCEL) return 1;
+  const raw = String(process.env.TRUST_PROXY || "").trim();
+  if (!raw) return false;
+  if (raw === "1" || raw.toLowerCase() === "true") return 1;
+  if (raw.toLowerCase() === "loopback") return "loopback";
+  return raw.split(",").map((x) => x.trim()).filter(Boolean);
+}
+
+function trustsForwarded(req) {
+  if (process.env.VERCEL) return true;
+  const setting = req?.app?.get?.("trust proxy");
+  return setting !== false && setting != null && setting !== 0;
+}
+
 function clientIp(req) {
-  if (process.env.VERCEL) {
-    const ip=String(req.headers["x-vercel-forwarded-for"] || req.headers["x-forwarded-for"] || "").split(",")[0].trim();
-    if (isIP(ip)) return ip;
+  if (trustsForwarded(req)) {
+    const forwarded = String(req.headers["x-vercel-forwarded-for"] || req.headers["x-forwarded-for"] || "")
+      .split(",")[0]
+      .trim();
+    if (isIP(forwarded)) return forwarded;
   }
   return req.ip || req.socket?.remoteAddress || "";
+}
+
+function cookieSecure(req) {
+  const flag = String(process.env.COOKIE_SECURE || "").toLowerCase();
+  if (flag === "0" || flag === "false") return false;
+  if (flag === "1" || flag === "true") return true;
+  if (process.env.VERCEL) return true;
+  if (req?.secure) return true;
+  if (String(req?.headers?.["x-forwarded-proto"] || "").split(",")[0].trim() === "https" && trustsForwarded(req)) return true;
+  return /^https:/i.test(String(process.env.PUBLIC_URL || ""));
+}
+
+function cookieFlags(req) {
+  return `HttpOnly; SameSite=Lax; Path=/;${cookieSecure(req) ? " Secure;" : ""}`;
 }
 
 const SESSION_MS = 14 * 24 * 3600 * 1000;
@@ -46,6 +77,7 @@ function parseCookies(req) {
 }
 
 function createSession(db, userId) {
+  db.prepare("DELETE FROM sessions WHERE expires_at <= ?").run(Date.now());
   const token = crypto.randomBytes(32).toString("hex");
   db.prepare("INSERT INTO sessions(token, user_id, expires_at) VALUES(?, ?, ?)").run(token, userId, Date.now() + SESSION_MS);
   return token;
@@ -70,15 +102,24 @@ function userFromRequest(db, req) {
   return row || null;
 }
 
-function setSessionCookie(res, token) {
+function setSessionCookie(res, token, req) {
   res.setHeader(
     "Set-Cookie",
-    `sn_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${Math.floor(SESSION_MS / 1000)}`
+    `sn_session=${token}; ${cookieFlags(req)} Max-Age=${Math.floor(SESSION_MS / 1000)}`
   );
 }
 
-function clearSessionCookie(res) {
-  res.setHeader("Set-Cookie", "sn_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0");
+function clearSessionCookie(res, req) {
+  res.setHeader("Set-Cookie", `sn_session=; ${cookieFlags(req)} Max-Age=0`);
+}
+
+function applySecurityHeaders(req, res, next) {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  if (cookieSecure(req)) res.setHeader("Strict-Transport-Security", "max-age=15552000; includeSubDomains");
+  next();
 }
 
 const buckets = new Map();
@@ -94,6 +135,9 @@ function rateLimit(key, max, windowMs) {
 
 module.exports = {
   clientIp,
+  cookieSecure,
+  trustProxySetting,
+  applySecurityHeaders,
   hashPassword,
   verifyPassword,
   parseCookies,

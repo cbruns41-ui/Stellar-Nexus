@@ -577,7 +577,7 @@ function updateSettings(db, user, empire, body) {
   if (body?.password) {
     const old = String(body.oldPassword || "");
     const next = String(body.password);
-    if (next.length < 6 || next.length > 72) throw new Error("Neues Passwort: 6–72 Zeichen.");
+    if (next.length < 8 || next.length > 72) throw new Error("Neues Passwort: 8–72 Zeichen.");
     const row = db.prepare("SELECT password_hash FROM users WHERE id = ?").get(user.id);
     if (!verifyPassword(old, row.password_hash)) throw new Error("Aktuelles Passwort falsch.");
     db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(hashPassword(next), user.id);

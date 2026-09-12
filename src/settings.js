@@ -26,8 +26,8 @@ const SCHEMA = [
   { key: "spyCenterBonusPct", type: "int", group: "Spionage", label: "+% je Spionagezentrum-Stufe", default: 6, min: 1, max: 12 },
   { key: "spyFloorPct", type: "int", group: "Spionage", label: "Mindest-Erfolg %", default: 8, min: 3, max: 40 },
   { key: "spyCapPct", type: "int", group: "Spionage", label: "Maximal-Erfolg %", default: 92, min: 50, max: 99 },
-  { key: "betaEmail", type: "text", group: "Closed Beta", label: "Beta-Empfänger E-Mail", hint: "Registrierungen werden an diese Adresse gesendet.", default: "" },
-  { key: "betaOpen", type: "bool", group: "Closed Beta", label: "Beta-Registrierung offen", default: true },
+  { key: "betaEmail", type: "text", group: "Open Beta", label: "Beta-Empfänger E-Mail", hint: "Registrierungen werden an diese Adresse gesendet.", default: "" },
+  { key: "betaOpen", type: "bool", group: "Open Beta", label: "Beta-Registrierung offen", default: true },
 ];
 
 const DEFAULTS = Object.fromEntries(SCHEMA.map((s) => [s.key, s.default ?? (s.type === "text" ? "" : s.type === "bool" ? false : 0)]));

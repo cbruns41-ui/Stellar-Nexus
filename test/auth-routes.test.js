@@ -13,7 +13,7 @@ test("HTTP registration stays locked until an authenticated admin approves the m
  const base=`http://127.0.0.1:${server.address().port}/api`;
  const post=(route,body,cookie="")=>fetch(base+route,{method:"POST",headers:{"content-type":"application/json",cookie,"x-forwarded-for":"192.0.2.55"},body:JSON.stringify(body)});
  const challenge=await fetch(base+"/auth/challenge").then(r=>r.json()),n=challenge.question.match(/\d+/g).map(Number);
- const input={username:"Applicant",email:"applicant@example.org",password:"secret123",empire:"New Empire",species:"terran",human:true,challengeId:challenge.id,answer:n[0]+n[1]};
+ const input={username:"Applicant",email:"applicant@example.org",password:"secret123",empire:"New Empire",species:"terran",human:true,terms:true,privacy:true,age16:true,challengeId:challenge.id,answer:n[0]+n[1]};
  const response=await post("/auth/register",input);assert.equal(response.status,202);assert.equal(response.headers.get("set-cookie"),null);assert.equal(messages.length,1);
  assert.equal((await post("/auth/login",{username:input.username,password:input.password})).status,403);
  const token=/approve\.html#([a-f0-9]+)/.exec(messages[0].text)[1];

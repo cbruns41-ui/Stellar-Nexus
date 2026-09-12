@@ -67,7 +67,7 @@ function attachRoutes(app, db) {
     if (registration.pending(db,user.id)) return fail(res,403,"Dein Zugang wartet noch auf die Freigabe durch den Admin.");
     if (moderation.isBanned(user)) {
       destroySession(db, parseCookies(req).sn_session);
-      clearSessionCookie(res);
+      clearSessionCookie(res, req);
       return fail(res, 403, moderation.banMessage(user));
     }
     req.user = user;
@@ -128,9 +128,10 @@ function attachRoutes(app, db) {
   });
 
   app.post("/api/auth/login", (req, res) => {
-    const ip = req.ip || "local";
-    if (!rateLimit(`login:${ip}`, 80, 10 * 60 * 1000)) return fail(res, 429, "Zu viele Versuche. Kurz warten.");
+    const ip = clientIp(req) || "local";
     const username = String(req.body?.username || "").trim();
+    if (!rateLimit(`login-ip:${ip}`, 20, 15 * 60 * 1000)) return fail(res, 429, "Zu viele Versuche. Kurz warten.");
+    if (username && !rateLimit(`login-user:${username.toLowerCase()}`, 8, 15 * 60 * 1000)) return fail(res, 429, "Zu viele Versuche. Kurz warten.");
     const password = String(req.body?.password || "");
     const user = db.prepare("SELECT * FROM users WHERE username = ? COLLATE NOCASE").get(username);
     const isForm = String(req.headers["content-type"] || "").includes("application/x-www-form-urlencoded");
@@ -144,14 +145,14 @@ function attachRoutes(app, db) {
       return fail(res, 403, moderation.banMessage(user));
     }
     const token = createSession(db, user.id);
-    setSessionCookie(res, token);
+    setSessionCookie(res, token, req);
     if (isForm) return res.redirect(303, "/");
     res.json({ ok: true, username: user.username });
   });
 
   app.post("/api/auth/logout", (req, res) => {
     destroySession(db, parseCookies(req).sn_session);
-    clearSessionCookie(res);
+    clearSessionCookie(res, req);
     const isForm = String(req.headers["content-type"] || "").includes("application/x-www-form-urlencoded");
     if (isForm) return res.redirect(303, "/");
     res.json({ ok: true });
@@ -552,7 +553,7 @@ function attachRoutes(app, db) {
         db.prepare("DELETE FROM users WHERE id = ?").run(req.user.id);
       });
       if (empire.avatar === "custom") social.removeAvatarUpload(empire.id);
-      clearSessionCookie(res);
+      clearSessionCookie(res, req);
       res.json({ ok: true });
     } catch (err) {
       fail(res, 400, err.message || "Account konnte nicht gelöscht werden.");

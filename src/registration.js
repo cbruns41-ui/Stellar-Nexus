@@ -31,12 +31,15 @@ function checkHuman(db,ip,body) {
 }
 function request(db,ip,body) {
   checkHuman(db,ip,body);
+  if(![true,"on","true"].includes(body.terms) || ![true,"on","true"].includes(body.privacy) || ![true,"on","true"].includes(body.age16)) {
+    throw new Error("Bitte Mindestalter, AGB und Datenschutzerklärung bestätigen.");
+  }
   const cfg=settings.get(db);
   if(!cfg.registrationOpen || !cfg.betaOpen) throw new Error("Registrierung ist derzeit geschlossen.");
   const username=String(body.username||"").trim(),email=String(body.email||"").trim().toLowerCase(),password=String(body.password||""),empire=String(body.empire||"").trim(),species=String(body.species||"terran");
   if(!/^[a-zA-Z0-9_]{3,16}$/.test(username) || username.toLowerCase()==="admin") throw new Error("Commander-ID: 3–16 Buchstaben, Ziffern oder Unterstriche; Admin ist reserviert.");
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length>180) throw new Error("Gültige E-Mail-Adresse erforderlich.");
-  if(password.length<6 || password.length>72) throw new Error("Passwort: 6–72 Zeichen.");
+  if(password.length<8 || password.length>72) throw new Error("Passwort: 8–72 Zeichen.");
   if(empire.length<3 || empire.length>24) throw new Error("Imperiumsname: 3–24 Zeichen.");
   if(!require("./species").SPECIES[species]) throw new Error("Unbekannte Spezies.");
   const ipHash=ipKey(db,ip);
@@ -60,7 +63,7 @@ function mailConfig() {
 async function notifyAdmin(db, entry, transport) {
   try {
     const cfg=settings.get(db),mail=mailConfig();
-    if(!cfg.betaEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cfg.betaEmail)) throw new Error("Admin-Empfänger unter Closed Beta fehlt.");
+    if(!cfg.betaEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cfg.betaEmail)) throw new Error("Admin-Empfänger unter Open Beta fehlt.");
     const sender=transport || nodemailer.createTransport({host:process.env.SMTP_HOST,port:Number(process.env.SMTP_PORT)||587,secure:process.env.SMTP_SECURE==="true",requireTLS:process.env.SMTP_SECURE!=="true",auth:process.env.SMTP_USER ? {user:process.env.SMTP_USER,pass:process.env.SMTP_PASSWORD}:undefined,connectionTimeout:10000,socketTimeout:15000,disableFileAccess:true,disableUrlAccess:true});
     const link=new URL("/approve.html",mail.base);link.hash=entry.token;
     await sender.sendMail({from:mail.from,to:cfg.betaEmail,subject:`Stellar Nexus: Registrierung ${entry.username} freigeben`,text:`Neue Registrierung\nCommander: ${entry.username}\nE-Mail: ${entry.email}\n\nAls Admin anmelden und bewusst freigeben:\n${link.href}\n\nDer Link ist 7 Tage gültig. Das Öffnen allein aktiviert keinen Account.`});
