@@ -138,6 +138,31 @@ test('alliance funding persists partial deposits and spends only the missing amo
  assert.equal(planet().metal,0);assert.equal(social.researchRows(db,alliance.id,empire.id).find(r=>r.id==='supply_grid').funded.metal,100);
 });
 
+test("orbit fire keeps a personal highscore until it is beaten and lists it in ranks",t=>{
+ const {db,empire,home}=fixture(t);
+ db.prepare("UPDATE users SET is_admin=1 WHERE id=?").run(empire.user_id);
+ const first=game.startOrbitSiege(db,empire,home);
+ db.prepare("UPDATE orbit_siege_sessions SET started_at=? WHERE id=?").run(Date.now()-120000,first.id);
+ const a=game.claimOrbitSiege(db,empire,first.id,5,20);
+ assert.equal(a.best.waves,5);
+ assert.equal(a.best.kills,20);
+ assert.equal(a.best.improved,true);
+ const second=game.startOrbitSiege(db,empire,home);
+ db.prepare("UPDATE orbit_siege_sessions SET started_at=? WHERE id=?").run(Date.now()-120000,second.id);
+ const b=game.claimOrbitSiege(db,empire,second.id,2,90);
+ assert.equal(b.best.waves,5);
+ assert.equal(b.best.improved,false);
+ const third=game.startOrbitSiege(db,empire,home);
+ db.prepare("UPDATE orbit_siege_sessions SET started_at=? WHERE id=?").run(Date.now()-120000,third.id);
+ const c=game.claimOrbitSiege(db,empire,third.id,6,1);
+ assert.equal(c.best.waves,6);
+ assert.equal(c.best.improved,true);
+ const me=game.listRanks(db).find(r=>r.id===empire.id);
+ assert.equal(me.orbitWaves,6);
+ assert.equal(me.orbitKills,1);
+ assert.ok(me.orbitScore>5000);
+});
+
 test("admin can start orbit fire without the daily cap",t=>{
  const {db,empire,home}=fixture(t);
  db.prepare("UPDATE users SET is_admin=1 WHERE id=?").run(empire.user_id);

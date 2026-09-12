@@ -26,6 +26,7 @@ body[data-mode="play"] .nav{top:var(--game-top,60px)!important;bottom:var(--game
 body[data-mode="play"] .nav-open .nav{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));align-content:start;gap:10px}
 body[data-mode="play"] .nav-section{display:contents}body[data-mode="play"] .nav-group{grid-column:1/-1}
 body[data-mode="play"] .nav button{min-height:48px;margin:0}
+body[data-mode="play"] .nav-logout{grid-column:1/-1}
 body[data-mode="play"] .nav-backdrop{top:var(--game-top,60px)!important;bottom:var(--game-bottom,66px)!important;z-index:90!important}
 body[data-mode="play"] .shell:not(.nav-open) .nav-backdrop{display:none!important;pointer-events:none!important}
 body[data-mode="play"] .modal{top:var(--game-top,60px);bottom:var(--game-bottom,66px);height:auto;z-index:125}

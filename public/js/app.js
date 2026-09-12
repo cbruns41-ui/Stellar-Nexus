@@ -7,7 +7,7 @@ import { CITY_PLOTS } from "./city.mjs?v=11";
 import { shipBudget } from "./ship-budget.mjs?v=1";
 import { colonyRows, colonyHudHtml, paintColonyMarkers, paintColonyFrame } from "./colony-hud.mjs?v=8";
 import { createColonyUnity, setUnityColonyVisible } from "./colony-unity.js?v=14";
-import { startOrbitSiege } from "./orbit-siege.mjs?v=6";
+import { startOrbitSiege } from "./orbit-siege.mjs?v=7";
 
 
 const $ = (id) => document.getElementById(id);
@@ -2344,9 +2344,15 @@ const views = {
   },
 
   ranks() {
-    return `<div class="section-title"><h2>Ranglisten</h2><span class="muted">Gesamt, Kampf, Wirtschaft und Forschung</span></div>
-      <div class="filters" id="rank-tabs"><button class="tab on" data-rank="all" type="button">Gesamt</button><button class="tab" data-rank="combat" type="button">Kampf</button><button class="tab" data-rank="economy" type="button">Wirtschaft</button><button class="tab" data-rank="research" type="button">Forschung</button></div>
-      <div id="rank-box" class="panel table-wrap"><p class="muted">Lade Rangliste…</p></div>`;
+    return `<div class="section-title"><h2>Ranglisten</h2><span class="muted">Gesamt, Kampf, Wirtschaft, Forschung und Orbit-Feuer</span></div>
+      <div class="filters rank-tabs" id="rank-tabs">
+        <button class="tab on" data-rank="all" type="button">Gesamt</button>
+        <button class="tab" data-rank="combat" type="button">Kampf</button>
+        <button class="tab" data-rank="economy" type="button">Wirtschaft</button>
+        <button class="tab" data-rank="research" type="button">Forschung</button>
+        <button class="tab" data-rank="orbit" type="button">Orbit-Feuer</button>
+      </div>
+      <div id="rank-box" class="panel rank-box"><p class="muted">Lade Rangliste…</p></div>`;
   },
 
   progress() {
@@ -3044,7 +3050,7 @@ function bindView(root) {
     })
   );
   const lo = root.querySelector("#logout-mobile");
-  if (lo) lo.onclick = () => $("logout").click();
+  if (lo) lo.onclick = () => logoutNow();
   if (state.view === "galaxy") bootMap();
   renderAlerts();
 }
@@ -3074,33 +3080,44 @@ function bindNews(root) {
   else loadReports(state.newsTab);
 }
 
+function rankScoreLabel(r, cat) {
+  if (cat === "orbit") {
+    if (!r.orbitScore) return { value: "—", unit: "kein Lauf" };
+    return { value: String(r.orbitWaves || 0), unit: `Welle · ${r.orbitKills || 0} Kills` };
+  }
+  if (cat === "combat") return { value: fmt(r.combatScore), unit: "Siege" };
+  if (cat === "economy") return { value: fmt(r.economyScore), unit: "Vorrat" };
+  if (cat === "research") return { value: fmt(r.researchScore), unit: "Tech" };
+  return { value: fmt(r.score), unit: "Punkte" };
+}
+
+function rankCardHtml(r, i, selfId, cat) {
+  const score = rankScoreLabel(r, cat);
+  const ally = r.alliance ? `<button type="button" class="rank-ally" data-open-ally="${r.alliance.id}">[${esc(r.alliance.tag)}]</button>` : "";
+  return `<article class="rank-card${r.id === selfId ? " self" : ""}">
+    <b class="rank-pos">${i + 1}</b>
+    <button type="button" class="rank-avatar linkish" data-profile="${r.id}" aria-label="Profil"><img class="avatar-sm" src="${esc(r.avatar)}" alt="" /></button>
+    <div class="rank-copy">
+      <strong><button type="button" class="linkish" data-profile="${r.id}">${esc(r.username)}</button>${r.vip ? ` <span class="vip-pill">Pass</span>` : ""}</strong>
+      <small><span style="color:${esc(r.color)}">●</span> ${esc(r.name)}${ally ? ` · ${ally}` : ""} · S${r.level} · ${r.planets} Welten</small>
+    </div>
+    <div class="rank-score"><b>${score.value}</b><small>${esc(score.unit)}</small></div>
+    ${r.id === selfId ? "" : `<button type="button" class="btn ghost small rank-pm" data-pm="${r.id}" data-pm-name="${esc(r.username)}">PM</button>`}
+  </article>`;
+}
+
 async function loadRanks() {
   const host = $("rank-box");
   if (!host) return;
   try {
     const data = await getRanks();
-    const ranks = data.categories?.[state.rankCategory || "all"] || data.ranks || [];
+    const cat = state.rankCategory || "all";
+    const ranks = cat === "all" ? (data.ranks || []) : (data.categories?.[cat] || data.ranks || []);
     const selfId = state.snap.empire.id;
-    host.innerHTML = `<table class="table rank-table">
-        <thead><tr><th>#</th><th></th><th>Commander</th><th>Spezies</th><th>Imperium</th><th>Allianz</th><th>Medaillen</th><th>Stufe</th><th>Welten</th><th>Punkte</th><th></th></tr></thead>
-        <tbody>${ranks
-          .map(
-            (r, i) => `<tr class="${r.id === selfId ? "self" : ""}">
-              <td class="rank-pos">${i + 1}</td>
-              <td><button type="button" class="linkish" data-profile="${r.id}"><img class="avatar-sm" src="${esc(r.avatar)}" alt="" /></button></td>
-              <td><button type="button" class="linkish" data-profile="${r.id}">${esc(r.username)}</button>${r.vip ? ` <span class="vip-pill">Pass</span>` : ""}${r.newbie ? ` <span class="chip ok">Schutz</span>` : ""}</td>
-              <td>${esc((state.catalog?.species || []).find((s) => s.id === r.species)?.name || r.species || "—")}</td>
-              <td><span style="color:${r.color}">●</span> ${esc(r.name)}</td>
-              <td>${r.alliance ? `<button class="btn ghost small" data-open-ally="${r.alliance.id}">[${esc(r.alliance.tag)}]</button>` : `<span class="muted">—</span>`}</td>
-              <td>${medalTinyRow(r.medals)}</td>
-              <td>${r.level}</td>
-              <td>${r.planets}</td>
-              <td><b>${fmt(state.rankCategory === "combat" ? r.combatScore : state.rankCategory === "economy" ? r.economyScore : state.rankCategory === "research" ? r.researchScore : r.score)}</b></td>
-              <td>${r.id === selfId ? `<button class="btn ghost small" data-profile="${r.id}">Profil</button>` : `<button class="btn ghost small" data-profile="${r.id}">Profil</button> <button class="btn ghost small" data-pm="${r.id}" data-pm-name="${esc(r.username)}">PM</button>`}</td>
-            </tr>`
-          )
-          .join("")}</tbody>
-      </table>`;
+    const selfIndex = ranks.findIndex((r) => r.id === selfId);
+    const self = selfIndex >= 0 ? ranks[selfIndex] : null;
+    const pin = self && selfIndex > 2 ? `<div class="rank-you">${rankCardHtml(self, selfIndex, selfId, cat)}</div>` : "";
+    host.innerHTML = `${pin}<div class="rank-list">${ranks.map((r, i) => rankCardHtml(r, i, selfId, cat)).join("") || `<p class="muted">Noch keine Einträge.</p>`}</div>`;
     rootRankTabs(host);
     host.querySelectorAll("[data-open-ally]").forEach((b) =>
       b.addEventListener("click", () => {
@@ -4488,8 +4505,9 @@ function paintOrbitButton() {
   const btn = $("map-orbit-fire");
   const os = state.snap?.orbitSiege;
   if (!sub || !os) return;
+  if (os.best?.waves) btn?.setAttribute("title", `Bestleistung: Welle ${os.best.waves} · ${os.best.kills || 0} Abschüsse`);
   if (os.unlimited) {
-    sub.textContent = "Test: unbegrenzt";
+    sub.textContent = os.best?.waves ? `Best ${os.best.waves} · Test` : "Test: unbegrenzt";
     if (btn) btn.disabled = false;
   } else if (os.playsLeft > 0) {
     sub.textContent = os.playsLeft === 1 ? "1 Einsatz heute" : `${os.playsLeft} Einsätze heute`;
@@ -4614,7 +4632,9 @@ async function launchOrbitSiege(planetId, planetName) {
         paintOrbitButton();
         const loot = out.orbitSiege?.loot || out.orbitFire?.loot || {};
         const lootText = Object.entries(loot).filter(([, n]) => Number(n) > 0).map(([id, n]) => `+${n} ${state.catalog.resources?.[id]?.short || id.toUpperCase()}`).join(" · ");
-        if (lootText) toast(`Orbit-Feuer: ${lootText}`);
+        const best = out.orbitSiege?.best || out.orbitFire?.best;
+        if (best?.improved) toast(`Neuer Orbit-Highscore: Welle ${best.waves} · ${best.kills} Abschüsse`);
+        else if (lootText) toast(`Orbit-Feuer: ${lootText}`);
         return out.orbitSiege || out.orbitFire;
       },
       onExit: () => {
@@ -5415,7 +5435,22 @@ async function act(fn) {
   } finally { actionPending--;updateBuildActions(); }
 }
 
-$("nav")?.addEventListener("click",e=>{const b=e.target.closest("button[data-view]");if(b)setView(b.dataset.view);});
+function logoutNow() {
+  const form = $("logout")?.closest("form");
+  if (form) {
+    form.submit();
+    return;
+  }
+  api("/auth/logout", { method: "POST", body: {} }).catch(() => {}).finally(() => {
+    location.href = "/";
+  });
+}
+
+$("nav")?.addEventListener("click",e=>{
+  if(e.target.closest("#nav-logout")){e.preventDefault();logoutNow();return;}
+  const b=e.target.closest("button[data-view]");
+  if(b)setView(b.dataset.view);
+});
 $("tabbar")?.addEventListener("click", (e) => {
   const openCmd = e.target.closest("[data-open-nav]");
   if (openCmd) {
@@ -5466,10 +5501,7 @@ $("brand-profile")?.addEventListener("click", () => {
 });
 
 if ($("logout") && !$("logout").closest("form")) {
-  $("logout").onclick = async () => {
-    await api("/auth/logout", { method: "POST", body: {} }).catch(() => {});
-    location.href = "/";
-  };
+  $("logout").onclick = () => logoutNow();
 }
 
 function bindLoginForm() {}

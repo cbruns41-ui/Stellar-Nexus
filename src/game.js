@@ -1302,7 +1302,7 @@ function claimOrbitSiege(db, empire, sessionId, waves, kills) {
     kills: reward.kills,
     jumps: [{ view: "command", planetId: planet.id, label: "Zum Planeten" }],
   });
-  return { ...reward, planetId: planet.id };
+  return { ...reward, planetId: planet.id, best: reward.best || null };
 }
 
 function splitShipSurvivors(shipGroups, totalLost) {

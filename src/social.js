@@ -607,9 +607,10 @@ function removeAvatarUpload(empireId) {
 
 function listRanksFull(db) {
   const medalMap = progress.allEarnedMap(db);
+  const orbitSiege = require("./orbitSiege");
   const empires = db
     .prepare(
-      `SELECT e.id, e.name, e.color, e.xp, e.avatar, e.created_at, e.species, e.vip_until, e.signet, u.username
+      `SELECT e.id, e.name, e.color, e.xp, e.avatar, e.created_at, e.species, e.vip_until, e.signet, e.orbit_siege, u.username
        FROM empires e JOIN users u ON u.id = e.user_id`
     )
     .all();
@@ -617,6 +618,7 @@ function listRanksFull(db) {
     .map((e) => {
       const al = myAlliance(db, e.id);
       const medals = progress.compactFromIds(medalMap[e.id] || []).slice(0, 4);
+      const orbit = orbitSiege.bestFor(db, e.id, e.orbit_siege);
       return {
         id: e.id,
         name: e.name,
@@ -631,6 +633,9 @@ function listRanksFull(db) {
         combatScore: db.prepare("SELECT COUNT(*) AS n FROM reports WHERE empire_id = ? AND kind = 'combat' AND json_extract(body, '$.youWin') = 1").get(e.id).n,
         researchScore: db.prepare("SELECT COALESCE(SUM(level), 0) AS n FROM research WHERE empire_id = ?").get(e.id).n,
         economyScore: db.prepare("SELECT COALESCE(SUM(metal + helium + titan + energy + crystal + diamond), 0) AS n FROM planets WHERE empire_id = ?").get(e.id).n,
+        orbitScore: orbit.score,
+        orbitWaves: orbit.waves,
+        orbitKills: orbit.kills,
         alliance: al ? { id: al.id, tag: al.tag, name: al.name, color: al.color } : null,
         medals,
         title: medals[0]?.title || "Neuer Kommandant",

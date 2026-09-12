@@ -1563,6 +1563,33 @@ img.og-art-ship[src*="battleship"] {
 
 .rank-table tr.self { background: rgba(62, 232, 196, 0.08); }
 .rank-pos { font-family: var(--mono); color: var(--cyan); width: 36px; }
+.rank-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.rank-tabs .tab { flex: 1 1 auto; min-height: 42px; min-width: calc(33% - 6px); }
+.rank-box { padding: 8px; }
+.rank-you { margin: 0 0 10px; padding: 0 0 10px; border-bottom: 1px solid rgba(62, 232, 196, .16); }
+.rank-you::before { content: "Dein Platz"; display: block; margin: 0 0 6px; color: var(--cyan); font: 700 11px var(--display); letter-spacing: .12em; text-transform: uppercase; }
+.rank-list { display: grid; gap: 8px; }
+.rank-card { display: grid; grid-template-columns: 28px 40px minmax(0, 1fr) auto; gap: 8px 10px; align-items: center; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: rgba(6, 16, 26, .72); min-height: 64px; }
+.rank-card.self { border-color: rgba(62, 232, 196, .38); background: rgba(62, 232, 196, .08); }
+.rank-card .rank-pos { font-size: 16px; text-align: center; }
+.rank-avatar { width: 40px; height: 40px; padding: 0; border: 0; background: transparent; }
+.rank-avatar img { width: 40px; height: 40px; border-radius: 50%; display: block; object-fit: cover; }
+.rank-copy { min-width: 0; }
+.rank-copy strong { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 14px; }
+.rank-copy small { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-ally { display: inline; padding: 0; border: 0; background: none; color: var(--cyan); font: inherit; }
+.rank-score { text-align: right; }
+.rank-score b { display: block; color: var(--text); font-size: 16px; line-height: 1.1; }
+.rank-score small { color: var(--muted); font-size: 10px; letter-spacing: .04em; }
+.rank-pm { grid-column: 2 / -1; justify-self: start; min-height: 40px; }
+.nav-logout { color: #ffb7ab !important; border-color: rgba(180, 70, 58, .45) !important; }
+.nav-logout:hover { color: #ffd7d0 !important; border-color: rgba(255, 120, 96, .55) !important; }
+@media (max-width: 760px) {
+  .rank-tabs .tab { min-width: calc(50% - 6px); font-size: 12px; }
+  .rank-card { grid-template-columns: 24px 36px minmax(0,1fr) auto; padding: 9px; gap: 6px 8px; }
+  .rank-avatar, .rank-avatar img { width: 36px; height: 36px; }
+  .rank-copy small { white-space: normal; }
+}
 
 .chat-log {
   display: flex;
@@ -3921,6 +3948,10 @@ body[data-mode="play"] .tabbar button.on { color: #59e8ff; text-shadow: 0 0 12px
   .row { flex-wrap:wrap; }
   .filters { overflow-x:auto;flex-wrap:nowrap;padding-bottom:3px;scrollbar-width:none; }
   .filters .tab,.filters .btn { flex:0 0 auto;white-space:nowrap; }
+  .rank-tabs { flex-wrap:wrap!important;overflow:visible; }
+  .rank-tabs .tab { flex:1 1 calc(50% - 6px);min-height:44px; }
+  .rank-list,.rank-card { width:100%; }
+  .rank-pm { width:100%; }
 
   /* Alliance hub, boss, members and administration */
   .shell[data-view="alliance"] .view { padding-bottom:calc(28px + env(safe-area-inset-bottom,0px)); }

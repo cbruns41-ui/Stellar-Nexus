@@ -16,6 +16,7 @@ root.innerHTML = `
   <canvas class="orbit-canvas" aria-label="Orbit-Belagerung"></canvas>
   <header class="hud">
     <div class="demo-tag">${escText(planetName)} · ORBIT-BELAGERUNG</div>
+    <button class="orbit-pause" type="button" aria-label="Pause">II</button>
     <button class="orbit-exit" type="button" aria-label="Beenden">×</button>
     <div class="hud-top">
       <div class="chip wave-chip"><small>WELLE</small><b id="wave">1</b></div>
@@ -23,12 +24,12 @@ root.innerHTML = `
         <div class="hp-lab"><span>SCHILD</span><b id="hp-n">100</b></div>
         <i class="hp-track" id="hp-track"><em id="hp"></em></i>
       </div>
-      <div class="chip salvage-chip"><small>SALVAGE</small><b id="salvage">0</b></div>
+      <div class="chip salvage-chip"><small>PUNKTE</small><b id="salvage">0</b></div>
     </div>
     <div class="hud-sub">
       <span>ABSCHÜSSE <b id="kills">0</b></span>
       <span>TÜRME <b id="towers">0</b></span>
-      <span>RAKETEN <b id="rockets">0</b></span>
+      <span id="build-clock" hidden>AUFBAU <b id="build-t">0</b>s</span>
     </div>
   </header>
   <p class="wave-banner" id="banner" hidden></p>
@@ -39,12 +40,20 @@ root.innerHTML = `
       <button id="fire" class="orbit-fire" type="button" aria-label="Feuer"><small>FEUER</small></button>
     </div>
   </div>
-  <section class="overlay" id="pick" hidden>
+  <aside class="orbit-build" id="build-dock" hidden>
+    <header>
+      <b>STELLUNG</b>
+      <small id="build-hint">Turm wählen, dann einen Ring antippen</small>
+      <button type="button" id="build-go">Welle starten</button>
+    </header>
+    <div class="orbit-shop" id="shop"></div>
+  </aside>
+  <section class="overlay pause-overlay" id="pause" hidden>
     <div class="card">
-      <small id="pick-label">WELLE GEHALTEN</small>
-      <h2>EINE VERSTÄRKUNG</h2>
-      <p id="wave-loot"></p>
-      <div class="picks" id="picks"></div>
+      <small>PAUSE</small>
+      <h2>Orbit gehalten</h2>
+      <p>Die Belagerung steht still. Türme und Feinde warten.</p>
+      <button type="button" id="pause-resume">Weiterkämpfen</button>
     </div>
   </section>
   <section class="overlay" id="dead" hidden>
@@ -71,12 +80,16 @@ const salvageEl = root.querySelector("#salvage");
 const waveEl = root.querySelector("#wave");
 const killsEl = root.querySelector("#kills");
 const towersEl = root.querySelector("#towers");
-const rocketsEl = root.querySelector("#rockets");
+const buildClock = root.querySelector("#build-clock");
+const buildT = root.querySelector("#build-t");
 const banner = root.querySelector("#banner");
 const stick = root.querySelector("#stick");
 const knob = stick.querySelector("b");
 const fireBtn = root.querySelector("#fire");
 const aaBtn = root.querySelector("#aa");
+const shopEl = root.querySelector("#shop");
+const buildDock = root.querySelector("#build-dock");
+const buildHint = root.querySelector("#build-hint");
 
 const ART = {
   bg: img("/assets/orbit-siege/arena.jpg"),
@@ -88,14 +101,16 @@ const ART = {
   frigate: img("/assets/orbit-siege/frigate.png"),
   rocket: img("/assets/orbit-siege/rocket.png"),
   missile: img("/assets/orbit-siege/missile.png"),
-  upgrades: {
+  icons: {
+    laser: "/assets/orbit-siege/upgrade-tower.jpg",
+    silo: "/assets/orbit-siege/upgrade-silo.jpg",
+    flak: "/assets/orbit-siege/upgrade-flak.jpg",
+    gauss: "/assets/orbit-siege/upgrade-gauss.jpg",
+    tesla: "/assets/orbit-siege/upgrade-tesla.jpg",
+    mine: "/assets/orbit-siege/upgrade-mine.jpg",
     repair: "/assets/orbit-siege/upgrade-repair.jpg",
     rate: "/assets/orbit-siege/upgrade-rate.jpg",
     dmg: "/assets/orbit-siege/upgrade-dmg.jpg",
-    tower: "/assets/orbit-siege/upgrade-tower.jpg",
-    silo: "/assets/orbit-siege/upgrade-silo.jpg",
-    missiles: "/assets/orbit-siege/upgrade-missiles.jpg",
-    flak: "/assets/orbit-siege/upgrade-flak.jpg",
     range: "/assets/orbit-siege/upgrade-range.jpg",
   },
 };
@@ -108,18 +123,24 @@ function ready(im) {
   return im.complete && im.naturalWidth > 0;
 }
 
-const CARDS = [
-  { id: "repair", title: "SCHILDFLICK", blurb: "Planet +28 HP", apply: (g) => { g.hp = Math.min(g.maxHp, g.hp + 28); } },
-  { id: "rate", title: "SCHNELLLADER", blurb: "Deine Batterie feuert schneller", apply: (g) => { g.playerRate *= 0.82; } },
-  { id: "dmg", title: "IONENKERN", blurb: "Mehr Schaden je Schuss", apply: (g) => { g.playerDmg += 1; } },
-  { id: "tower", title: "LASER-TURM", blurb: "Automatischer Laser am Schild", apply: (g) => addTower(g, "laser") },
-  { id: "silo", title: "ABWEHR-SILO", blurb: "Fängt Raketen automatisch ab", apply: (g) => addTower(g, "silo") },
-  { id: "missiles", title: "RAKETENSALVE", blurb: "Batterie feuert Abfangraketen mit", apply: (g) => { g.playerMissiles += 1; } },
-  { id: "flak", title: "FLAK", blurb: "Jäger und Raketen sterben schneller", apply: (g) => { g.flak += 1; } },
-  { id: "range", title: "ORTUNG", blurb: "Türme greifen weiter", apply: (g) => { g.range *= 1.18; } },
+const TOWER_DEFS = [
+  { id: "laser", title: "LASER", blurb: "Strahl · schnelle Jäger", cost: 28, kind: "laser" },
+  { id: "silo", title: "SILO", blurb: "Fängt Raketen ab", cost: 36, kind: "silo" },
+  { id: "flak", title: "FLAK", blurb: "Flächenschaden", cost: 32, kind: "flak" },
+  { id: "gauss", title: "GAUSS", blurb: "Durchschlägt Reihen", cost: 48, kind: "gauss" },
+  { id: "tesla", title: "TESLA", blurb: "Kettenblitz", cost: 54, kind: "tesla" },
+  { id: "mine", title: "MINE", blurb: "Explodiert bei Nähe", cost: 18, kind: "mine" },
+];
+const BOOSTS = [
+  { id: "repair", title: "SCHILD", blurb: "+28 HP", cost: 24, apply: (g) => { g.hp = Math.min(g.maxHp, g.hp + 28); } },
+  { id: "rate", title: "KADENZ", blurb: "Kanone schneller", cost: 32, apply: (g) => { g.playerRate *= 0.84; } },
+  { id: "dmg", title: "IONEN", blurb: "+1 Schaden", cost: 36, apply: (g) => { g.playerDmg += 1; } },
+  { id: "range", title: "ORTUNG", blurb: "Türme weiter", cost: 28, apply: (g) => { g.range *= 1.16; } },
 ];
 
-let W = 1, H = 1, dpr = 1, cx = 0, cy = 0, planetR = 40, shieldR = 52;
+const INNER_N = 6;
+const OUTER_N = 8;
+let W = 1, H = 1, dpr = 1, cx = 0, cy = 0, planetR = 40, shieldR = 52, innerR = 90, outerR = 140;
 let stars = [], dust = [];
 const game = fresh();
 let last = 0, dragging = false, firing = false, keys = new Set();
@@ -127,27 +148,39 @@ let bannerT = 0, shakeX = 0, shakeY = 0, stopped = false;
 
 function fresh() {
   return {
-    mode: "intro",
+    mode: "build",
+    paused: false,
     time: 0,
-    hp: 100, maxHp: 100, salvage: 0, wave: 0, kills: 0,
+    hp: 100, maxHp: 100, salvage: 40, wave: 0, kills: 0,
     playerRate: 0.18, playerDmg: 1, playerCd: 0, flak: 0, range: 1,
     playerMissiles: 0, shotN: 0,
     aim: -Math.PI / 2, recoil: 0, flash: 0,
     shake: 0, hitFlash: 0,
     heldWaves: 0,
     aaCd: 0, aaMax: 8.5,
+    pick: null,
+    buildTimer: 12,
     towers: [],
     enemies: [], rockets: [], interceptors: [],
-    shots: [], sparks: [], smoke: [], rings: [], ripples: [], orbs: [],
+    shots: [], sparks: [], smoke: [], rings: [], ripples: [], orbs: [], bolts: [],
     spawnLeft: 0, spawnWait: 0, waveLive: false,
   };
 }
-function addTower(g, kind = "laser") {
-  const used = g.towers.map((t) => t.slot);
-  let slot = 0;
-  while (used.includes(slot) && slot < 8) slot++;
-  const ang = -Math.PI / 2 + (slot + 1) * (Math.PI * 2) / 7;
-  g.towers.push({ slot, ang, cd: kind === "silo" ? 0.7 : 0.36, lock: null, flash: 0, kind });
+function slotAng(ring, i) {
+  const n = ring === 0 ? INNER_N : OUTER_N;
+  const off = ring === 0 ? 0.5 : 0;
+  return -Math.PI / 2 + (i + off) * TAU / n;
+}
+function slotPos(ring, i) {
+  const r = ring === 0 ? innerR : outerR;
+  const a = slotAng(ring, i);
+  return { x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r, ang: a, r };
+}
+function occupied(ring, i) {
+  return game.towers.some((t) => t.ring === ring && t.slot === i);
+}
+function towerPos(t) {
+  return slotPos(t.ring, t.slot);
 }
 
 function seedSky() {
@@ -182,9 +215,11 @@ function resize() {
   canvas.height = Math.max(2, Math.round(H * dpr));
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   cx = W / 2;
-  cy = H * (game.mode === "play" ? 0.44 : 0.36);
-  planetR = Math.min(W, H) * 0.12;
-  shieldR = planetR * 1.42;
+  cy = H * 0.42;
+  planetR = Math.min(W, H) * 0.068;
+  shieldR = planetR * 1.72;
+  innerR = planetR * 2.55;
+  outerR = planetR * 3.95;
   seedSky();
 }
 window.addEventListener("resize", resize);
@@ -210,23 +245,74 @@ stick.addEventListener("pointerdown", (e) => { dragging = true; stick.setPointer
 stick.addEventListener("pointermove", (e) => { if (dragging) setAimFrom(e.clientX, e.clientY, stick); });
 const stopAim = () => { dragging = false; knob.style.transform = ""; };
 stick.addEventListener("pointerup", stopAim); stick.addEventListener("pointercancel", stopAim);
-canvas.addEventListener("pointerdown", (e) => {
-  if (game.mode !== "play") return;
+
+function canvasPoint(e) {
   const r = canvas.getBoundingClientRect();
-  game.aim = Math.atan2(e.clientY - r.top - cy, e.clientX - r.left - cx);
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+function nearestSlot(x, y) {
+  let best = null, bestD = 42;
+  for (const ring of [0, 1]) {
+    const n = ring === 0 ? INNER_N : OUTER_N;
+    for (let i = 0; i < n; i++) {
+      const p = slotPos(ring, i);
+      const d = Math.hypot(p.x - x, p.y - y);
+      if (d < bestD) { bestD = d; best = { ring, i, ...p }; }
+    }
+  }
+  return best;
+}
+function tryPlace(x, y) {
+  if (game.mode !== "build" || game.paused) return false;
+  const def = TOWER_DEFS.find((t) => t.id === game.pick);
+  if (!def) { showBanner("TURM WÄHLEN"); return true; }
+  const slot = nearestSlot(x, y);
+  if (!slot) return false;
+  if (occupied(slot.ring, slot.i)) { showBanner("BELEGT"); return true; }
+  if (game.salvage < def.cost) { showBanner("ZU WENIG PUNKTE"); return true; }
+  game.salvage -= def.cost;
+  game.towers.push({
+    ring: slot.ring, slot: slot.i, ang: slot.ang, kind: def.kind,
+    cd: 0.2, lock: null, flash: 0, armed: 1,
+  });
+  burst(slot.x, slot.y, "#7fe7ff", 10);
+  showBanner(def.title);
+  paintShop();
+  paintHud();
+  return true;
+}
+canvas.addEventListener("pointerdown", (e) => {
+  const p = canvasPoint(e);
+  if (game.mode === "build") {
+    tryPlace(p.x, p.y);
+    return;
+  }
+  if (game.mode !== "play" || game.paused) return;
+  game.aim = Math.atan2(p.y - cy, p.x - cx);
 });
 canvas.addEventListener("pointermove", (e) => {
-  if (game.mode !== "play" || e.buttons === 0) return;
-  const r = canvas.getBoundingClientRect();
-  game.aim = Math.atan2(e.clientY - r.top - cy, e.clientX - r.left - cx);
+  if (game.mode !== "play" || game.paused || e.buttons === 0) return;
+  const p = canvasPoint(e);
+  game.aim = Math.atan2(p.y - cy, p.x - cx);
 });
 fireBtn.addEventListener("pointerdown", (e) => { e.preventDefault(); fireBtn.setPointerCapture(e.pointerId); firing = true; fireBtn.classList.add("pressed"); });
 const stopFire = () => { firing = false; fireBtn.classList.remove("pressed"); };
 fireBtn.addEventListener("pointerup", stopFire); fireBtn.addEventListener("pointercancel", stopFire);
 aaBtn.addEventListener("pointerdown", (e) => { e.preventDefault(); aaBurst(); });
+function togglePause() {
+  if (game.mode === "dead") return;
+  game.paused = !game.paused;
+  root.querySelector("#pause").hidden = !game.paused;
+  root.querySelector(".orbit-pause").textContent = game.paused ? "▶" : "II";
+}
+root.querySelector(".orbit-pause").onclick = togglePause;
+root.querySelector("#pause-resume").onclick = togglePause;
 const onKeyDown = (e) => {
   keys.add(e.code);
   if (e.code === "Space") e.preventDefault();
+  if (e.code === "KeyP" || e.code === "Escape") {
+    if (e.code === "KeyP") { e.preventDefault(); togglePause(); }
+  }
   if (e.code === "KeyE" || e.code === "KeyQ") { e.preventDefault(); aaBurst(); }
 };
 const onKeyUp = (e) => keys.delete(e.code);
@@ -235,10 +321,9 @@ window.addEventListener("keyup", onKeyUp);
 
 function begin() {
   Object.assign(game, fresh());
-  game.mode = "play";
   root.querySelector("#dead").hidden = true;
-  root.querySelector("#pick").hidden = true;
-  nextWave();
+  root.querySelector("#pause").hidden = true;
+  openBuild(true);
 }
 function lootLine(wave) {
   const table = session.lootForWave || [];
@@ -249,12 +334,14 @@ function lootLine(wave) {
 let finishing = false, claimedOk = false, startFailed = null;
 function paintResult({ lootText, error } = {}) {
   game.mode = "dead";
-  root.querySelector("#pick").hidden = true;
+  game.paused = false;
+  buildDock.hidden = true;
+  root.querySelector("#pause").hidden = true;
   root.querySelector("#dead").hidden = false;
   root.querySelector("#dead-label").textContent = error ? "ABBRUCH" : "RUNDE BEENDET";
   root.querySelector("#dead-title").textContent = `${game.kills} Treffer`;
   const hits = root.querySelector("#dead-hits");
-  if (hits) hits.textContent = `${game.heldWaves || game.wave} Wellen gehalten · ${game.kills} Abschüsse`;
+  if (hits) hits.textContent = `${game.heldWaves || game.wave} Wellen gehalten · ${game.kills} Abschüsse · ${game.salvage} Punkte`;
   const detail = root.querySelector("#dead-detail");
   if (detail) detail.textContent = error || lootText || "Keine Beute";
   const back = root.querySelector("#again");
@@ -315,6 +402,9 @@ root.querySelector(".orbit-exit").onclick = async () => {
 function nextWave() {
   game.wave += 1;
   game.waveLive = true;
+  game.mode = "play";
+  game.pick = null;
+  buildDock.hidden = true;
   const n = 4 + game.wave * 2;
   game.spawnLeft = n;
   game.spawnWait = 0.15;
@@ -326,57 +416,68 @@ function showBanner(text) {
 function waveDone() {
   return game.waveLive && game.spawnLeft <= 0 && game.enemies.length === 0 && game.rockets.length === 0;
 }
-function continueWaves() {
-  root.querySelector("#pick").hidden = true;
-  game.mode = "play";
+function openBuild(first) {
+  game.mode = "build";
+  game.waveLive = false;
+  game.pick = first ? "laser" : game.pick;
+  game.buildTimer = first ? 12 : 10 + Math.min(8, game.wave);
+  if (!first) game.heldWaves = game.wave;
+  buildDock.hidden = false;
+  const loot = first ? "" : lootLine(game.wave);
+  showBanner(first ? "STELLUNG AUFBAUEN" : `WELLE ${game.wave} GEHALTEN`);
+  buildHint.textContent = loot ? `${loot} · Turm wählen, Ring antippen` : "Turm wählen, dann einen Ring antippen";
+  paintShop();
+}
+function startCombat() {
+  if (game.mode !== "build") return;
   nextWave();
   paintHud();
 }
-function openPick() {
-  game.mode = "pick";
-  game.waveLive = false;
-  game.heldWaves = game.wave;
-  const cost = 10;
-  const host = root.querySelector("#picks");
-  host.innerHTML = "";
-  const wavePay = lootLine(game.wave);
-  const lootEl = root.querySelector("#wave-loot");
-  if (lootEl) lootEl.textContent = wavePay ? `Welle ${game.wave}: ${wavePay}` : "";
-  root.querySelector("#pick-label").textContent = `WELLE ${game.wave} GEHALTEN · ${game.salvage} SALVAGE`;
-  if (game.salvage < cost) {
-    const skip = document.createElement("button");
-    skip.type = "button";
-    skip.className = "pick-skip";
-    skip.innerHTML = `<b>WEITER</b><small>Noch ${cost - game.salvage} Salvage bis zur nächsten Verstärkung</small>`;
-    skip.onclick = continueWaves;
-    host.append(skip);
-  } else {
-    const pool = CARDS.slice().sort(() => Math.random() - 0.5).slice(0, 3);
-    for (const card of pool) {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "pick-card";
-      const src = ART.upgrades[card.id] || "";
-      b.innerHTML = `${src ? `<img src="${src}" alt="">` : ""}<span><b>${card.title}</b><small>${card.blurb} · ${cost} Salvage</small></span>`;
-      b.onclick = () => { game.salvage -= cost; card.apply(game); continueWaves(); };
-      host.append(b);
-    }
-    const skip = document.createElement("button");
-    skip.type = "button";
-    skip.className = "pick-skip";
-    skip.innerHTML = `<b>OHNE AUSBAU</b><small>Salvage behalten</small>`;
-    skip.onclick = continueWaves;
-    host.append(skip);
-  }
-  root.querySelector("#pick").hidden = false;
+root.querySelector("#build-go").onclick = startCombat;
+
+function paintShop() {
+  const items = [
+    ...TOWER_DEFS.map((t) => ({ ...t, type: "tower" })),
+    ...BOOSTS.map((t) => ({ ...t, type: "boost" })),
+  ];
+  shopEl.innerHTML = items.map((item) => {
+    const on = game.pick === item.id ? " on" : "";
+    const poor = game.salvage < item.cost ? " poor" : "";
+    return `<button type="button" class="orbit-shop-item${on}${poor}" data-shop="${item.id}" data-kind="${item.type}">
+      <img src="${ART.icons[item.id]}" alt="">
+      <b>${item.title}</b>
+      <em>${item.cost}</em>
+      <small>${item.blurb}</small>
+    </button>`;
+  }).join("");
+  shopEl.querySelectorAll("[data-shop]").forEach((btn) => {
+    btn.onclick = () => {
+      const id = btn.dataset.shop;
+      const boost = BOOSTS.find((b) => b.id === id);
+      if (boost) {
+        if (game.salvage < boost.cost) { showBanner("ZU WENIG PUNKTE"); return; }
+        game.salvage -= boost.cost;
+        boost.apply(game);
+        showBanner(boost.title);
+        paintShop();
+        paintHud();
+        return;
+      }
+      game.pick = game.pick === id ? null : id;
+      paintShop();
+      const def = TOWER_DEFS.find((t) => t.id === game.pick);
+      buildHint.textContent = def ? `${def.title} · ${def.cost} Punkte · inneren oder äußeren Ring antippen` : "Turm wählen, dann einen Ring antippen";
+    };
+  });
 }
+
 function die() {
   finishRun();
 }
 
 function edgePoint() {
   const ang = Math.random() * TAU;
-  const dist = Math.hypot(W, H) * 0.58;
+  const dist = Math.hypot(W, H) * 0.62;
   return { x: cx + Math.cos(ang) * dist, y: cy + Math.sin(ang) * dist, ang };
 }
 function spawnEnemy() {
@@ -420,7 +521,7 @@ function launchInterceptor(x, y, ang, target) {
   });
 }
 function aaBurst() {
-  if (game.mode !== "play" || game.aaCd > 0) return;
+  if (game.mode !== "play" || game.paused || game.aaCd > 0) return;
   game.aaCd = game.aaMax;
   const n = 8;
   for (let i = 0; i < n; i++) {
@@ -430,12 +531,15 @@ function aaBurst() {
   showBanner("ABWEHR");
   burst(cx, cy, "#7fe7ff", 10);
 }
-function shootFrom(x, y, ang, dmg, speed = 640, kind = "tower") {
+function shootFrom(x, y, ang, dmg, speed = 640, kind = "tower", extra = {}) {
   game.shots.push({
     x, y,
     vx: Math.cos(ang) * speed,
     vy: Math.sin(ang) * speed,
-    life: 1.05, dmg, kind,
+    life: extra.life || 1.05, dmg, kind,
+    pierce: extra.pierce || 0,
+    splash: extra.splash || 0,
+    hit: [],
   });
 }
 function burst(x, y, color, n = 8) {
@@ -476,6 +580,31 @@ function interceptBoom(x, y) {
   game.rings.push({ x, y, r: 4, vr: 280, life: 0.28, color: "180,255,240" });
   game.rings.push({ x, y, r: 2, vr: 160, life: 0.2, color: "255,255,255" });
 }
+function splashAt(x, y, radius, dmg, color) {
+  boom(x, y, true);
+  game.rings.push({ x, y, r: 8, vr: 320, life: 0.32, color: color || "255,160,60" });
+  for (const e of game.enemies) {
+    if (e.hp <= 0) continue;
+    if (Math.hypot(e.x - x, e.y - y) < radius + e.r) { e.hp -= dmg; e.flash = 1; }
+  }
+  for (const r of game.rockets) {
+    if (r.hp <= 0) continue;
+    if (Math.hypot(r.x - x, r.y - y) < radius + r.r) { r.hp -= dmg; r.flash = 1; }
+  }
+}
+function zap(from, to) {
+  const pts = [{ x: from.x, y: from.y }];
+  const n = 4 + Math.floor(Math.random() * 3);
+  for (let i = 1; i < n; i++) {
+    const t = i / n;
+    pts.push({
+      x: from.x + (to.x - from.x) * t + (Math.random() - 0.5) * 18,
+      y: from.y + (to.y - from.y) * t + (Math.random() - 0.5) * 18,
+    });
+  }
+  pts.push({ x: to.x, y: to.y });
+  game.bolts.push({ pts, life: 0.16 });
+}
 function kill(e, salvage) {
   game.kills += 1;
   game.salvage += salvage;
@@ -492,10 +621,6 @@ function kill(e, salvage) {
 
 function playerMuzzle() {
   return shieldR + 12;
-}
-function towerPos(t) {
-  const r = t.kind === "silo" ? planetR * 1.06 : planetR * 1.02;
-  return { x: cx + Math.cos(t.ang) * r, y: cy + Math.sin(t.ang) * r };
 }
 function nearest(list, x, y, maxD) {
   let best = null, bestD = maxD;
@@ -516,10 +641,56 @@ function steer(m, tx, ty, dt, turn = 9) {
   m.vy = Math.sin(ang) * m.speed;
 }
 
+function fireTower(t, p) {
+  const reach = (t.ring === 1 ? 250 : 190) * game.range;
+  t.lock = null;
+  if (t.kind === "silo") {
+    t.lock = nearest(game.rockets, p.x, p.y, reach * 1.4) || nearest(game.enemies, p.x, p.y, reach);
+    if (!t.lock || t.cd > 0) return;
+    t.cd = 0.72; t.flash = 1;
+    launchInterceptor(p.x, p.y, Math.atan2(t.lock.y - p.y, t.lock.x - p.x), t.lock);
+    return;
+  }
+  if (t.kind === "mine") {
+    const prey = nearest(game.enemies, p.x, p.y, 56) || nearest(game.rockets, p.x, p.y, 56);
+    if (!prey) return;
+    splashAt(p.x, p.y, 70, 3 + game.flak, "255,70,70");
+    t.spent = true;
+    return;
+  }
+  t.lock = nearest(game.enemies, p.x, p.y, reach) || nearest(game.rockets, p.x, p.y, reach * 0.9);
+  if (!t.lock || t.cd > 0) return;
+  const ang = Math.atan2(t.lock.y - p.y, t.lock.x - p.x);
+  t.flash = 1;
+  if (t.kind === "laser") {
+    t.cd = 0.32;
+    t.lock.hp -= 1; t.lock.flash = 1;
+    burst(t.lock.x, t.lock.y, "#7fe7ff", 3);
+  } else if (t.kind === "flak") {
+    t.cd = 0.55;
+    shootFrom(p.x, p.y, ang, 1, 420, "flak", { splash: 48, life: 0.7 });
+  } else if (t.kind === "gauss") {
+    t.cd = 0.9;
+    shootFrom(p.x, p.y, ang, 2, 900, "gauss", { pierce: 3, life: 0.85 });
+  } else if (t.kind === "tesla") {
+    t.cd = 0.7;
+    const hits = [];
+    let cur = t.lock;
+    for (let n = 0; n < 3 && cur; n++) {
+      hits.push(cur);
+      cur.hp -= 1; cur.flash = 1;
+      const from = n === 0 ? p : hits[n - 1];
+      zap(from, cur);
+      burst(cur.x, cur.y, "#9cf6ff", 5);
+      const pool = game.enemies.concat(game.rockets).filter((o) => o.hp > 0 && !hits.includes(o));
+      cur = nearest(pool, cur.x, cur.y, 110);
+    }
+  }
+}
+
 function step(dt) {
+  if (game.paused) return;
   game.time += dt;
-  const targetCy = H * (game.mode === "play" ? 0.42 : 0.32);
-  cy += (targetCy - cy) * Math.min(1, dt * 7);
   game.shake = Math.max(0, game.shake - dt * 26);
   game.hitFlash = Math.max(0, game.hitFlash - dt * 3.2);
   game.aaCd = Math.max(0, game.aaCd - dt);
@@ -536,7 +707,14 @@ function step(dt) {
   game.ripples = game.ripples.filter((r) => r.life > 0);
   for (const o of game.orbs) { o.t += dt * 1.7; }
   game.orbs = game.orbs.filter((o) => o.t < 1);
+  for (const b of game.bolts) b.life -= dt;
+  game.bolts = game.bolts.filter((b) => b.life > 0);
 
+  if (game.mode === "build") {
+    game.buildTimer -= dt;
+    if (game.buildTimer <= 0) startCombat();
+    return;
+  }
   if (game.mode !== "play") return;
   if (keys.has("ArrowLeft") || keys.has("KeyA")) game.aim -= 2.4 * dt;
   if (keys.has("ArrowRight") || keys.has("KeyD")) game.aim += 2.4 * dt;
@@ -567,28 +745,9 @@ function step(dt) {
   for (const t of game.towers) {
     t.cd -= dt;
     t.flash = Math.max(0, t.flash - dt * 5);
-    const p = towerPos(t);
-    const reach = 210 * game.range;
-    if (t.kind === "silo") {
-      const rock = nearest(game.rockets, p.x, p.y, reach * 1.35);
-      const ship = nearest(game.enemies, p.x, p.y, reach);
-      t.lock = rock || ship;
-      if (t.lock && t.cd <= 0) {
-        t.cd = 0.72;
-        t.flash = 1;
-        launchInterceptor(p.x, p.y, Math.atan2(t.lock.y - p.y, t.lock.x - p.x), t.lock);
-      }
-    } else {
-      t.lock = nearest(game.enemies, p.x, p.y, reach) || nearest(game.rockets, p.x, p.y, reach * 0.85);
-      if (t.lock && t.cd <= 0) {
-        t.cd = 0.34;
-        t.flash = 1;
-        t.lock.hp -= 1;
-        t.lock.flash = 1;
-        burst(t.lock.x, t.lock.y, "#7fe7ff", 3);
-      }
-    }
+    fireTower(t, towerPos(t));
   }
+  game.towers = game.towers.filter((t) => !t.spent);
   for (const e of game.enemies) {
     const dx = cx - e.x, dy = cy - e.y, d = Math.hypot(dx, dy) || 1;
     const nx = dx / d, ny = dy / d;
@@ -633,22 +792,24 @@ function step(dt) {
   }
   for (const s of game.shots) {
     s.x += s.vx * dt; s.y += s.vy * dt; s.life -= dt;
-    for (const e of game.enemies) {
-      if (e.hp <= 0) continue;
-      if (Math.hypot(s.x - e.x, s.y - e.y) < e.r + 6) {
-        const extra = !e.heavy ? game.flak : 0;
-        e.hp -= s.dmg + extra; e.flash = 1; s.life = 0;
-        burst(s.x, s.y, "#fff", 4);
-      }
-    }
-    if (s.life <= 0) continue;
-    for (const r of game.rockets) {
-      if (r.hp <= 0) continue;
-      if (Math.hypot(s.x - r.x, s.y - r.y) < r.r + 8) {
-        r.hp -= s.dmg + game.flak; r.flash = 1; s.life = 0;
-        interceptBoom(s.x, s.y);
-      }
-    }
+    const strike = (o) => {
+      if (o.hp <= 0 || (s.hit && s.hit.includes(o))) return false;
+      const rad = (o.r || 8) + (s.kind === "gauss" ? 10 : 7);
+      if (Math.hypot(s.x - o.x, s.y - o.y) >= rad) return false;
+      const extra = !o.heavy ? game.flak : 0;
+      o.hp -= s.dmg + extra; o.flash = 1;
+      if (s.splash) splashAt(s.x, s.y, s.splash, 1 + game.flak, "255,150,50");
+      else burst(s.x, s.y, s.kind === "gauss" ? "#ffe08a" : "#fff", 4);
+      if (s.pierce) {
+        s.hit = s.hit || [];
+        s.hit.push(o);
+        s.pierce -= 1;
+        if (s.pierce < 0) s.life = 0;
+      } else s.life = 0;
+      return true;
+    };
+    for (const e of game.enemies) { if (s.life <= 0) break; strike(e); }
+    if (s.life > 0) for (const r of game.rockets) { if (s.life <= 0) break; strike(r); }
   }
   for (const m of game.interceptors) {
     m.life -= dt;
@@ -694,7 +855,7 @@ function step(dt) {
   if (game.sparks.length > 140) game.sparks.splice(0, game.sparks.length - 140);
   if (game.smoke.length > 80) game.smoke.splice(0, game.smoke.length - 80);
   if (game.hp <= 0) { game.hp = 0; die(); return; }
-  if (waveDone()) openPick();
+  if (waveDone()) openBuild(false);
 }
 
 function drawBg() {
@@ -734,6 +895,32 @@ function hexPath(r, rot = -Math.PI / 2) {
   ctx.closePath();
 }
 
+function drawSlots() {
+  const building = game.mode === "build" && !game.paused;
+  const pulse = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(game.time * 3.4));
+  ctx.save();
+  for (const [r, color] of [[innerR, "80,220,255"], [outerR, "255,186,80"]]) {
+    ctx.strokeStyle = `rgba(${color},${building ? 0.28 + 0.18 * pulse : 0.12})`;
+    ctx.lineWidth = building ? 2 : 1.2;
+    ctx.setLineDash([6, 8]);
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  for (const ring of [0, 1]) {
+    const n = ring === 0 ? INNER_N : OUTER_N;
+    for (let i = 0; i < n; i++) {
+      const p = slotPos(ring, i);
+      const taken = occupied(ring, i);
+      const col = ring === 0 ? "90,230,255" : "255,190,80";
+      ctx.fillStyle = taken ? `rgba(${col},0.12)` : `rgba(${col},${building ? 0.16 + 0.14 * pulse : 0.06})`;
+      ctx.strokeStyle = `rgba(${col},${taken ? 0.2 : building ? 0.7 : 0.28})`;
+      ctx.lineWidth = building && !taken ? 2 : 1;
+      ctx.beginPath(); ctx.arc(p.x, p.y, building ? 11 : 7, 0, TAU); ctx.fill(); ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
 function drawPlanet() {
   const hp01 = Math.max(0, game.hp / game.maxHp);
   const pulse = 0.5 + 0.5 * Math.sin(game.time * 2.4);
@@ -768,33 +955,6 @@ function drawPlanet() {
   ctx.fillStyle = `rgba(${col}, ${0.055 + 0.03 * pulse})`;
   ctx.fill();
 
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(cx, cy, shieldR + 4, 0, TAU);
-  ctx.arc(cx, cy, planetR * 1.02, 0, TAU, true);
-  ctx.clip();
-  ctx.strokeStyle = `rgba(${col}, ${0.2 + 0.1 * pulse})`;
-  ctx.lineWidth = 1.15;
-  for (let i = 0; i < 4; i++) hexPath(planetR * 1.06 + i * (shieldR - planetR * 1.06) / 3);
-  ctx.stroke();
-  hexPath(shieldR * 0.92, -Math.PI / 2 + Math.PI / 6);
-  ctx.stroke();
-  ctx.beginPath();
-  for (let i = 0; i < 12; i++) {
-    const a = -Math.PI / 2 + i * TAU / 12;
-    ctx.moveTo(cx + Math.cos(a) * planetR * 1.05, cy + Math.sin(a) * planetR * 1.05);
-    ctx.lineTo(cx + Math.cos(a) * shieldR, cy + Math.sin(a) * shieldR);
-  }
-  ctx.stroke();
-  const sweep = (game.time * 1.15) % TAU;
-  ctx.fillStyle = `rgba(${col}, 0.07)`;
-  ctx.beginPath();
-  ctx.moveTo(cx + Math.cos(sweep) * planetR * 1.05, cy + Math.sin(sweep) * planetR * 1.05);
-  ctx.arc(cx, cy, shieldR, sweep, sweep + 0.55);
-  ctx.arc(cx, cy, planetR * 1.05, sweep + 0.55, sweep, true);
-  ctx.fill();
-  ctx.restore();
-
   ctx.strokeStyle = `rgba(${col}, ${0.22 + 0.12 * pulse})`;
   ctx.lineWidth = 11;
   ctx.beginPath(); ctx.arc(cx, cy, shieldR, 0, TAU); ctx.stroke();
@@ -817,18 +977,6 @@ function drawPlanet() {
   }
   ctx.lineCap = "butt";
 
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  for (let i = 0; i < 6; i++) {
-    const a = -Math.PI / 2 + i * TAU / 6;
-    const nx = cx + Math.cos(a) * shieldR;
-    const ny = cy + Math.sin(a) * shieldR;
-    const glow = 0.35 + 0.25 * Math.sin(game.time * 3.1 + i);
-    ctx.fillStyle = `rgba(${col}, ${glow})`;
-    ctx.beginPath(); ctx.arc(nx, ny, 3.2, 0, TAU); ctx.fill();
-  }
-  ctx.restore();
-
   for (const r of game.ripples) {
     ctx.strokeStyle = `rgba(255, 140, 90, ${Math.max(0, r.life * 1.4)})`;
     ctx.lineWidth = 3;
@@ -849,7 +997,7 @@ function drawSprite(im, x, y, rot, w, h, ox = 0.5, oy = 0.5) {
 }
 
 function drawAimGuide() {
-  if (game.mode !== "play") return;
+  if (game.mode !== "play" || game.paused) return;
   const x0 = cx + Math.cos(game.aim) * (shieldR + 10);
   const y0 = cy + Math.sin(game.aim) * (shieldR + 10);
   const reach = Math.hypot(W, H) * 0.5;
@@ -865,21 +1013,9 @@ function drawAimGuide() {
   ctx.strokeStyle = "rgba(180, 255, 255, 0.45)";
   ctx.lineWidth = 1.2;
   ctx.beginPath(); ctx.arc(x0, y0, 7, 0, TAU); ctx.stroke();
-  const px = Math.cos(game.aim + Math.PI / 2);
-  const py = Math.sin(game.aim + Math.PI / 2);
-  for (let i = 1; i <= 4; i++) {
-    const t = i / 4.6;
-    const x = x0 + (x1 - x0) * t;
-    const y = y0 + (y1 - y0) * t;
-    ctx.beginPath();
-    ctx.moveTo(x - px * 5, y - py * 5);
-    ctx.lineTo(x + px * 5, y + py * 5);
-    ctx.stroke();
-  }
   ctx.translate(x1, y1);
   ctx.rotate(game.aim);
   ctx.strokeStyle = "rgba(120, 240, 255, 0.7)";
-  ctx.lineWidth = 1.6;
   ctx.beginPath();
   ctx.moveTo(-8, -7); ctx.lineTo(6, 0); ctx.lineTo(-8, 7);
   ctx.stroke();
@@ -887,30 +1023,31 @@ function drawAimGuide() {
 }
 
 function drawTurret(t, player) {
-  const ang = player ? game.aim : t.ang;
+  const p = player ? { x: cx + Math.cos(game.aim) * shieldR * 0.96, y: cy + Math.sin(game.aim) * shieldR * 0.96, ang: game.aim } : towerPos(t);
   const kind = player ? "battery" : t.kind;
-  const r = player ? shieldR * 0.96 : kind === "silo" ? planetR * 1.06 : planetR * 1.02;
-  const x = cx + Math.cos(ang) * r;
-  const y = cy + Math.sin(ang) * r;
   const span = Math.min(W, H);
-  const h = player ? span * 0.112 : kind === "silo" ? span * 0.082 : span * 0.076;
-  const spr = player ? ART.battery : kind === "silo" ? ART.silo : ART.sentinel;
-  const aspect = player ? 831 / 1002 : kind === "silo" ? 808 / 842 : 855 / 865;
+  const h = player ? span * 0.1 : kind === "mine" ? span * 0.055 : kind === "silo" ? span * 0.07 : span * 0.066;
+  const spr = player || kind === "gauss" ? ART.battery : kind === "silo" ? ART.silo : kind === "mine" ? ART.missile : ART.sentinel;
+  const aspect = player || kind === "gauss" ? 831 / 1002 : kind === "silo" ? 808 / 842 : kind === "mine" ? 479 / 1031 : 855 / 865;
   const w = h * aspect;
   ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(ang + Math.PI / 2);
+  ctx.translate(p.x, p.y);
+  ctx.rotate((player ? game.aim : t.ang) + Math.PI / 2);
   ctx.translate(0, player ? game.recoil * 0.35 : 0);
-  if (ready(spr)) ctx.drawImage(spr, -w / 2, -h * (kind === "silo" ? 0.5 : 0.62), w, h);
-  else { ctx.fillStyle = kind === "silo" ? "#e0b050" : "#4ec8e4"; ctx.fillRect(-3, -h * 0.6, 6, h * 0.6); }
+  if (kind === "tesla") ctx.filter = "hue-rotate(20deg) saturate(1.3)";
+  if (kind === "flak") ctx.filter = "hue-rotate(-30deg) saturate(1.2)";
+  if (kind === "gauss") ctx.filter = "saturate(0.6) brightness(1.2)";
+  if (ready(spr)) ctx.drawImage(spr, -w / 2, -h * (kind === "silo" || kind === "mine" ? 0.5 : 0.62), w, h);
+  else { ctx.fillStyle = "#4ec8e4"; ctx.fillRect(-3, -h * 0.6, 6, h * 0.6); }
+  ctx.filter = "none";
   const flash = player ? game.flash : t.flash || 0;
   if (flash > 0) {
     ctx.globalCompositeOperation = "lighter";
     ctx.globalAlpha = flash;
-    const muzzleY = kind === "silo" ? -h * 0.35 : -h * 0.6;
+    const muzzleY = kind === "silo" || kind === "mine" ? -h * 0.35 : -h * 0.6;
     const g = ctx.createRadialGradient(0, muzzleY, 1, 0, muzzleY, 26);
     g.addColorStop(0, "#fff");
-    g.addColorStop(0.35, kind === "silo" ? "#ffe08a" : "#7fe7ff");
+    g.addColorStop(0.35, kind === "gauss" ? "#ffe08a" : kind === "flak" ? "#ffb060" : "#7fe7ff");
     g.addColorStop(1, "rgba(70,220,255,0)");
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(0, muzzleY, 26, 0, TAU); ctx.fill();
@@ -934,7 +1071,7 @@ function drawTrail(pts, color, width) {
 function drawEnemy(e) {
   drawTrail(e.trail, e.heavy ? "rgba(255,110,50,0.28)" : "rgba(255,80,40,0.22)", e.heavy ? 5 : 3);
   const spr = e.heavy ? ART.frigate : ART.interceptor;
-  const h = e.heavy ? planetR * 0.78 : planetR * 0.55;
+  const h = e.heavy ? planetR * 0.95 : planetR * 0.68;
   const aspect = e.heavy ? 712 / 1041 : 861 / 949;
   const w = h * aspect;
   const ang = Math.atan2(cy - e.y, cx - e.x);
@@ -957,28 +1094,15 @@ function drawEnemy(e) {
 
 function drawRocket(r) {
   drawTrail(r.trail, "rgba(255,120,40,0.45)", 3.5);
-  const h = planetR * 0.52;
+  const h = planetR * 0.64;
   const w = h * (361 / 1019);
   const ang = Math.atan2(r.vy, r.vx);
-  if (r.flash > 0) {
-    ctx.save();
-    ctx.globalCompositeOperation = "lighter";
-    ctx.fillStyle = `rgba(255,200,80,${r.flash * 0.6})`;
-    ctx.beginPath(); ctx.arc(r.x, r.y, 10, 0, TAU); ctx.fill();
-    ctx.restore();
-  }
   drawSprite(ART.rocket, r.x, r.y, ang + Math.PI / 2, w, h, 0.5, 0.38);
-  const pulse = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(game.time * 8));
-  ctx.strokeStyle = `rgba(255,90,50,${pulse})`;
-  ctx.lineWidth = 1.4;
-  ctx.beginPath();
-  ctx.moveTo(r.x, r.y - 11); ctx.lineTo(r.x + 7, r.y); ctx.lineTo(r.x, r.y + 11); ctx.lineTo(r.x - 7, r.y);
-  ctx.closePath(); ctx.stroke();
 }
 
 function drawInterceptor(m) {
   drawTrail(m.trail, "rgba(90,230,255,0.5)", 2.4);
-  const h = planetR * 0.44;
+  const h = planetR * 0.54;
   const w = h * (479 / 1031);
   const ang = Math.atan2(m.vy, m.vx);
   drawSprite(ART.missile, m.x, m.y, ang + Math.PI / 2, w, h, 0.5, 0.38);
@@ -987,33 +1111,42 @@ function drawInterceptor(m) {
 function drawShot(s) {
   const ang = Math.atan2(s.vy, s.vx);
   const player = s.kind === "player";
+  const gauss = s.kind === "gauss";
   ctx.save();
   ctx.translate(s.x, s.y);
   ctx.rotate(ang);
   ctx.globalCompositeOperation = "lighter";
-  const len = player ? 58 : 36;
+  const len = gauss ? 72 : player ? 58 : 36;
   const grd = ctx.createLinearGradient(-len, 0, 8, 0);
   grd.addColorStop(0, "rgba(80,220,255,0)");
-  grd.addColorStop(0.55, player ? "rgba(180,255,255,.7)" : "rgba(80,220,255,.45)");
+  grd.addColorStop(0.55, gauss ? "rgba(255,220,120,.85)" : player ? "rgba(180,255,255,.7)" : s.kind === "flak" ? "rgba(255,160,60,.6)" : "rgba(80,220,255,.45)");
   grd.addColorStop(1, "#fff");
   ctx.fillStyle = grd;
-  const thick = player ? 3.2 : 1.8;
+  const thick = gauss ? 3.6 : player ? 3.2 : 1.8;
   ctx.beginPath();
   ctx.moveTo(-len, -thick * 0.45);
   ctx.lineTo(8, -thick);
   ctx.lineTo(8, thick);
   ctx.lineTo(-len, thick * 0.45);
   ctx.fill();
-  ctx.fillStyle = "#fff";
-  ctx.beginPath(); ctx.arc(0, 0, player ? 3.4 : 1.8, 0, TAU); ctx.fill();
-  if (player) {
-    ctx.fillStyle = "rgba(160,255,255,0.35)";
-    ctx.beginPath(); ctx.arc(0, 0, 8, 0, TAU); ctx.fill();
-  }
   ctx.restore();
 }
 
 function drawFx() {
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  for (const b of game.bolts) {
+    ctx.strokeStyle = `rgba(160,255,255,${Math.max(0, b.life * 6)})`;
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(b.pts[0].x, b.pts[0].y);
+    for (const p of b.pts) ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    ctx.strokeStyle = `rgba(255,255,255,${Math.max(0, b.life * 4)})`;
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+  }
+  ctx.restore();
   for (const s of game.smoke) {
     ctx.globalAlpha = Math.max(0, s.life * 1.4);
     ctx.fillStyle = s.color;
@@ -1059,8 +1192,6 @@ function drawIncoming() {
     ctx.translate(x, y);
     ctx.rotate(ang);
     ctx.fillStyle = m.rocket ? "rgba(255,170,50,.95)" : e.heavy ? "rgba(255,120,60,.9)" : "rgba(255,80,70,.88)";
-    ctx.shadowColor = m.rocket ? "#ffaa32" : "#ff5649";
-    ctx.shadowBlur = 10;
     ctx.beginPath();
     ctx.moveTo(10, 0); ctx.lineTo(-7, -6); ctx.lineTo(-7, 6);
     ctx.fill();
@@ -1072,15 +1203,12 @@ function drawLocks() {
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   for (const t of game.towers) {
-    if (!t.lock || t.kind === "silo") continue;
+    if (!t.lock || t.kind === "silo" || t.kind === "mine") continue;
     const p = towerPos(t);
     const flash = t.flash || 0;
-    ctx.strokeStyle = `rgba(80, 230, 255, ${0.22 + flash * 0.45})`;
+    ctx.strokeStyle = `rgba(${t.kind === "gauss" ? "255,210,90" : t.kind === "flak" ? "255,150,60" : "80,230,255"}, ${0.22 + flash * 0.45})`;
     ctx.lineWidth = 2.2 + flash * 2;
     ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(t.lock.x, t.lock.y); ctx.stroke();
-    ctx.strokeStyle = `rgba(220, 255, 255, ${0.35 + flash * 0.5})`;
-    ctx.lineWidth = 1;
-    ctx.stroke();
   }
   ctx.restore();
 }
@@ -1091,6 +1219,7 @@ function draw() {
   ctx.save();
   ctx.translate(shakeX, shakeY);
   drawPlanet();
+  drawSlots();
   drawAimGuide();
   drawLocks();
   for (const t of game.towers) drawTurret(t, false);
@@ -1118,10 +1247,13 @@ function paintHud() {
   waveEl.textContent = String(Math.max(1, game.wave));
   killsEl.textContent = String(game.kills);
   towersEl.textContent = String(game.towers.length);
-  rocketsEl.textContent = String(game.rockets.length);
+  const building = game.mode === "build";
+  buildClock.hidden = !building;
+  if (building) buildT.textContent = String(Math.max(0, Math.ceil(game.buildTimer)));
+  root.classList.toggle("is-build", building);
   hpTrack.classList.toggle("danger", hp01 < 0.28);
   stage.classList.toggle("hurt", game.mode === "play" && hp01 < 0.28);
-  const readyAa = game.aaCd <= 0 && game.mode === "play";
+  const readyAa = game.aaCd <= 0 && game.mode === "play" && !game.paused;
   aaBtn.classList.toggle("ready", readyAa || game.mode !== "play");
   aaBtn.classList.toggle("cool", game.mode === "play" && !readyAa);
   const pct = game.mode === "play" ? (1 - game.aaCd / game.aaMax) * 100 : 100;
@@ -1136,7 +1268,7 @@ function loop(now) {
     last = now;
     bannerT -= dt;
     if (!document.hidden) {
-      step(dt);
+      step(game.paused ? 0 : dt);
       draw();
       paintHud();
     } else {

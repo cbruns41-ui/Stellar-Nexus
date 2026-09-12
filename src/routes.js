@@ -476,6 +476,7 @@ function attachRoutes(app, db) {
       combat: [...ranks].sort((a, b) => b.combatScore - a.combatScore || b.score - a.score),
       economy: [...ranks].sort((a, b) => b.economyScore - a.economyScore || b.score - a.score),
       research: [...ranks].sort((a, b) => b.researchScore - a.researchScore || b.score - a.score),
+      orbit: [...ranks].sort((a, b) => b.orbitScore - a.orbitScore || b.orbitWaves - a.orbitWaves || b.orbitKills - a.orbitKills || b.score - a.score),
     } });
   });
 

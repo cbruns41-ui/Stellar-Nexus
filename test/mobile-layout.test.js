@@ -22,6 +22,7 @@ test("command menu prioritizes Bauen, then Kommando, then Reich", () => {
     assert.match(shell, /<span class="nav-group">Kommando<\/span>\s*<button data-view="alliance">Allianz/);
     assert.ok(shell.indexOf('<span class="nav-group">Bauen</span>') < shell.indexOf('<span class="nav-group">Kommando</span>'));
     assert.ok(shell.indexOf('<span class="nav-group">Kommando</span>') < shell.indexOf('<span class="nav-group">Reich</span>'));
+    assert.match(shell, /id="nav-logout"/);
   }
 });
 
@@ -33,7 +34,7 @@ test("alliance planet uses a dedicated vertical scroll surface", () => {
 
 test("mobile layout contract covers primary game surfaces", () => {
   assert.match(css, /Mobile layout contract/);
-  for (const selector of [".ally-layout", ".battle-grid", ".mail-layout", ".settings-grid", ".group-origin-list"]) {
+  for (const selector of [".ally-layout", ".battle-grid", ".mail-layout", ".settings-grid", ".group-origin-list", ".rank-list"]) {
     assert.ok(css.includes(selector), `missing responsive rule for ${selector}`);
   }
   assert.match(css, /body\[data-mode="play"\] input/);
@@ -114,6 +115,8 @@ test("orders dock, duration choice and planet-local hangar stay reachable", () =
   assert.match(app, /cityActions && !cityActions.hidden/);
   assert.match(app, /Kolonieschiff unterwegs nach/);
   assert.match(app, /Labor nur auf dem Hauptplaneten/);
+  assert.match(app, /data-rank="orbit"/);
+  assert.match(app, /function logoutNow/);
   assert.match(app, /Forschung hier auf/);
   assert.match(playCss, /#orders-count/);
   assert.match(playCss, /height:0!important/);

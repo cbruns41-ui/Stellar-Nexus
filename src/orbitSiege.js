@@ -37,6 +37,59 @@ function orbitSiegeReward(waves, kills, random = Math.random) {
   return { waves: w, kills: k, loot, ...loot };
 }
 
+function orbitScore(waves, kills) {
+  return Math.max(0, Math.floor(Number(waves) || 0)) * 1000 + Math.max(0, Math.floor(Number(kills) || 0));
+}
+
+function readBest(stored) {
+  return {
+    waves: Math.max(0, Math.floor(Number(stored?.bestWaves) || 0)),
+    kills: Math.max(0, Math.floor(Number(stored?.bestKills) || 0)),
+    score: Math.max(0, Math.floor(Number(stored?.bestScore) || 0)),
+    at: Math.max(0, Number(stored?.bestAt) || 0),
+  };
+}
+
+function keepBest(stored) {
+  const best = readBest(stored);
+  return {
+    bestWaves: best.waves,
+    bestKills: best.kills,
+    bestScore: best.score || orbitScore(best.waves, best.kills),
+    bestAt: best.at,
+  };
+}
+
+function sessionBest(db, empireId) {
+  return db.prepare(
+    `SELECT waves, kills FROM orbit_siege_sessions
+     WHERE empire_id = ? AND claimed_at > 0
+     ORDER BY (waves * 1000 + kills) DESC, claimed_at DESC LIMIT 1`
+  ).get(empireId) || null;
+}
+
+function bestFor(db, empireId, rawState) {
+  const stored = readBest(parseState(rawState) || {});
+  const row = sessionBest(db, empireId);
+  const fromSession = row ? { waves: row.waves, kills: row.kills, score: orbitScore(row.waves, row.kills), at: 0 } : { waves: 0, kills: 0, score: 0, at: 0 };
+  if (fromSession.score > stored.score) return fromSession;
+  return { ...stored, score: stored.score || orbitScore(stored.waves, stored.kills) };
+}
+
+function recordBest(db, empire, waves, kills, now = Date.now()) {
+  const row = db.prepare("SELECT orbit_siege FROM empires WHERE id = ?").get(empire.id);
+  const stored = parseState(row?.orbit_siege || empire.orbit_siege) || {};
+  const nextScore = orbitScore(waves, kills);
+  const prev = readBest(stored);
+  if (nextScore <= prev.score) return { ...prev, score: prev.score || orbitScore(prev.waves, prev.kills), improved: false };
+  stored.bestWaves = Math.max(0, Math.floor(Number(waves) || 0));
+  stored.bestKills = Math.max(0, Math.floor(Number(kills) || 0));
+  stored.bestScore = nextScore;
+  stored.bestAt = now;
+  saveDay(db, empire, stored);
+  return { waves: stored.bestWaves, kills: stored.bestKills, score: nextScore, at: now, improved: true };
+}
+
 function capStats(elapsedMs, waves, kills) {
   const elapsed = Math.max(0, Number(elapsedMs) || 0);
   const maxWaves = Math.min(30, Math.floor(elapsed / 5000));
@@ -141,7 +194,7 @@ function loadDay(db, empire, planet, now = Date.now()) {
   const ctx = progress.gatherCtx(db, empire, planet);
   let stored = parseState(empire.orbit_siege);
   if (!stored || stored.day !== day || !Array.isArray(stored.tasks) || stored.tasks.length < 2) {
-    stored = { day, playsUsed: 0, tasks: pickTasks(ctx, empire.id, day) };
+    stored = { day, playsUsed: 0, tasks: pickTasks(ctx, empire.id, day), ...keepBest(stored) };
     db.prepare("UPDATE empires SET orbit_siege = ? WHERE id = ?").run(JSON.stringify(stored), empire.id);
     empire.orbit_siege = JSON.stringify(stored);
   }
@@ -172,7 +225,8 @@ function saveDay(db, empire, stored) {
 }
 
 function publicStatus(db, empire, planet, now = Date.now()) {
-  if (!planet) return { playsLeft: 0, playsUsed: 0, playsMax: 1, day: dayKey(now), tasks: [], unlimited: false };
+  const best = bestFor(db, empire?.id, empire?.orbit_siege);
+  if (!planet) return { playsLeft: 0, playsUsed: 0, playsMax: 1, day: dayKey(now), tasks: [], unlimited: false, best };
   const s = loadDay(db, empire, planet, now);
   return {
     playsLeft: s.playsLeft,
@@ -181,6 +235,7 @@ function publicStatus(db, empire, planet, now = Date.now()) {
     day: s.day,
     tasks: s.tasks,
     unlimited: !!s.unlimited,
+    best: bestFor(db, empire.id, s.stored),
   };
 }
 
@@ -228,7 +283,8 @@ function finalize(db, empire, session, waves, kills, now = Date.now()) {
     .run(now, capped.waves, capped.kills, session.id);
   if (!updated.changes) throw new Error("Diese Belohnung wurde bereits abgeholt.");
   const reward = orbitSiegeReward(capped.waves, capped.kills);
-  return { ...reward, planetId: session.planet_id };
+  const best = recordBest(db, empire, capped.waves, capped.kills, now);
+  return { ...reward, planetId: session.planet_id, best };
 }
 
 function lootText(loot) {
@@ -242,6 +298,7 @@ module.exports = {
   SESSION_MS,
   lootForWave,
   orbitSiegeReward,
+  orbitScore,
   capStats,
   publicStatus,
   start,
@@ -249,4 +306,6 @@ module.exports = {
   finalize,
   lootText,
   dayKey,
+  bestFor,
+  recordBest,
 };
