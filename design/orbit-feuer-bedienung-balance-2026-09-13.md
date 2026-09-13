@@ -32,7 +32,7 @@ Ausbau von Stufe L kostet Grundpreis × (0,8 + 0,35 × L^1,5), auf die nächsten
 
 Reparatur: bis zu 28 Schildpunkte, erster Preis 50, danach jeweils +25. Bei vollem Schild wird kein Auftrag und kein Budget verbraucht.
 
-Turmreichweite wächst nur um fünf Einheiten je Level ab 145. Die Feuerpause sinkt je Level um drei Prozent. Schaden wächst um 0,18 je Level ab 1, bei Gauss um 0,35 ab 2. Gegnermenge, Tempo und Hülle steigen weiter mit der Welle. Dadurch ersetzt ein voller Ring das Spielerfeuer nicht.
+Nach Rückmeldung zur zu kurzen Reichweite: Turmreichweite beginnt bei 280 statt 145 Welteinheiten und wächst um zwölf je Stufe, bis 364 auf Stufe 8. Silos behalten ihre zusätzliche Reichweite gegen Raketen; Minen bleiben Nahbereichswaffen. Die Flugzeit der Flakgeschosse reicht auch für Ziele am vergrößerten Reichweitenrand. Die Feuerpause sinkt je Level um drei Prozent. Schaden wächst um 0,18 je Level ab 1, bei Gauss um 0,35 ab 2. Gegnerprogression, Schaden und Baupreise bleiben bei dieser Reichweitenkorrektur unverändert. Die unten dokumentierten Balance-Stichproben stammen vom Stand vor dieser Korrektur; aktuelle Ergebnisse liefert das Prüfsystem.
 
 Die serverseitige Ressourcenbeute und Ranglistenberechnung sind weiterhin von gehaltenen Wellen und Abschüssen abhängig. Baupunkte sind ausschließlich Budget innerhalb der Runde.
 
