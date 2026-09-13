@@ -1,7 +1,7 @@
 import { startOrbitDemo } from './game.mjs';
 const launch = document.querySelector('#launch');
 const status = document.querySelector('#load-status');
-const images = ['planet.png','interceptor.png','frigate.png','rocket.png','missile.png','turret-battery.png','turret-laser.png','turret-silo.png','turret-flak.png','turret-gauss.png','turret-tesla.png','turret-mine.png'];
+const images = ['planet.png','deep-space.png'];
 let busy = false;
 launch.addEventListener('click', async () => {
   if (busy || document.querySelector('.orbit-game')) return;
@@ -11,6 +11,6 @@ launch.addEventListener('click', async () => {
     document.querySelector('#lobby').hidden = true;
     startOrbitDemo({ planetName: 'ORBIT-FEUER', session: {id:'local-demo'}, onClaim: async () => ({loot:{}}), onExit: () => { document.querySelector('#lobby').hidden = false; } });
     status.textContent = '';
-  } catch (err) { status.textContent = 'Start fehlgeschlagen: ' + err.message; document.querySelector('#lobby').hidden = false; }
+  } catch (err) { status.textContent = 'Die 3D-Demo konnte nicht starten: ' + err.message; document.querySelector('.orbit-game')?.remove();document.querySelector('.orbit-backdrop')?.remove();document.body.classList.remove('orbit-siege-open');document.querySelector('#lobby').hidden = false; }
   finally { busy = false; launch.disabled = false; }
 });

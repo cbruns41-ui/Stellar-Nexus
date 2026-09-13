@@ -39,6 +39,7 @@ root.innerHTML = `
     </div>
   </header>
   <p class="wave-banner" id="banner" hidden></p>
+  <button type="button" id="weapon-open" aria-label="Eigene Waffe verbessern">WAFFE</button>
   <div class="controls">
     <div id="stick" class="orbit-stick" aria-label="Zielen"><b></b><small>ZIELEN</small></div>
     <div class="fire-col">
@@ -126,6 +127,7 @@ const ART = {
     rate: "/assets/orbit-siege/upgrade-rate.jpg",
     dmg: "/assets/orbit-siege/upgrade-dmg.jpg",
     range: "/assets/orbit-siege/upgrade-range.jpg",
+    missiles: "/assets/orbit-siege/upgrade-missiles.jpg",
   },
 };
 function img(src) {
@@ -145,6 +147,26 @@ const TOWER_DEFS = [
   { id: "tesla", title: "TESLA", blurb: "Kettenblitz", cost: 150, kind: "tesla" },
   { id: "mine", title: "MINE", blurb: "Explodiert bei Nähe", cost: 50, kind: "mine" },
 ];
+const WEAPON_DEFS = [
+  {id:'dmg',title:'SCHADEN',cost:65,max:5},
+  {id:'rate',title:'FEUERRATE',cost:75,max:5},
+  {id:'missiles',title:'RAKETEN',cost:120,max:3},
+];
+let shopMode='tower';
+function weaponCost(def){return Math.ceil(def.cost*Math.pow(1.55,game.weaponLevels[def.id]));}
+function weaponLimit(def){return Math.min(def.max,1+Math.floor(game.heldWaves/2));}
+function buyWeapon(id){
+  const def=WEAPON_DEFS.find(d=>d.id===id);if(!def)return;
+  const level=game.weaponLevels[id],cost=weaponCost(def);
+  if(workReason()){showBanner(workReason());return;}
+  if(level>=weaponLimit(def)){showBanner(level>=def.max?'MAXIMALE WAFFENSTUFE':`NÄCHSTE STUFE AB ${level*2} GEHALTENEN WELLEN`);return;}
+  if(game.salvage<cost){showBanner('ZU WENIG BAUPUNKTE');return;}
+  game.salvage-=cost;game.workUsed++;game.weaponLevels[id]++;
+  game.playerDmg=1+game.weaponLevels.dmg*.35;
+  game.playerRate=.18*Math.pow(.9,game.weaponLevels.rate);
+  game.playerMissiles=game.weaponLevels.missiles;
+  showBanner(`${def.title} STUFE ${level+1}`);paintShop();paintHud();
+}
 
 const SLOT_N = 6;
 const TOWER_MAX = 8;
@@ -176,7 +198,7 @@ function fresh() {
     time: 0,
     hp: 100, maxHp: 100, salvage: 85, earned: 0, workUsed: 0, wave: 0, kills: 0,
     playerRate: 0.18, playerDmg: 1, playerCd: 0, flak: 0, range: 1,
-    playerMissiles: 0, shotN: 0, repairs: 0,
+    playerMissiles: 0, weaponLevels:{dmg:0,rate:0,missiles:0}, shotN: 0, repairs: 0,
     aim: -Math.PI / 2, recoil: 0, flash: 0,
     shake: 0, hitFlash: 0,
     heldWaves: 0,
@@ -194,7 +216,7 @@ function towerLevel(t) {
   return Math.max(1, Math.min(TOWER_MAX, t?.level || 1));
 }
 function towerReach(t) {
-  return (280 + 12 * (towerLevel(t) - 1)) * game.range;
+  return (440 + 20 * (towerLevel(t) - 1)) * game.range;
 }
 function upgradeCost(def, level) {
   return Math.ceil((def?.cost || 80) * (0.8 + 0.35 * Math.max(1,level)**1.5)/5)*5;
@@ -409,6 +431,7 @@ function shopDockSide(slot) {
 }
 function openShop(slot) {
   if (game.paused || game.mode === "dead") return;
+  shopMode='tower';buildDock.classList.remove('is-weapon-shop');
   game.pendingSlot = { ring: 0, i: slot.i, ang: slot.ang };
   const tower = occupying(slot);
   if (!tower && !TOWER_DEFS.some((t) => t.id === game.pick && t.cost <= game.salvage)) {
@@ -653,6 +676,11 @@ function startCombat() {
 }
 root.querySelector("#build-go").onclick = startCombat;
 root.querySelector("#build-close").onclick = closeShop;
+root.querySelector('#weapon-open').onclick=()=>{
+  if(game.paused||game.mode==='dead')return;
+  shopMode='weapon';game.pendingSlot=null;buildDock.hidden=false;
+  buildDock.classList.remove('dock-top');buildDock.classList.add('is-weapon-shop');paintShop();
+};
 
 function paintShop() {
   if (buildDock.hidden) return;
@@ -676,6 +704,14 @@ function paintShop() {
   if(locked)buildHint.textContent=locked;
   else if(tower?.buildLeft>0)buildHint.textContent=`Im Bau · ${Math.ceil(tower.buildLeft)} s`;
   else if(tower && tower.level>=availableLevel() && tower.level<TOWER_MAX)buildHint.textContent=`Nächste Stufe ab ${tower.level*3} gehaltenen Wellen`;
+  if(shopMode==='weapon'){
+    title.textContent='SPIELERWAFFE';buildHint.textContent=locked||'Ein Auftrag pro Welle · bleibt bis Rundenende';
+    for(const def of WEAPON_DEFS){
+      const level=game.weaponLevels[def.id],maxed=level>=def.max,gated=level>=weaponLimit(def);
+      const value=def.id==='dmg'?`${game.playerDmg.toFixed(2)} → ${(game.playerDmg+.35).toFixed(2)} Schaden`:def.id==='rate'?`${(1/game.playerRate).toFixed(1)} → ${(1/(game.playerRate*.9)).toFixed(1)} Schuss/s`:`Begleitrakete bei jedem ${7-(level+1)}. Schuss`;
+      items.push({...def,id:'weapon-'+def.id,type:'weapon',icon:def.id,title:`${def.title} ${level}/${def.max}`,cost:weaponCost(def),maxed,gated,blurb:maxed?'Voll verbessert':gated?`Ab ${level*2} gehaltenen Wellen`:value});
+    }
+  } else {
   if (tower) {
     const def = TOWER_DEFS.find((d) => d.kind === tower.kind);
     const maxed = tower.level >= TOWER_MAX;
@@ -699,14 +735,15 @@ function paintShop() {
     cost: repairCost(),
     icon: "repair",
   });
-  const signature=JSON.stringify([slot?.i,tower?.level,!!locked,(tower?.buildLeft||0)>0,availableLevel(),game.hp>=game.maxHp,items.map(i=>[i.id,i.cost,game.salvage>=i.cost])]);
+  }
+  const signature=JSON.stringify([shopMode,game.weaponLevels,slot?.i,tower?.level,!!locked,(tower?.buildLeft||0)>0,availableLevel(),game.hp>=game.maxHp,items.map(i=>[i.id,i.cost,i.gated,game.salvage>=i.cost])]);
   if(shopEl.dataset.signature===signature)return;
   shopEl.dataset.signature=signature;
   shopEl.innerHTML = items.map((item) => {
     const on = game.pick === item.id || item.type === "upgrade" ? " on" : "";
     const poor = item.maxed || game.salvage < item.cost ? " poor" : "";
     const cost = item.maxed ? "—" : item.cost;
-    const blocked=locked || item.maxed || game.salvage<item.cost || item.id==='repair'&&game.hp>=game.maxHp || item.id==='upgrade'&&(tower.buildLeft>0 || tower.level>=availableLevel());
+    const blocked=locked || item.maxed || item.gated || game.salvage<item.cost || item.id==='repair'&&game.hp>=game.maxHp || item.id==='upgrade'&&(tower.buildLeft>0 || tower.level>=availableLevel());
     return `<button type="button" class="orbit-shop-item${on}${poor}" data-shop="${item.id}" data-kind="${item.type}" ${blocked?'disabled':''}>
       <img src="${ART.icons[item.icon]}" alt="">
       <b>${item.title}</b>
@@ -718,6 +755,7 @@ function paintShop() {
     btn.onclick = () => {
       if(game.paused || game.mode==='dead')return;
       const id = btn.dataset.shop;
+      if(id.startsWith('weapon-')){buyWeapon(id.slice(7));return;}
       if (id === "upgrade") {
         upgradeOn(game.pendingSlot);
         return;
@@ -808,7 +846,7 @@ function launchInterceptor(x, y, ang, target, dmg) {
     x, y,
     vx: Math.cos(ang) * speed,
     vy: Math.sin(ang) * speed,
-    speed, life: 1.85, target, trail: [], dmg: dmg != null ? dmg : 1 + game.flak,
+    speed, life: target ? Math.max(1.85,Math.hypot(target.x-x,target.y-y)/speed+.75) : 1.85, target, trail: [], dmg: dmg != null ? dmg : 1 + game.flak,
   });
 }
 function aaBurst() {
@@ -969,7 +1007,7 @@ function fireTower(t, p) {
     shootFrom(p.x, p.y, ang, shotDmg, 420, "flak", { splash: 42 + L * 6, life: reach / 420 + 0.25 });
   } else if (t.kind === "gauss") {
     t.cd = 0.95 * cdMul;
-    shootFrom(p.x, p.y, ang, shotDmg, 900, "gauss", { pierce: 3 + Math.floor(L / 3), life: 0.85 });
+    shootFrom(p.x, p.y, ang, shotDmg, 900, "gauss", { pierce: 3 + Math.floor(L / 3), life: Math.max(.85,reach/900+.2) });
   } else if (t.kind === "tesla") {
     t.cd = 0.74 * cdMul;
     const hits = [];
@@ -1031,8 +1069,8 @@ function step(dt) {
     const mx = cx + Math.cos(game.aim) * muzzle;
     const my = cy + Math.sin(game.aim) * muzzle;
     shootFrom(mx, my, game.aim, game.playerDmg, 680, "player");
-    if (game.playerMissiles > 0 && game.shotN % 2 === 0) {
-      launchInterceptor(mx, my, game.aim, nearest(game.rockets, mx, my, 900) || nearest(game.enemies, mx, my, 900));
+    if (game.playerMissiles > 0 && game.shotN % (7-game.playerMissiles) === 0) {
+      launchInterceptor(mx, my, game.aim, nearest(game.rockets, mx, my, 900) || nearest(game.enemies, mx, my, 900),1+.5*game.playerMissiles);
     }
   }
   if (game.spawnLeft > 0) {

@@ -11,9 +11,9 @@ export function createVisuals(ctx, art, view) {
   const nc=nebula.getContext('2d'),data=nc.createImageData(640,960);
   for(let y=0;y<960;y++)for(let x=0;x<640;x++){
     const nx=x/640,ny=y/960;
-    const f=cloud(nx*5,ny*7),ridge=Math.pow(Math.max(0,1-Math.abs(f-.53)*4),3);
+    const f=cloud(nx*8,ny*11),fine=value(nx*95,ny*142),ridge=Math.pow(Math.max(0,1-Math.abs(f-.53)*4),3)*(0.65+fine*.5);
     const edge=Math.min(1,Math.pow(Math.abs(nx-.5)*2,1.25)+Math.pow(Math.abs(ny-.5)*1.5,3));
-    const brightness=Math.pow(f,2)*edge*.9,filament=ridge*edge*.28;
+    const brightness=Math.pow(f,2)*edge*2.4,filament=ridge*edge*.7;
     const violet=smooth(Math.min(1,Math.max(0,(nx+ny-1)*1.4)));
     const i=(y*640+x)*4;
     data.data[i]=3+brightness*(18+violet*34)+filament*17;
@@ -22,7 +22,13 @@ export function createVisuals(ctx, art, view) {
     data.data[i+3]=255;
   }
   nc.putImageData(data,0,0);
-  const stars=Array.from({length:1250},()=>({x:(rand()-.5)*7000,y:(rand()-.5)*10000,r:.6+rand()*2.3,a:.15+rand()*.7,p:rand()*TAU}));
+  nc.globalCompositeOperation='destination-in';
+  for(const vertical of [false,true]){
+    const fade=nc.createLinearGradient(0,0,vertical?0:640,vertical?960:0);
+    fade.addColorStop(0,'transparent');fade.addColorStop(.14,'#000');fade.addColorStop(.86,'#000');fade.addColorStop(1,'transparent');
+    nc.fillStyle=fade;nc.fillRect(0,0,640,960);
+  }
+  const stars=Array.from({length:1500},()=>({x:(rand()-.5)*5000,y:(rand()-.5)*7500,r:1.2+rand()*2.3,a:.25+rand()*.7,p:rand()*TAU}));
   const rocks=[];
   for(let k=0;k<5;k++){
     const c=document.createElement('canvas');c.width=c.height=192;const g=c.getContext('2d');
@@ -34,12 +40,13 @@ export function createVisuals(ctx, art, view) {
     for(let j=0;j<15;j++){const x=(rand()-.5)*120,y=(rand()-.5)*120,r=3+rand()*14;const cr=g.createRadialGradient(x-r*.2,y-r*.3,1,x,y,r);cr.addColorStop(0,'#07121caa');cr.addColorStop(.7,'#19263077');cr.addColorStop(1,'#a0adb533');g.fillStyle=cr;g.beginPath();g.ellipse(x,y,r,r*.8,-.4,0,TAU);g.fill();}
     g.restore();rocks.push(c);
   }
-  const asteroids=Array.from({length:65},(_,i)=>{const a=rand()*TAU,r=1040+rand()*1250;return{x:Math.cos(a)*r,y:Math.sin(a)*r*1.5,size:16+rand()*70,angle:rand()*TAU,speed:(rand()-.5)*.015,im:rocks[i%5]};});
+  const asteroids=Array.from({length:80},(_,i)=>{const a=rand()*TAU,r=780+rand()*850;return{x:Math.cos(a)*r,y:Math.sin(a)*r*1.45,size:16+rand()*80,angle:rand()*TAU,speed:(rand()-.5)*.015,im:rocks[i%5]};});
+  for(let i=0;i<28;i++)asteroids.push({x:(i%2?1:-1)*(590+rand()*200),y:(rand()-.5)*2500,size:10+rand()*66,angle:rand()*TAU,speed:(rand()-.5)*.02,im:rocks[i%5]});
   function glow(x,y,r,col,alpha=1){ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=alpha;const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,col);g.addColorStop(.25,col);g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();ctx.restore();}
-  function sprite(im,x,y,a,w,h){if(!im?.complete||!im.naturalWidth)return;ctx.save();ctx.translate(x,y);ctx.rotate(a);ctx.drawImage(im,-w/2,-h/2,w,h);ctx.restore();}
+  function sprite(im,x,y,a,w,h){if(!(im instanceof HTMLCanvasElement)&&(!im?.complete||!im.naturalWidth))return;ctx.save();ctx.translate(x,y);ctx.rotate(a);ctx.drawImage(im,-w/2,-h/2,w,h);ctx.restore();}
   function background(game){
     const v=view();ctx.fillStyle='#030913';ctx.fillRect(-12000,-16000,24000,32000);
-    ctx.drawImage(nebula,-2500,-3750,5000,7500);
+    ctx.drawImage(nebula,-1400,-2100,2800,4200);
     for(const s of stars){ctx.globalAlpha=s.a*(.8+.2*Math.sin(game.time*.5+s.p));ctx.fillStyle=s.r>2.6?'#dcf0ff':'#779cb7';ctx.fillRect(s.x,s.y,s.r,s.r);if(s.r>2.88){ctx.fillStyle='#b9e6ff';ctx.fillRect(s.x-5,s.y+.7,12,1);ctx.fillRect(s.x+.7,s.y-5,1,12);}}
     ctx.globalAlpha=1;
     for(const rock of asteroids)sprite(rock.im,rock.x,rock.y,rock.angle+game.time*rock.speed,rock.size,rock.size);
@@ -49,9 +56,9 @@ export function createVisuals(ctx, art, view) {
   function planet(game){
     const {planetR}=view();
     glow(0,0,planetR*1.55,'#116a99',.28);
-    sprite(art.planet,0,0,0,planetR*2.65,planetR*2.65);
+    sprite(art.planet,0,0,0,planetR*3.3,planetR*3.3);
     const ratio=Math.max(0,game.hp/game.maxHp);
-    ctx.strokeStyle=ratio>.35?'#77d8f9':'#ff9b65';ctx.lineWidth=3;ctx.lineCap='round';ctx.beginPath();ctx.arc(0,0,planetR*1.08,-Math.PI/2,-Math.PI/2+TAU*ratio*.3);ctx.stroke();
+    ctx.strokeStyle=ratio>.35?'#77d8f9':'#ff9b65';ctx.lineWidth=3;ctx.lineCap='round';ctx.beginPath();ctx.arc(0,0,planetR*1.24,-Math.PI/2,-Math.PI/2+TAU*ratio*.3);ctx.stroke();
     if(game.hitFlash>0){glow(0,0,planetR*1.7,'#fc9b69',game.hitFlash*.18);ctx.globalAlpha=game.hitFlash;ctx.strokeStyle='#b9f4ff';ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,0,planetR*1.23,game.aim-.8,game.aim+.8);ctx.stroke();ctx.globalAlpha=1;}
     ctx.lineCap='butt';
   }
@@ -65,7 +72,7 @@ export function createVisuals(ctx, art, view) {
   function turret(t,player,game){
     const v=view();const a=player?game.aim:-Math.PI/2+t.slot*TAU/6;
     const x=Math.cos(a)*(player?v.planetR*.8:v.ringR),y=Math.sin(a)*(player?v.planetR*.8:v.ringR);
-    const angle=player?game.aim:(Number.isFinite(t.ang)?t.ang:a),size=player?52:t.kind==='mine'?72:96;
+    const angle=player?game.aim:t.lock?Math.atan2(t.lock.y-y,t.lock.x-x):(Number.isFinite(t.ang)?t.ang:a),size=player?45:t.kind==='mine'?72:125;
     const im=player?art.battery:art.turrets[t.kind]||art.turrets.laser;
     sprite(im,x,y,angle+Math.PI/2,size,size);
     const flash=player?game.flash:t.flash||0;
@@ -85,6 +92,7 @@ export function createVisuals(ctx, art, view) {
     const v=view();ctx.textAlign='center';ctx.font=`500 ${Math.max(20,11/v.cameraScale)}px "Segoe UI",sans-serif`;
     for(const n of game.numbers||[]){ctx.globalAlpha=Math.min(1,n.life*2);ctx.fillStyle=n.player?'#ffc47e':'#a9e8f7';ctx.fillText(n.text,n.x,n.y-(1-n.life)*38);}
     ctx.globalAlpha=1;
+    for(const f of game.flashes||[]){const t=1-f.life/.45;glow(f.x,f.y,f.radius*(.25+t),'#fc8a40',Math.max(0,1-t)*.75);glow(f.x,f.y,f.radius*.25,'#fff3ca',Math.max(0,1-t*1.5));}
   }
   return {background,planet,slots,turret,enemy,numbers};
 }

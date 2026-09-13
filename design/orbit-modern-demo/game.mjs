@@ -1,4 +1,5 @@
-export function startOrbitSiege(opts = {}) {
+import { createGpuScene } from './gpu-scene.mjs';
+export function startOrbitDemo(opts = {}) {
 const TAU = Math.PI * 2;
 let session = opts.session || {};
 const sessionReady = opts.sessionReady && typeof opts.sessionReady.then === "function"
@@ -14,7 +15,7 @@ root.setAttribute("role", "dialog");
 root.setAttribute("aria-label", `Orbit-Belagerung über ${planetName}`);
 root.innerHTML = `
   <canvas class="orbit-canvas" aria-label="Orbit-Belagerung"></canvas>
-  <div class="orbit-toolbar"><span>${escText(planetName)}</span><div class="orbit-camera-actions">
+  <div class="orbit-toolbar"><span>${escText(planetName)}<small>STELLAR NEXUS · 3D-DEMO 02</small></span><div class="orbit-camera-actions">
     <button type="button" data-zoom="out" aria-label="Aus dem gesamten Spielfeld herauszoomen">−</button>
     <button type="button" data-zoom="in" aria-label="In das gesamte Spielfeld hineinzoomen">+</button>
     <button class="orbit-pause" type="button" aria-label="Pause">II</button>
@@ -42,8 +43,8 @@ root.innerHTML = `
   <div class="controls">
     <div id="stick" class="orbit-stick" aria-label="Zielen"><b></b><small>ZIELEN</small></div>
     <div class="fire-col">
-      <button id="aa" type="button" aria-label="Abwehr" class="ready"><span class="aa-cd"></span><small>ABWEHR</small></button>
-      <button id="fire" class="orbit-fire" type="button" aria-label="Feuer"><small>FEUER</small></button>
+      <button id="aa" type="button" aria-label="Abwehr" class="ready"><span class="aa-cd"></span><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 27 7v8c0 7-6 12-11 15C11 27 5 22 5 15V7Z"/><path d="M16 8v15"/></svg><small>ABWEHR</small></button>
+      <button id="fire" class="orbit-fire" type="button" aria-label="Feuer"><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="15"/><path d="M24 0v14m0 20v14M0 24h14m20 0h14"/><circle cx="24" cy="24" r="2" fill="currentColor"/></svg><small>FEUER</small></button>
     </div>
   </div>
   <aside class="orbit-build" id="build-dock" hidden>
@@ -68,7 +69,7 @@ root.innerHTML = `
       <h2 id="dead-title">0 Treffer</h2>
       <p id="dead-hits"></p>
       <p id="dead-detail"></p>
-      <button id="again" type="button">Zurück zur Karte</button>
+      <button id="again" type="button">Zur Demo-Auswahl</button>
     </div>
   </section>`;
 document.body.classList.add("orbit-siege-open");
@@ -79,7 +80,9 @@ function escText(s) {
   return String(s || "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
 const canvas = root.querySelector("canvas");
-const ctx = canvas.getContext("2d", { alpha: false, desynchronized: true });
+// Composite the transparent HUD canvas together with WebGL. A desynchronized
+// front buffer can present independently of the 3D canvas in desktop Chrome.
+const ctx = canvas.getContext("2d", { alpha: true, desynchronized: false });
 const stage = root;
 const hpBar = root.querySelector("#hp");
 const hpTrack = root.querySelector("#hp-track");
@@ -99,44 +102,6 @@ const shopEl = root.querySelector("#shop");
 const buildDock = root.querySelector("#build-dock");
 const buildHint = root.querySelector("#build-hint");
 
-const ART = {
-  bg: img("/assets/orbit-siege/arena.jpg"),
-  planet: img("/assets/orbit-siege/planet.png"),
-  battery: img("/assets/orbit-siege/turret-battery.png"),
-  interceptor: img("/assets/orbit-siege/interceptor.png"),
-  frigate: img("/assets/orbit-siege/frigate.png"),
-  rocket: img("/assets/orbit-siege/rocket.png"),
-  missile: img("/assets/orbit-siege/missile.png"),
-  turrets: {
-    laser: img("/assets/orbit-siege/turret-laser.png"),
-    silo: img("/assets/orbit-siege/turret-silo.png"),
-    flak: img("/assets/orbit-siege/turret-flak.png"),
-    gauss: img("/assets/orbit-siege/turret-gauss.png"),
-    tesla: img("/assets/orbit-siege/turret-tesla.png"),
-    mine: img("/assets/orbit-siege/turret-mine.png"),
-  },
-  icons: {
-    laser: "/assets/orbit-siege/turret-laser.png",
-    silo: "/assets/orbit-siege/turret-silo.png",
-    flak: "/assets/orbit-siege/turret-flak.png",
-    gauss: "/assets/orbit-siege/turret-gauss.png",
-    tesla: "/assets/orbit-siege/turret-tesla.png",
-    mine: "/assets/orbit-siege/turret-mine.png",
-    repair: "/assets/orbit-siege/upgrade-repair.jpg",
-    rate: "/assets/orbit-siege/upgrade-rate.jpg",
-    dmg: "/assets/orbit-siege/upgrade-dmg.jpg",
-    range: "/assets/orbit-siege/upgrade-range.jpg",
-  },
-};
-function img(src) {
-  const el = new Image();
-  el.src = src;
-  return el;
-}
-function ready(im) {
-  return im.complete && im.naturalWidth > 0;
-}
-
 const TOWER_DEFS = [
   { id: "laser", title: "LASER", blurb: "Strahl · schnelle Jäger", cost: 80, kind: "laser" },
   { id: "silo", title: "SILO", blurb: "Fängt Raketen ab", cost: 95, kind: "silo" },
@@ -153,11 +118,11 @@ const ZOOM_MIN = 0.55;
 const ZOOM_MAX = 5;
 const ARENA_RADIUS = 850;
 let W = 1, H = 1, dpr = 1, cx = 0, cy = 0, planetR = PLANET_PX, shieldR = 90, ringR = 140;
-let stars = [], dust = [], skyImage = null;
 let zoom = 1, cameraScale = 1, screenCx = 0, screenCy = 0;
 const pointers = new Map();
 let pinch = null, tapIgnore = false;
 const game = fresh();
+const gpu = createGpuScene(root, () => ({cx,cy,planetR,ringR,shieldR,cameraScale,W,H,screenCx,screenCy,shakeX,shakeY}));
 root.orbitGame = game;
 root.orbitView = () => ({
   W, H, cx, cy, planetR, shieldR, ringR, zoom, cameraScale, screenCx, screenCy,
@@ -174,7 +139,7 @@ function fresh() {
     mode: "build",
     paused: false,
     time: 0,
-    hp: 100, maxHp: 100, salvage: 85, earned: 0, workUsed: 0, wave: 0, kills: 0,
+    hp: 100, maxHp: 100, salvage: 140, earned: 0, workUsed: 0, wave: 0, kills: 0,
     playerRate: 0.18, playerDmg: 1, playerCd: 0, flak: 0, range: 1,
     playerMissiles: 0, shotN: 0, repairs: 0,
     aim: -Math.PI / 2, recoil: 0, flash: 0,
@@ -187,7 +152,7 @@ function fresh() {
     towers: [],
     enemies: [], rockets: [], interceptors: [],
     shots: [], sparks: [], smoke: [], rings: [], ripples: [], orbs: [], bolts: [],
-    spawnLeft: 0, spawnWait: 0, waveLive: false,
+    spawnLeft: 0, spawnWait: 0, waveLive: false, numbers: [], flashes: [],
   };
 }
 function towerLevel(t) {
@@ -206,7 +171,7 @@ function repairCost() {
   return 50 + game.repairs * 25;
 }
 function slotAng(i) {
-  return -Math.PI / 2 + (i + 0.5) * TAU / SLOT_N;
+  return -Math.PI / 2 + i * TAU / SLOT_N;
 }
 function slotPos(i) {
   const a = slotAng(i);
@@ -235,22 +200,6 @@ function canUpgradeAny() {
 }
 function towerPos(t) {
   return slotPos(t.slot);
-}
-
-function seedSky() {
-  const reach = 7000;
-  stars = Array.from({ length: 500 }, () => ({
-    a: Math.random() * TAU,
-    r: 50 + Math.random() * reach,
-    s: 1 + Math.random() * 5,
-    tw: Math.random() * TAU,
-  }));
-  dust = Array.from({ length: 22 }, () => ({
-    a: Math.random() * TAU,
-    r: planetR * 1.7 + Math.random() * 2200,
-    s: 1.1 + Math.random() * 2.4,
-    tw: Math.random() * TAU,
-  }));
 }
 
 function viewportSize() {
@@ -299,13 +248,12 @@ function resize() {
   cy = 0;
   planetR = PLANET_PX;
   shieldR = planetR * 1.72;
-  ringR = planetR * 2.7;
+  ringR = planetR * 3.8;
   updateCamera();
-  if (!stars.length) seedSky();
 }
 function updateCamera() {
-  const top = Math.max(184, root.querySelector('.orbit-toolbar').getBoundingClientRect().bottom - root.getBoundingClientRect().top + 130);
-  const bottom = H < 500 ? 82 : 160;
+  const top = Math.max(138, root.querySelector('.orbit-toolbar').getBoundingClientRect().bottom - root.getBoundingClientRect().top + 78);
+  const bottom = H < 500 ? 85 : 155;
   const space = Math.max(100, H - top - bottom);
   screenCx = W / 2;
   screenCy = top + space / 2;
@@ -353,7 +301,7 @@ function setZoom(next) {
   if (!buildDock.hidden && game.pendingSlot) shopDockSide(game.pendingSlot);
 }
 function resetCamera() {
-  setZoom(1);
+  setZoom(1.6);
 }
 function nearestSlot(x, y) {
   let best = null, bestD = Math.max(28, 18 / cameraScale);
@@ -438,6 +386,7 @@ function closeShop() {
 function onCanvasDown(e) {
   if (game.mode === "dead") return;
   const p = canvasPoint(e);
+  if(e.pointerType==='mouse' && game.mode==='play' && !nearestSlot(screenToWorld(p.x,p.y).x,screenToWorld(p.x,p.y).y)){firing=true;}
   pointers.set(e.pointerId, {x:e.clientX,y:e.clientY});
   try { canvas.setPointerCapture(e.pointerId); } catch {}
   if (pointers.size >= 2) {
@@ -462,12 +411,13 @@ function onCanvasMove(e) {
     tapIgnore = true;
     return;
   }
-  if (pointers.size !== 1) return;
+  if (pointers.size !== 1 && e.pointerType !== 'mouse') return;
   if (tapIgnore || game.mode !== "play" || game.paused) return;
   const w = screenToWorld(p.x, p.y);
   game.aim = Math.atan2(w.y - cy, w.x - cx);
 }
 function onCanvasUp(e) {
+  if(e.pointerType==='mouse')stopFire();
   const p = canvasPoint(e);
   pointers.delete(e.pointerId);
   if (pointers.size < 2) pinch = null;
@@ -535,7 +485,11 @@ function begin() {
   closeShop();
   root.querySelector("#dead").hidden = true;
   root.querySelector("#pause").hidden = true;
-  openBuild(true);
+  game.wave=2;game.heldWaves=2;
+  game.towers=[{slot:0,kind:'laser',level:1,cd:0,flash:0},{slot:2,kind:'flak',level:1,cd:0,flash:0},{slot:4,kind:'silo',level:1,cd:0,flash:0}];
+  nextWave();
+  for(let i=0;i<4;i++){spawnEnemy();game.spawnLeft--;}
+  for(const e of [...game.enemies,...game.rockets]){e.x*=.76;e.y*=.76;}
 }
 function lootLine(wave) {
   const table = session.lootForWave || [];
@@ -551,13 +505,13 @@ function paintResult({ lootText, error } = {}) {
   root.querySelector("#pause").hidden = true;
   root.querySelector("#dead").hidden = false;
   root.querySelector("#dead-label").textContent = error ? "ABBRUCH" : "RUNDE BEENDET";
-  root.querySelector("#dead-title").textContent = `${game.kills} Treffer`;
+  root.querySelector("#dead-title").textContent = `${game.kills} Abschüsse`;
   const hits = root.querySelector("#dead-hits");
-  if (hits) hits.textContent = `${game.heldWaves} Wellen gehalten · ${game.kills} Abschüsse · ${game.earned} Baupunkte verdient · ${game.salvage} übrig`;
+  if (hits) hits.textContent = `${Math.max(0,game.heldWaves-2)} Wellen in der Demo gehalten · ${game.earned} Baupunkte verdient`;
   const detail = root.querySelector("#dead-detail");
-  if (detail) detail.textContent = error || lootText || "Keine Beute";
+  if (detail) detail.textContent = error || "Die Demo läuft unabhängig von deinem Imperium. Du kannst sie beliebig oft neu starten.";
   const back = root.querySelector("#again");
-  if (back) back.textContent = "Zurück zur Karte";
+  if (back) back.textContent = "Zur Demo-Auswahl";
 }
 async function finishRun() {
   if (claimedOk) return;
@@ -585,6 +539,7 @@ async function finishRun() {
   }
 }
 function teardown() {
+  gpu.dispose();
   stopped = true;
   window.removeEventListener("keydown", onKeyDown);
   window.removeEventListener("keyup", onKeyUp);
@@ -708,7 +663,7 @@ function paintShop() {
     const cost = item.maxed ? "—" : item.cost;
     const blocked=locked || item.maxed || game.salvage<item.cost || item.id==='repair'&&game.hp>=game.maxHp || item.id==='upgrade'&&(tower.buildLeft>0 || tower.level>=availableLevel());
     return `<button type="button" class="orbit-shop-item${on}${poor}" data-shop="${item.id}" data-kind="${item.type}" ${blocked?'disabled':''}>
-      <img src="${ART.icons[item.icon]}" alt="">
+      <img src="${gpu.icon(item.icon) || './assets/upgrade-repair.jpg'}" alt="">
       <b>${item.title}</b>
       <em>${cost}</em>
       <small>${item.blurb}</small>
@@ -783,7 +738,7 @@ function spawnEnemy() {
   const speed = (heavy ? 34 + game.wave * 1.5 : 50 + game.wave * 3.1) * (0.88 + Math.random() * 0.24);
   game.enemies.push({
     x: p.x, y: p.y,
-    r: heavy ? 20 : 13,
+    r: heavy ? 36 : 23,
     hp, max: hp,
     heavy, flash: 0, speed,
     wobble: Math.random() * TAU,
@@ -840,7 +795,7 @@ function burst(x, y, color, n = 8) {
       x, y,
       vx: Math.cos(a) * s, vy: Math.sin(a) * s,
       life: 0.32 + Math.random() * 0.28,
-      color, size: 1.6 + Math.random() * 3.2,
+      color, size: 2.5 + Math.random() * 4,
     });
   }
 }
@@ -858,6 +813,7 @@ function puff(x, y, color, n = 2) {
   }
 }
 function boom(x, y, heavy) {
+  if(game.flashes.length<30)game.flashes.push({x,y,life:.45,radius:heavy?95:65});
   burst(x, y, heavy ? "#ff8a4c" : "#7fe7ff", heavy ? 18 : 10);
   burst(x, y, "#fff6d0", heavy ? 8 : 4);
   game.rings.push({
@@ -962,7 +918,7 @@ function fireTower(t, p) {
   t.flash = 1;
   if (t.kind === "laser") {
     t.cd = 0.34 * cdMul;
-    t.lock.hp -= shotDmg; t.lock.lastHitByPlayer=false;t.lock.flash = 1;
+    t.lock.hp -= shotDmg; game.numbers.push({x:t.lock.x,y:t.lock.y,life:1,text:Number(shotDmg.toFixed(1)),player:false});t.lock.lastHitByPlayer=false;t.lock.flash = 1;
     burst(t.lock.x, t.lock.y, "#7fe7ff", 3);
   } else if (t.kind === "flak") {
     t.cd = 0.58 * cdMul;
@@ -990,6 +946,10 @@ function fireTower(t, p) {
 function step(dt) {
   if (game.paused) return;
   game.time += dt;
+  for(const f of game.flashes)f.life-=dt;
+  game.flashes=game.flashes.filter(f=>f.life>0);
+  for(const n of game.numbers)n.life-=dt;
+  game.numbers=game.numbers.filter(n=>n.life>0);
   for(const t of game.towers)t.buildLeft=Math.max(0,(t.buildLeft||0)-dt);
   if(!buildDock.hidden)paintShop();
   game.shake = Math.max(0, game.shake - dt * 26);
@@ -1100,7 +1060,7 @@ function step(dt) {
       const rad = (o.r || 8) + (s.kind === "gauss" ? 10 : 7);
       if (Math.hypot(s.x - o.x, s.y - o.y) >= rad) return false;
       const extra = !o.heavy ? game.flak : 0;
-      o.hp -= s.dmg + extra;o.lastHitByPlayer=s.kind==='player';o.flash = 1;
+      o.hp -= s.dmg + extra;game.numbers.push({x:o.x,y:o.y,life:1,text:Number((s.dmg+extra).toFixed(1)),player:s.kind==='player'});o.lastHitByPlayer=s.kind==='player';o.flash = 1;
       if (s.splash) splashAt(s.x, s.y, s.splash, 1 + game.flak, "255,150,50");
       else burst(s.x, s.y, s.kind === "gauss" ? "#ffe08a" : "#fff", 4);
       if (s.pierce) {
@@ -1161,175 +1121,6 @@ function step(dt) {
   if (waveDone()) openBuild(false);
 }
 
-function drawBg() {
-  ctx.fillStyle = "#02060d";
-  ctx.fillRect(cx - 8000, cy - 8000, 16000, 16000);
-  if (ready(ART.bg)) {
-    if (!skyImage) {
-      // Fade the artwork into deep space, so a wide camera has no rectangular image edges.
-      skyImage = document.createElement('canvas');
-      skyImage.width = ART.bg.naturalWidth;
-      skyImage.height = ART.bg.naturalHeight;
-      const sky = skyImage.getContext('2d');
-      sky.drawImage(ART.bg, 0, 0);
-      sky.globalCompositeOperation = 'destination-in';
-      for (const vertical of [false, true]) {
-        const fade = sky.createLinearGradient(0, 0, vertical ? 0 : skyImage.width, vertical ? skyImage.height : 0);
-        fade.addColorStop(0, 'transparent');
-        fade.addColorStop(.16, '#000');
-        fade.addColorStop(.84, '#000');
-        fade.addColorStop(1, 'transparent');
-        sky.fillStyle = fade;
-        sky.fillRect(0, 0, skyImage.width, skyImage.height);
-      }
-    }
-    const s = 4400 / Math.min(ART.bg.naturalWidth, ART.bg.naturalHeight);
-    const dw = ART.bg.naturalWidth * s, dh = ART.bg.naturalHeight * s;
-    ctx.globalAlpha = 0.96;
-    ctx.drawImage(skyImage, cx - dw / 2, cy - dh / 2, dw, dh);
-    ctx.globalAlpha = 1;
-  }
-  const rot = game.time * 0.018;
-  for (const st of stars) {
-    const tw = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(game.time * 2.2 + st.tw));
-    ctx.globalAlpha = tw;
-    ctx.fillStyle = st.s > 1.4 ? "#e8fbff" : "#d7f4ff";
-    ctx.fillRect(cx + Math.cos(st.a + rot) * st.r, cy + Math.sin(st.a + rot) * st.r, st.s, st.s);
-  }
-  ctx.globalAlpha = 1;
-  for (const d of dust) {
-    const a = 0.07 + 0.08 * (0.5 + 0.5 * Math.sin(game.time * 0.7 + d.tw));
-    ctx.fillStyle = `rgba(120, 210, 255, ${a})`;
-    ctx.beginPath();
-    ctx.arc(cx + Math.cos(d.a + rot * 0.4) * d.r, cy + Math.sin(d.a + rot * 0.4) * d.r, d.s, 0, TAU);
-    ctx.fill();
-  }
-}
-
-function hexPath(r, rot = -Math.PI / 2) {
-  ctx.beginPath();
-  for (let i = 0; i < 6; i++) {
-    const a = rot + i * TAU / 6;
-    const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
-    if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
-  }
-  ctx.closePath();
-}
-
-function drawSlots() {
-  const lit = (canAffordTower() || canUpgradeAny()) && !game.paused && game.mode !== "dead";
-  const pulse = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(game.time * 4.2));
-  ctx.save();
-  ctx.strokeStyle = `rgba(80,220,255,${lit ? 0.32 + 0.22 * pulse : 0.12})`;
-  ctx.lineWidth = lit ? 2.2 : 1.2;
-  ctx.setLineDash([6, 8]);
-  ctx.beginPath(); ctx.arc(cx, cy, ringR, 0, TAU); ctx.stroke();
-  ctx.setLineDash([]);
-  for (let i = 0; i < SLOT_N; i++) {
-    const p = slotPos(i);
-    const taken = occupied(i);
-    const pending = game.pendingSlot && game.pendingSlot.i === i;
-    const tower = occupying(p);
-    const up = taken && tower && !workReason() && !tower.buildLeft && tower.level < availableLevel() && game.salvage >= upgradeCost(TOWER_DEFS.find((d) => d.kind === tower.kind), tower.level);
-    const hot = lit && (!taken || up);
-    const col = pending ? "255,240,140" : up ? "255,210,90" : "90,230,255";
-    if (hot || pending) {
-      ctx.save();
-      ctx.globalCompositeOperation = "lighter";
-      const g = ctx.createRadialGradient(p.x, p.y, 2, p.x, p.y, pending ? 28 : 22);
-      g.addColorStop(0, `rgba(255,255,210,${0.55 * pulse})`);
-      g.addColorStop(0.45, `rgba(${col},${0.45 * pulse})`);
-      g.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(p.x, p.y, pending ? 28 : 22, 0, TAU); ctx.fill();
-      ctx.restore();
-    }
-    ctx.fillStyle = taken ? `rgba(${col},0.1)` : `rgba(${col},${hot || pending ? 0.22 + 0.18 * pulse : 0.07})`;
-    ctx.strokeStyle = `rgba(${col},${taken && !up ? 0.18 : pending ? 1 : hot ? 0.85 : 0.28})`;
-    ctx.lineWidth = pending ? 3 : hot ? 2.4 : 1;
-    ctx.beginPath(); ctx.arc(p.x, p.y, pending ? 14 : hot ? 12 : 7, 0, TAU); ctx.fill(); ctx.stroke();
-  }
-  ctx.restore();
-}
-
-function drawPlanet() {
-  const hp01 = Math.max(0, game.hp / game.maxHp);
-  const pulse = 0.5 + 0.5 * Math.sin(game.time * 2.4);
-  const atmo = ctx.createRadialGradient(cx, cy, planetR * 0.7, cx, cy, planetR * 1.85);
-  atmo.addColorStop(0, "rgba(50, 210, 230, 0)");
-  atmo.addColorStop(0.45, `rgba(40, 200, 230, ${0.07 + 0.04 * pulse})`);
-  atmo.addColorStop(0.72, `rgba(40, 180, 220, ${0.16 + 0.05 * pulse})`);
-  atmo.addColorStop(1, "rgba(20, 80, 120, 0)");
-  ctx.fillStyle = atmo;
-  ctx.beginPath(); ctx.arc(cx, cy, planetR * 1.85, 0, TAU); ctx.fill();
-
-  ctx.save();
-  ctx.beginPath(); ctx.arc(cx, cy, planetR * 1.22, 0, TAU); ctx.clip();
-  ctx.translate(cx, cy);
-  ctx.rotate(game.time * 0.035);
-  const drawR = planetR * 1.2;
-  if (ready(ART.planet)) ctx.drawImage(ART.planet, -drawR, -drawR, drawR * 2, drawR * 2);
-  else {
-    const g = ctx.createRadialGradient(-drawR * 0.25, -drawR * 0.3, drawR * 0.2, 0, 0, drawR);
-    g.addColorStop(0, "#4aa7c9"); g.addColorStop(0.5, "#1a5e78"); g.addColorStop(1, "#0b2433");
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, planetR, 0, TAU); ctx.fill();
-  }
-  ctx.restore();
-
-  if (game.hitFlash > 0) {
-    ctx.fillStyle = `rgba(255, 90, 50, ${game.hitFlash * 0.28})`;
-    ctx.beginPath(); ctx.arc(cx, cy, planetR * 1.02, 0, TAU); ctx.fill();
-  }
-
-  const col = hp01 > 0.45 ? "62,232,196" : hp01 > 0.2 ? "255,186,70" : "255,78,70";
-  hexPath(shieldR);
-  ctx.fillStyle = `rgba(${col}, ${0.055 + 0.03 * pulse})`;
-  ctx.fill();
-
-  ctx.strokeStyle = `rgba(${col}, ${0.22 + 0.12 * pulse})`;
-  ctx.lineWidth = 11;
-  ctx.beginPath(); ctx.arc(cx, cy, shieldR, 0, TAU); ctx.stroke();
-  hexPath(shieldR);
-  ctx.strokeStyle = `rgba(${col}, ${0.62 + 0.2 * pulse})`;
-  ctx.lineWidth = 2.2;
-  ctx.stroke();
-
-  ctx.lineCap = "round";
-  ctx.lineWidth = 5;
-  ctx.strokeStyle = `rgba(${col}, 0.95)`;
-  ctx.beginPath();
-  ctx.arc(cx, cy, shieldR + 7, -Math.PI / 2, -Math.PI / 2 + TAU * hp01);
-  ctx.stroke();
-  if (hp01 < 1) {
-    ctx.strokeStyle = "rgba(255,70,55,0.42)";
-    ctx.beginPath();
-    ctx.arc(cx, cy, shieldR + 7, -Math.PI / 2 + TAU * hp01, -Math.PI / 2 + TAU);
-    ctx.stroke();
-  }
-  ctx.lineCap = "butt";
-
-  for (const r of game.ripples) {
-    ctx.strokeStyle = `rgba(255, 140, 90, ${Math.max(0, r.life * 1.4)})`;
-    ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(cx, cy, r.r, 0, TAU); ctx.stroke();
-  }
-}
-
-function sprAspect(im, fallback) {
-  return ready(im) && im.naturalHeight ? im.naturalWidth / im.naturalHeight : fallback;
-}
-function drawSprite(im, x, y, rot, w, h, ox = 0.5, oy = 0.5) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(rot);
-  if (ready(im)) ctx.drawImage(im, -w * ox, -h * oy, w, h);
-  else {
-    ctx.fillStyle = "#4ec8e4";
-    ctx.fillRect(-w * 0.15, -h * oy, w * 0.3, h);
-  }
-  ctx.restore();
-}
-
 function drawAimGuide() {
   if (game.mode !== "play" || game.paused) return;
   const x0 = cx + Math.cos(game.aim) * (shieldR + 10);
@@ -1356,52 +1147,6 @@ function drawAimGuide() {
   ctx.restore();
 }
 
-function drawTurret(t, player) {
-  const p = player ? { x: cx + Math.cos(game.aim) * shieldR * 0.96, y: cy + Math.sin(game.aim) * shieldR * 0.96, ang: game.aim } : towerPos(t);
-  const kind = player ? "battery" : t.kind;
-  const size = player ? planetR * 2.35 : kind === "mine" ? planetR * 1.35 : planetR * 1.8;
-  const spr = player ? ART.battery : ART.turrets[kind] || ART.turrets.laser;
-  const glowCol = kind === "gauss" ? "255,210,90" : kind === "flak" || kind === "mine" ? "255,150,70" : kind === "silo" ? "255,180,70" : kind === "tesla" ? "120,240,255" : "80,230,255";
-  ctx.save();
-  ctx.translate(p.x, p.y);
-  ctx.rotate((player ? game.aim : t.ang) + Math.PI / 2);
-  ctx.translate(0, player ? game.recoil * 0.35 : 0);
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  const halo = ctx.createRadialGradient(0, 0, size * 0.12, 0, 0, size * 0.62);
-  halo.addColorStop(0, `rgba(${glowCol},0.28)`);
-  halo.addColorStop(0.45, `rgba(${glowCol},0.08)`);
-  halo.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = halo;
-  ctx.beginPath(); ctx.arc(0, 0, size * 0.62, 0, TAU); ctx.fill();
-  ctx.restore();
-  if (ready(spr)) ctx.drawImage(spr, -size / 2, -size / 2, size, size);
-  else { ctx.fillStyle = "#4ec8e4"; ctx.fillRect(-3, -size * 0.5, 6, size * 0.7); }
-  const flash = player ? game.flash : t.flash || 0;
-  if (flash > 0) {
-    ctx.globalCompositeOperation = "lighter";
-    ctx.globalAlpha = flash;
-    const g = ctx.createRadialGradient(0, -size * 0.32, 1, 0, -size * 0.32, size * 0.42);
-    g.addColorStop(0, "#fff");
-    g.addColorStop(0.35, kind === "gauss" ? "#ffe08a" : kind === "flak" || kind === "mine" ? "#ffb060" : "#7fe7ff");
-    g.addColorStop(1, "rgba(70,220,255,0)");
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(0, -size * 0.32, size * 0.42, 0, TAU); ctx.fill();
-  }
-  ctx.restore();
-  if (!player && t.level) {
-    ctx.save();
-    ctx.font = `800 ${Math.max(9, Math.round(planetR * 0.32))}px Rajdhani,sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = "rgba(4,12,20,0.72)";
-    ctx.beginPath(); ctx.arc(p.x + size * 0.28, p.y + size * 0.28, Math.max(7, planetR * 0.22), 0, TAU); ctx.fill();
-    ctx.fillStyle = "#ffe08a";
-    ctx.fillText(t.buildLeft>0?`${Math.ceil(t.buildLeft)}s`:String(t.level), p.x + size * 0.28, p.y + size * 0.28 + 0.5);
-    ctx.restore();
-  }
-}
-
 function drawTrail(pts, color, width) {
   if (pts.length < 2) return;
   ctx.save();
@@ -1415,105 +1160,30 @@ function drawTrail(pts, color, width) {
   ctx.restore();
 }
 
-function drawEnemy(e) {
-  drawTrail(e.trail, e.heavy ? "rgba(255,110,50,0.28)" : "rgba(255,80,40,0.22)", e.heavy ? 5 : 3);
-  const spr = e.heavy ? ART.frigate : ART.interceptor;
-  const h = e.heavy ? planetR * 1.05 : planetR * 0.78;
-  const w = h * sprAspect(spr, e.heavy ? 0.67 : 0.68);
-  const ang = Math.atan2(cy - e.y, cx - e.x);
-  if (e.flash > 0) {
-    ctx.save();
-    ctx.globalCompositeOperation = "lighter";
-    ctx.fillStyle = `rgba(255,255,255,${e.flash * 0.55})`;
-    ctx.beginPath(); ctx.arc(e.x, e.y, e.r * 1.1, 0, TAU); ctx.fill();
-    ctx.restore();
-  }
-  drawSprite(spr, e.x, e.y, ang + Math.PI / 2, w, h, 0.5, 0.5);
-  if (e.max > 1) {
-    const bw = e.r * 2.1;
-    ctx.fillStyle = "rgba(0,0,0,0.55)";
-    ctx.fillRect(e.x - bw / 2, e.y - e.r - 9, bw, 3);
-    ctx.fillStyle = "#ff5649";
-    ctx.fillRect(e.x - bw / 2, e.y - e.r - 9, bw * (e.hp / e.max), 3);
+function drawCombatTraces() {
+  for(const r of game.rockets)drawTrail(r.trail, 'rgba(255,140,65,.35)', 3);
+  for(const r of game.interceptors)drawTrail(r.trail, 'rgba(100,230,255,.35)', 2);
+  for(const b of game.bolts){
+    drawTrail(b.pts, 'rgba(90,200,255,.7)', 5);
+    drawTrail(b.pts, 'rgba(215,255,255,.9)', 1.4);
   }
 }
 
-function drawRocket(r) {
-  drawTrail(r.trail, "rgba(255,120,40,0.45)", 3.5);
-  const h = planetR * 0.72;
-  const w = h * sprAspect(ART.rocket, 0.34);
-  const ang = Math.atan2(r.vy, r.vx);
-  drawSprite(ART.rocket, r.x, r.y, ang + Math.PI / 2, w, h, 0.5, 0.38);
-}
-
-function drawInterceptor(m) {
-  drawTrail(m.trail, "rgba(90,230,255,0.5)", 2.4);
-  const h = planetR * 0.62;
-  const w = h * sprAspect(ART.missile, 0.31);
-  const ang = Math.atan2(m.vy, m.vx);
-  drawSprite(ART.missile, m.x, m.y, ang + Math.PI / 2, w, h, 0.5, 0.38);
-}
-
-function drawShot(s) {
-  const ang = Math.atan2(s.vy, s.vx);
-  const player = s.kind === "player";
-  const gauss = s.kind === "gauss";
-  ctx.save();
-  ctx.translate(s.x, s.y);
-  ctx.rotate(ang);
-  ctx.globalCompositeOperation = "lighter";
-  const len = gauss ? 72 : player ? 58 : 36;
-  const grd = ctx.createLinearGradient(-len, 0, 8, 0);
-  grd.addColorStop(0, "rgba(80,220,255,0)");
-  grd.addColorStop(0.55, gauss ? "rgba(255,220,120,.85)" : player ? "rgba(180,255,255,.7)" : s.kind === "flak" ? "rgba(255,160,60,.6)" : "rgba(80,220,255,.45)");
-  grd.addColorStop(1, "#fff");
-  ctx.fillStyle = grd;
-  const thick = gauss ? 3.6 : player ? 3.2 : 1.8;
-  ctx.beginPath();
-  ctx.moveTo(-len, -thick * 0.45);
-  ctx.lineTo(8, -thick);
-  ctx.lineTo(8, thick);
-  ctx.lineTo(-len, thick * 0.45);
-  ctx.fill();
+function drawWorldStatus(){
+  ctx.save();ctx.textAlign='center';ctx.font=(10/cameraScale)+'px Segoe UI';
+  for(let i=0;i<SLOT_N;i++){
+    const p=slotPos(i),t=game.towers.find(t=>t.slot===i);
+    if(!t){ctx.fillStyle='rgba(155,215,240,.7)';ctx.fillText('+',p.x,p.y+3/cameraScale);}
+    if(t?.buildLeft>0){
+      ctx.strokeStyle='#8eeaff';ctx.lineWidth=2/cameraScale;ctx.beginPath();ctx.arc(p.x,p.y,38,-Math.PI/2,-Math.PI/2+TAU*(1-t.buildLeft/4));ctx.stroke();
+      ctx.fillStyle='#d2f6ff';ctx.fillText(Math.ceil(t.buildLeft)+' s',p.x,p.y+34+12/cameraScale);
+    }
+    if(game.pendingSlot?.i===i){ctx.strokeStyle='#e2f8ff';ctx.lineWidth=1.2/cameraScale;ctx.beginPath();ctx.arc(p.x,p.y,38,0,TAU);ctx.stroke();}
+  }
+  for(const e of game.enemies){if(e.hp>=e.max||e.hp<=0)continue;const w=26/cameraScale,y=e.y+65;ctx.fillStyle='#352d35';ctx.fillRect(e.x-w/2,y,w,2/cameraScale);ctx.fillStyle='#fba078';ctx.fillRect(e.x-w/2,y,w*Math.max(0,e.hp/e.max),2/cameraScale);}
   ctx.restore();
 }
 
-function drawFx() {
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  for (const b of game.bolts) {
-    ctx.strokeStyle = `rgba(160,255,255,${Math.max(0, b.life * 6)})`;
-    ctx.lineWidth = 2.2;
-    ctx.beginPath();
-    ctx.moveTo(b.pts[0].x, b.pts[0].y);
-    for (const p of b.pts) ctx.lineTo(p.x, p.y);
-    ctx.stroke();
-    ctx.strokeStyle = `rgba(255,255,255,${Math.max(0, b.life * 4)})`;
-    ctx.lineWidth = 0.8;
-    ctx.stroke();
-  }
-  ctx.restore();
-  for (const s of game.smoke) {
-    ctx.globalAlpha = Math.max(0, s.life * 1.4);
-    ctx.fillStyle = s.color;
-    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, TAU); ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  for (const r of game.rings) {
-    ctx.strokeStyle = `rgba(${r.color},${Math.max(0, r.life * 2.2)})`;
-    ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, TAU); ctx.stroke();
-  }
-  for (const p of game.sparks) {
-    ctx.globalAlpha = Math.max(0, p.life * 3);
-    ctx.fillStyle = p.color;
-    ctx.fillRect(p.x, p.y, p.size, p.size);
-  }
-  ctx.globalAlpha = 1;
-  ctx.restore();
-}
 function drawOrbs() {
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
@@ -1551,54 +1221,17 @@ function drawIncoming() {
   }
 }
 
-function drawLocks() {
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  for (const t of game.towers) {
-    if (!t.lock || t.kind === "silo" || t.kind === "mine") continue;
-    const p = towerPos(t);
-    const flash = t.flash || 0;
-    ctx.strokeStyle = `rgba(${t.kind === "gauss" ? "255,210,90" : t.kind === "flak" ? "255,150,60" : "80,230,255"}, ${0.22 + flash * 0.45})`;
-    ctx.lineWidth = 2.2 + flash * 2;
-    ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(t.lock.x, t.lock.y); ctx.stroke();
-  }
-  ctx.restore();
-}
-
 function draw() {
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
-  ctx.fillStyle = "#02060d";
-  ctx.fillRect(0, 0, W, H);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,W,H);
+  gpu.render(game);
   ctx.save();
-  ctx.translate(screenCx + shakeX, screenCy + shakeY);
-  ctx.scale(cameraScale, cameraScale);
-  ctx.translate(-cx, -cy);
-  drawBg();
-  drawPlanet();
-  drawSlots();
-  drawAimGuide();
-  drawLocks();
-  for (const t of game.towers) drawTurret(t, false);
-  drawTurret({ ang: game.aim, kind: "battery", flash: game.flash }, true);
-  for (const e of game.enemies) drawEnemy(e);
-  for (const r of game.rockets) drawRocket(r);
-  for (const m of game.interceptors) drawInterceptor(m);
-  for (const s of game.shots) drawShot(s);
-  drawFx();
+  drawIncoming();drawOrbs();
+  ctx.translate(screenCx+shakeX,screenCy+shakeY);ctx.scale(cameraScale,cameraScale);ctx.translate(-cx,-cy);
+  drawCombatTraces();drawWorldStatus();drawAimGuide();
+  ctx.textAlign='center';ctx.font=(11/cameraScale)+'px Segoe UI';
+  for(const n of game.numbers){ctx.globalAlpha=Math.min(1,n.life*2);ctx.fillStyle=n.player?'#ffce95':'#b5eeff';ctx.fillText(n.text,n.x,n.y-(1-n.life)*40);}
   ctx.restore();
-  ctx.save();
-  ctx.translate(shakeX, shakeY);
-  drawIncoming();
-  drawOrbs();
-  ctx.restore();
-  const vig = ctx.createRadialGradient(screenCx, screenCy, Math.min(W, H) * 0.18, screenCx, screenCy, Math.hypot(W, H) * 0.62);
-  vig.addColorStop(0, "rgba(0,0,0,0)");
-  vig.addColorStop(0.72, "rgba(0,4,10,0.12)");
-  vig.addColorStop(1, "rgba(0,3,8,0.58)");
-  ctx.fillStyle = vig;
-  ctx.fillRect(0, 0, W, H);
 }
 
 function paintHud() {

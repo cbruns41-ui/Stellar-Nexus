@@ -1,0 +1,251 @@
+{
+  "passed": true,
+  "at": "2026-09-13T22:03:53.283Z",
+  "results": [
+    {
+      "w": 390,
+      "h": 844,
+      "scale": 1,
+      "width": 390,
+      "height": 844,
+      "hudTop": 66,
+      "toolbarBottom": 60
+    },
+    {
+      "w": 320,
+      "h": 568,
+      "scale": 1,
+      "width": 320,
+      "height": 568,
+      "hudTop": 66,
+      "toolbarBottom": 60
+    },
+    {
+      "w": 844,
+      "h": 390,
+      "scale": 1,
+      "width": 844,
+      "height": 390,
+      "hudTop": 58,
+      "toolbarBottom": 54
+    },
+    {
+      "w": 1280,
+      "h": 800,
+      "scale": 1,
+      "width": 1280,
+      "height": 800,
+      "hudTop": 66,
+      "toolbarBottom": 60
+    },
+    {
+      "w": 1280,
+      "h": 720,
+      "scale": 1.5,
+      "width": 1280,
+      "height": 720,
+      "hudTop": 66,
+      "toolbarBottom": 60
+    },
+    {
+      "w": 1920,
+      "h": 1080,
+      "scale": 1,
+      "width": 1920,
+      "height": 1080,
+      "hudTop": 66,
+      "toolbarBottom": 60
+    }
+  ],
+  "gpuChecks": [
+    {
+      "viewport": [
+        390,
+        844
+      ],
+      "phase": "combat",
+      "samples": 569,
+      "blackFrames": 0,
+      "glErrors": 0,
+      "minBrightness": 128.546875,
+      "healthy": true,
+      "cpuMs": 1.89,
+      "meshes": 11,
+      "frames": 571
+    },
+    {
+      "viewport": [
+        390,
+        844
+      ],
+      "phase": "simultaneous-effects",
+      "samples": 593,
+      "blackFrames": 0,
+      "glErrors": 0,
+      "minBrightness": 128.546875,
+      "healthy": true,
+      "cpuMs": 1.92,
+      "meshes": 11,
+      "frames": 595
+    },
+    {
+      "viewport": [
+        320,
+        568
+      ],
+      "phase": "simultaneous-effects",
+      "samples": 151,
+      "blackFrames": 0,
+      "glErrors": 0,
+      "minBrightness": 129.98958333333334,
+      "healthy": true,
+      "cpuMs": 3.3,
+      "meshes": 10,
+      "frames": 153
+    },
+    {
+      "viewport": [
+        844,
+        390
+      ],
+      "phase": "simultaneous-effects",
+      "samples": 154,
+      "blackFrames": 0,
+      "glErrors": 0,
+      "minBrightness": 122.21354166666667,
+      "healthy": true,
+      "cpuMs": 3.83,
+      "meshes": 10,
+      "frames": 156
+    },
+    {
+      "viewport": [
+        1280,
+        800
+      ],
+      "phase": "simultaneous-effects",
+      "samples": 405,
+      "blackFrames": 0,
+      "glErrors": 0,
+      "minBrightness": 113.0625,
+      "healthy": true,
+      "cpuMs": 4.46,
+      "meshes": 12,
+      "frames": 407
+    },
+    {
+      "viewport": [
+        1280,
+        800
+      ],
+      "phase": "continuous-combat",
+      "samples": 2018,
+      "blackFrames": 0,
+      "glErrors": 0,
+      "minBrightness": 113.0625,
+      "healthy": true,
+      "cpuMs": 3.97,
+      "meshes": 12,
+      "frames": 2020
+    },
+    {
+      "viewport": [
+        1280,
+        720
+      ],
+      "phase": "simultaneous-effects",
+      "samples": 376,
+      "blackFrames": 0,
+      "glErrors": 0,
+      "minBrightness": 107.28125,
+      "healthy": true,
+      "cpuMs": 5.26,
+      "meshes": 13,
+      "frames": 378
+    },
+    {
+      "viewport": [
+        1280,
+        720
+      ],
+      "phase": "continuous-combat",
+      "samples": 1989,
+      "blackFrames": 0,
+      "glErrors": 0,
+      "minBrightness": 107.28125,
+      "healthy": true,
+      "cpuMs": 5.05,
+      "meshes": 9,
+      "frames": 1991
+    },
+    {
+      "viewport": [
+        1920,
+        1080
+      ],
+      "phase": "simultaneous-effects",
+      "samples": 207,
+      "blackFrames": 0,
+      "glErrors": 0,
+      "minBrightness": 105.375,
+      "healthy": true,
+      "cpuMs": 6.38,
+      "meshes": 11,
+      "frames": 209
+    },
+    {
+      "viewport": [
+        1920,
+        1080
+      ],
+      "phase": "continuous-combat",
+      "samples": 1820,
+      "blackFrames": 0,
+      "glErrors": 0,
+      "minBrightness": 105.375,
+      "healthy": true,
+      "cpuMs": 4.74,
+      "meshes": 6,
+      "frames": 1822
+    }
+  ],
+  "presentationChecks": [
+    {
+      "w": 1280,
+      "h": 800,
+      "scale": 1,
+      "frames": 45,
+      "minBrightness": 133.41145833333334
+    },
+    {
+      "w": 1280,
+      "h": 720,
+      "scale": 1.5,
+      "frames": 45,
+      "minBrightness": 129.76041666666666
+    },
+    {
+      "w": 1920,
+      "h": 1080,
+      "scale": 1,
+      "frames": 45,
+      "minBrightness": 130.44791666666666
+    }
+  ],
+  "errors": [],
+  "requests": [
+    "http://127.0.0.1:59247/",
+    "http://127.0.0.1:59247/game-base.css",
+    "http://127.0.0.1:59247/demo.css",
+    "http://127.0.0.1:59247/demo.mjs",
+    "http://127.0.0.1:59247/game.mjs",
+    "http://127.0.0.1:59247/gpu-scene.mjs",
+    "http://127.0.0.1:59247/vendor/three.module.js",
+    "http://127.0.0.1:59247/vendor/environments/RoomEnvironment.js",
+    "http://127.0.0.1:59247/vendor/three.core.js",
+    "http://127.0.0.1:59247/favicon.ico",
+    "http://127.0.0.1:59247/assets/planet.png",
+    "http://127.0.0.1:59247/assets/deep-space.png",
+    "http://127.0.0.1:59247/assets/upgrade-repair.jpg"
+  ]
+}

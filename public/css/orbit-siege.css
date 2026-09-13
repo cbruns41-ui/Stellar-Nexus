@@ -385,3 +385,10 @@ body.orbit-siege-open { overflow: hidden; }
 .orbit-game.is-short .wave-banner{top:auto;bottom:10px}
 .orbit-game.is-short .controls{bottom:18px}.orbit-game.is-short #stick,.orbit-game.is-short #fire{width:64px;height:64px}.orbit-game.is-short #aa{width:48px;height:48px}.orbit-game.is-short .fire-col{flex-direction:row;align-items:end}
 .orbit-game .overlay{padding-top:70px;box-sizing:border-box;overflow:auto}
+.orbit-game #weapon-open{position:absolute;z-index:8;left:16px;bottom:calc(154px + env(safe-area-inset-bottom,0px));min-height:44px;padding:6px 14px;border:1px solid #49697b;border-radius:8px;background:#0c2232;color:#b8edff;cursor:pointer;touch-action:manipulation;font-size:12px}
+.orbit-game.is-short #weapon-open{left:calc(50% - 42px);bottom:18px}
+.orbit-game:has(.overlay:not([hidden])) #weapon-open,.orbit-game:has(.orbit-build:not([hidden])) #weapon-open{visibility:hidden;pointer-events:none}
+.orbit-game .is-weapon-shop .orbit-shop{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));overflow:visible}
+.orbit-game .is-weapon-shop .orbit-shop-item{min-width:0}
+.orbit-game .is-weapon-shop .orbit-shop-item small{display:block}
+.orbit-game .is-weapon-shop header b{font-size:10px;letter-spacing:0}
