@@ -1,0 +1,71 @@
+import {spawn} from 'node:child_process';
+import {readFile,mkdir,writeFile} from 'node:fs/promises';
+import http from 'node:http';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import assert from 'node:assert/strict';
+const root=fileURLToPath(new URL('../',import.meta.url)),out=path.join(root,'tmp/orbit-current-review');
+await mkdir(out,{recursive:true});await writeFile(path.join(out,'.gitignore'),'*\n');
+const profile=path.join(root,'tmp/orbit-current-chrome');await mkdir(profile,{recursive:true});await writeFile(path.join(profile,'.gitignore'),'*\n');
+const server=http.createServer(async(req,res)=>{try{
+  const url=new URL(req.url,'http://localhost');
+  if(url.pathname==='/test'){res.setHeader('content-type','text/html');res.end('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/css/style.css"><link rel="stylesheet" href="/css/orbit-siege.css"><body data-mode="play"></body>');return;}
+  const base=path.join(root,'public'),file=path.resolve(base,'.'+decodeURIComponent(url.pathname));
+  if(path.relative(base,file).startsWith('..'))throw Error('path');
+  const data=await readFile(file);res.setHeader('content-type',({'.mjs':'text/javascript','.js':'text/javascript','.css':'text/css','.png':'image/png','.jpg':'image/jpeg'})[path.extname(file)]||'text/plain');res.end(data);
+}catch{res.writeHead(404);res.end();}});await new Promise(r=>server.listen(0,'127.0.0.1',r));
+const base=`http://127.0.0.1:${server.address().port}`,port=9467;
+const chrome=spawn('C:/Program Files/Google/Chrome/Application/chrome.exe',['--headless=new','--no-first-run',`--user-data-dir=${profile}`,`--remote-debugging-port=${port}`,'about:blank'],{stdio:'ignore',windowsHide:true});
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));let ws;const errors=[],results=[];
+try{
+ let page;for(let i=0;i<70;i++){try{page=await fetch(`http://127.0.0.1:${port}/json/new?about:blank`,{method:'PUT'}).then(r=>r.json());break;}catch{await sleep(150);}}assert.ok(page);
+ ws=new WebSocket(page.webSocketDebuggerUrl);await new Promise((r,j)=>{ws.addEventListener('open',r);ws.addEventListener('error',j);});let id=0;const pending=new Map();
+ ws.addEventListener('message',ev=>{const d=JSON.parse(ev.data);if(d.method==='Runtime.exceptionThrown')errors.push(d.params.exceptionDetails.exception?.description||d.params.exceptionDetails.text);if(d.method==='Runtime.consoleAPICalled'&&d.params.type==='error')errors.push(d.params.args.map(a=>a.description||a.value).join(' '));if(pending.has(d.id)){const p=pending.get(d.id);pending.delete(d.id);clearTimeout(p.timer);d.error?p.reject(Error(d.error.message)):p.resolve(d.result);}});
+ const send=(method,params={})=>new Promise((resolve,reject)=>{const n=++id,timer=setTimeout(()=>{pending.delete(n);reject(Error(method+' timeout'));},45000);pending.set(n,{resolve,reject,timer});ws.send(JSON.stringify({id:n,method,params}));});
+ const ev=async expression=>{const r=await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(r.exceptionDetails)throw Error(r.exceptionDetails.exception?.description||r.exceptionDetails.text);return r.result.value;};
+ const fresh=async(width,height)=>{await send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width<600});await send('Page.navigate',{url:base+'/test'});await sleep(180);};
+ const start=()=>ev(`import('/js/orbit-siege.mjs').then(m=>{m.startOrbitSiege({planetName:'Testkolonie',session:{id:1},onClaim:async()=>({loot:{}})});return true;})`);
+ const view=()=>ev(`document.querySelector('.orbit-game').orbitView()`);
+ const tap=async selector=>{const p=await ev(`(()=>{const e=document.querySelector(${JSON.stringify(selector)}),r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;return{x,y,hit:e.contains(document.elementFromPoint(x,y)),actual:document.elementFromPoint(x,y)?.outerHTML.slice(0,200)};})()`);assert.ok(p.hit,selector+JSON.stringify(p));await send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{id:1,x:p.x,y:p.y}]});await sleep(70);await send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await sleep(80);};
+ const shot=async name=>{const r=await send('Page.captureScreenshot',{format:'png'});await writeFile(path.join(out,name+'.png'),Buffer.from(r.data,'base64'));};
+ await send('Page.enable');await send('Runtime.enable');await send('Emulation.setTouchEmulationEnabled',{enabled:true,maxTouchPoints:5});
+ for(const [w,h] of [[390,844],[320,568],[844,390],[1280,800]]){
+  await fresh(w,h);await start();await sleep(200);await tap('.orbit-pause');const before=await view();
+  await tap('[data-window="smaller"]');await tap('[data-window="smaller"]');const small=await view();assert.equal(small.W,before.W);assert.equal(small.planetR,before.planetR);assert.ok(small.winScale<=before.winScale);
+  const geometry=await ev(`(()=>{const root=document.querySelector('.orbit-game'),r=root.getBoundingClientRect(),hud=document.querySelector('.hud').getBoundingClientRect(),buttons=[...document.querySelectorAll('.orbit-toolbar button')].map(e=>e.getBoundingClientRect());return {box:r.toJSON(),fits:r.left>=-1&&r.top>=-1&&r.right<=innerWidth+1&&r.bottom<=innerHeight+1,noOverlap:buttons.every(b=>b.bottom<=hud.top+1),buttons:buttons.map(b=>[b.width,b.height])};})()`);
+  assert.ok(geometry.fits&&geometry.noOverlap,JSON.stringify({w,h,...geometry}));assert.ok(geometry.buttons.every(([bw,bh])=>bw>=43&&bh>=43));await tap('#pause-resume');await shot(`layout-${w}-${h}`);results.push({w,h,...geometry});
+  const labelsFit=await ev(`(()=>{const labels=[...document.querySelectorAll('.hud-sub>span:not([hidden])')].map(e=>e.getBoundingClientRect());return labels.every((a,i)=>labels.slice(i+1).every(b=>a.right<=b.left+1||b.right<=a.left+1||a.bottom<=b.top+1||b.bottom<=a.top+1));})()`);assert.ok(labelsFit,'HUD labels overlap');
+  if(w===390){
+   await tap('[data-window="larger"]');await tap('[data-window="larger"]');const gestureBefore=await view();
+   const touches=d=>[{id:1,x:w/2-d/2,y:h*.65},{id:2,x:w/2+d/2,y:h*.65}];
+   await send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:touches(120)});
+   for(const d of [110,100,90]){await send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:touches(d)});await sleep(40);}
+   await send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});const pinched=await view();
+   assert.ok(pinched.winScale<gestureBefore.winScale);assert.equal(pinched.W,gestureBefore.W);assert.equal(pinched.ringR,gestureBefore.ringR);assert.ok(await ev(`document.querySelector('#build-dock').hidden`),'Pinch must not select a slot');
+   await send('Input.dispatchMouseEvent',{type:'mouseWheel',x:w/2,y:h*.65,deltaX:0,deltaY:-100});await sleep(100);assert.ok((await view()).winScale>pinched.winScale,'Wheel enlarges whole window');
+  }
+  await tap('.orbit-exit');await tap('#again');assert.equal(await ev(`!!document.querySelector('.orbit-game')`),false);
+ }
+ // Run the real combat loop with seeded randomness and virtual frame time, no rendering cost.
+ await fresh(1280,800);
+ await ev(`window.__frames=[];window.__clock=0;window.requestAnimationFrame=cb=>{__frames.push(cb);return __frames.length;};window.__seed=31;Math.random=()=>{__seed=(Math.imul(__seed,1664525)+1013904223)>>>0;return __seed/4294967296;};HTMLCanvasElement.prototype.getContext=()=>new Proxy({},{get:(_,key)=>key==='measureText'?()=>({width:10}):key.startsWith('create')?()=>({addColorStop(){}}):()=>{},set:()=>true});window.__advance=n=>{for(let i=0;i<n;i++){const fs=__frames.splice(0);__clock+=1000/60;for(const cb of fs)cb(__clock);}};true`);
+ await start();await ev('__advance(2);true');
+ // Buy through actual shop actions; blocked extra orders must not consume points.
+ await ev(`window.__slot=i=>{const root=document.querySelector('.orbit-game'),v=root.orbitView(),c=root.querySelector('canvas'),r=c.getBoundingClientRect(),a=-Math.PI/2+(i+.5)*Math.PI*2/v.slotN;const p={pointerId:7,clientX:r.left+(v.cx+Math.cos(a)*v.ringR)/v.W*r.width,clientY:r.top+(v.cy+Math.sin(a)*v.ringR)/v.H*r.height,bubbles:true};c.dispatchEvent(new PointerEvent('pointerdown',p));c.dispatchEvent(new PointerEvent('pointerup',p));};__slot(0);document.querySelector('[data-shop="laser"]').click();__advance(1);true`);
+ assert.equal((await view()).salvage,5);assert.equal((await view()).towers.length,1);
+ const locked=await ev(`(()=>{const g=document.querySelector('.orbit-game').orbitGame;g.salvage=1000;__slot(1);const b=document.querySelector('[data-shop="laser"]');b.click();return {disabled:b.disabled,count:g.towers.length,points:g.salvage,build:g.towers[0].buildLeft};})()`);assert.ok(locked.disabled&&locked.count===1&&locked.points===1000&&locked.build>0);
+ await ev(`__advance(250);true`);assert.equal(await ev(`document.querySelector('.orbit-game').orbitGame.towers[0].buildLeft`),0);
+ // Progress using only the starting budget and points earned by actual kills and held waves.
+ await ev(`(async()=>{await document.querySelector('.orbit-exit').onclick();await document.querySelector('#again').onclick();return true;})()`);await start();
+ const progression=await ev(`(()=>{const g=document.querySelector('.orbit-game').orbitGame,v=document.querySelector('.orbit-game').orbitView(),history=[];window.__seed=97;window.dispatchEvent(new KeyboardEvent('keydown',{code:'Space'}));for(let wave=1;wave<=8&&g.mode!=='dead';wave++){if(g.mode!=='build')break;const slot=Array.from({length:6},(_,i)=>i).find(i=>!g.towers.some(t=>t.slot===i));if(slot!==undefined){__slot(slot);document.querySelector('[data-shop="laser"]').click();}document.querySelector('#build-go').click();for(let i=0;i<60*40&&g.mode==='play';i++){const target=[...g.enemies,...g.rockets].filter(e=>e.hp>0).sort((a,b)=>Math.hypot(a.x-v.cx,a.y-v.cy)-Math.hypot(b.x-v.cx,b.y-v.cy))[0];if(target)g.aim=Math.atan2(target.y-v.cy,target.x-v.cx);__advance(1);}history.push({wave,held:g.heldWaves,hp:g.hp,towers:g.towers.length,points:g.salvage,earned:g.earned,workUsed:g.workUsed});}window.dispatchEvent(new KeyboardEvent('keyup',{code:'Space'}));return history;})()`);
+ console.log('Progression',JSON.stringify(progression));assert.ok(progression.length>=3,'Opening waves must be playable');assert.ok(progression.every(p=>p.points>=0));assert.ok(progression[0].towers===1&&progression[1].towers<6);assert.ok(progression.filter(p=>p.held===p.wave).every(p=>p.workUsed===0),'Held waves restore one work order');
+ const sim=async(wave,level,active,seed=31)=>{
+  await ev(`(async()=>{const r=document.querySelector('.orbit-game');await r.querySelector('.orbit-exit').onclick();if(r.isConnected)await r.querySelector('#again').onclick();return true;})()`);await start();
+  return ev(`(()=>{const root=document.querySelector('.orbit-game'),g=root.orbitGame,v=root.orbitView();window.__seed=${seed};g.wave=${wave-1};g.heldWaves=${wave-1};g.salvage=0;g.towers=Array.from({length:6},(_,i)=>({slot:i,ring:0,kind:['laser','silo','flak','gauss','tesla','laser'][i],level:${level},cd:0,flash:0}));document.querySelector('#build-go').click();if(${active})window.dispatchEvent(new KeyboardEvent('keydown',{code:'Space'}));for(let i=0;i<60*30 && g.mode==='play';i++){if(${active}){const targets=[...g.enemies,...g.rockets].filter(e=>e.hp>0).sort((a,b)=>Math.hypot(a.x-v.cx,a.y-v.cy)-Math.hypot(b.x-v.cx,b.y-v.cy));if(targets[0])g.aim=Math.atan2(targets[0].y-v.cy,targets[0].x-v.cx);}__advance(1);}window.dispatchEvent(new KeyboardEvent('keyup',{code:'Space'}));return {wave:${wave},level:${level},active:${active},seed:${seed},hp:g.hp,kills:g.kills,earned:g.earned,mode:g.mode};})()`);
+ };
+ const balance=[];for(const seed of [31,97,2026])for(const active of [false,true])balance.push(await sim(8,2,active,seed));
+ balance.push(await sim(20,8,false));console.log('Balance',JSON.stringify(balance));
+ assert.ok(balance.at(-1).hp<100,'Even a fully upgraded ring lets late enemies through without the player');
+ const idle=balance.filter(b=>b.wave===8&&!b.active).reduce((s,b)=>s+b.kills,0),active=balance.filter(b=>b.wave===8&&b.active).reduce((s,b)=>s+b.kills,0);assert.ok(active>idle,'Manual fire contributes beyond the automatic ring');
+ assert.deepEqual(errors,[]);await writeFile(path.join(out,'verification.json'),JSON.stringify({passed:true,checkedAt:new Date().toISOString(),geometry:results,progression,balance,errors},null,2));console.log('Orbit layout, controls, construction and combat balance checks passed');
+}finally{ws?.close();chrome.kill();server.closeAllConnections();await new Promise(r=>server.close(r));}

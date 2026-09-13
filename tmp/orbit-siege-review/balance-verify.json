@@ -1,0 +1,134 @@
+{
+  "ok": {
+    "started": true,
+    "oneRing": true,
+    "startSalvage": true,
+    "planetCapped": true,
+    "onScreen": true,
+    "windowNotFull": true,
+    "shrinksWindow": true,
+    "planetSameAfterShrink": true,
+    "growsWindow": true,
+    "planetSameAfterGrow": true,
+    "placedLaser": true,
+    "salvageAfterLaser": true,
+    "upgraded": true,
+    "shopHasUpgrade": true,
+    "noSecondRing": true
+  },
+  "view0": {
+    "box": {
+      "x": 90,
+      "y": 56,
+      "w": 1101,
+      "h": 688
+    },
+    "W": 1101,
+    "H": 688,
+    "planetR": 52,
+    "shieldR": 89.44,
+    "ringR": 140.4,
+    "winScale": 0.86,
+    "slotN": 6,
+    "towerMax": 8,
+    "salvage": 85,
+    "towers": []
+  },
+  "view1": {
+    "box": {
+      "w": 614,
+      "h": 384
+    },
+    "W": 614,
+    "H": 384,
+    "planetR": 52,
+    "shieldR": 89.44,
+    "ringR": 140.4,
+    "winScale": 0.48,
+    "slotN": 6,
+    "towerMax": 8,
+    "salvage": 85,
+    "towers": []
+  },
+  "view2": {
+    "box": {
+      "w": 1280,
+      "h": 800
+    },
+    "W": 1280,
+    "H": 800,
+    "planetR": 52,
+    "shieldR": 89.44,
+    "ringR": 140.4,
+    "winScale": 1,
+    "slotN": 6,
+    "towerMax": 8,
+    "salvage": 85,
+    "towers": []
+  },
+  "afterPlace": {
+    "W": 1280,
+    "H": 800,
+    "planetR": 52,
+    "shieldR": 89.44,
+    "ringR": 140.4,
+    "winScale": 1,
+    "slotN": 6,
+    "towerMax": 8,
+    "salvage": 5,
+    "towers": [
+      {
+        "slot": 4,
+        "kind": "laser",
+        "level": 1
+      }
+    ],
+    "towersHud": "1",
+    "salvageHud": "5"
+  },
+  "afterUp": {
+    "W": 1280,
+    "H": 800,
+    "planetR": 52,
+    "shieldR": 89.44,
+    "ringR": 140.4,
+    "winScale": 1,
+    "slotN": 6,
+    "towerMax": 8,
+    "salvage": 100,
+    "towers": [
+      {
+        "slot": 4,
+        "kind": "laser",
+        "level": 2
+      }
+    ],
+    "hint": "LASER Stufe 2 · Ausbau 144 Punkte",
+    "items": [
+      "upgrade",
+      "repair"
+    ]
+  },
+  "phone": {
+    "box": {
+      "w": 390,
+      "h": 844
+    },
+    "W": 390,
+    "H": 844,
+    "planetR": 52,
+    "shieldR": 89.44,
+    "ringR": 140.4,
+    "winScale": 1,
+    "slotN": 6,
+    "towerMax": 8,
+    "salvage": 100,
+    "towers": [
+      {
+        "slot": 4,
+        "kind": "laser",
+        "level": 2
+      }
+    ]
+  }
+}

@@ -79,7 +79,7 @@ await sleep(200);
 
 const started = await evalExpr(`(async () => {
   document.querySelector(".orbit-game")?.remove();
-  const mod = await import("/js/orbit-siege.mjs?v=9");
+  const mod = await import("/js/orbit-siege.mjs?v=10");
   mod.startOrbitSiege({ planetName: "Probe" });
   return !!document.querySelector(".orbit-game");
 })()`);
@@ -94,16 +94,14 @@ const state0 = await evalExpr(`(() => {
   const dr = dock.getBoundingClientRect();
   const TAU = Math.PI * 2;
   const W = r.width, H = r.height, cx = W / 2, cy = H * 0.42;
-  const planetR = Math.min(W, H) * 0.058;
-  const innerR = planetR * 2.55, outerR = planetR * 3.95;
+  const planetR = Math.min(52, Math.min(W, H) * 0.11);
+  const ringR = planetR * 2.7;
   const slots = [];
-  for (const [ring, n, rad, off] of [[0, 6, innerR, 0.5], [1, 8, outerR, 0]]) {
-    for (let i = 0; i < n; i++) {
-      const a = -Math.PI / 2 + (i + off) * TAU / n;
-      const x = cx + Math.cos(a) * rad, y = cy + Math.sin(a) * rad;
-      const covered = dr.width > 0 && x >= dr.left && x <= dr.right && y >= dr.top && y <= dr.bottom;
-      slots.push({ ring, i, x, y, covered });
-    }
+  for (let i = 0; i < 6; i++) {
+    const a = -Math.PI / 2 + (i + 0.5) * TAU / 6;
+    const x = cx + Math.cos(a) * ringR, y = cy + Math.sin(a) * ringR;
+    const covered = dr.width > 0 && x >= dr.left && x <= dr.right && y >= dr.top && y <= dr.bottom;
+    slots.push({ ring: 0, i, x, y, covered });
   }
   return {
     salvage: document.querySelector("#salvage")?.textContent,
@@ -120,7 +118,7 @@ console.log("state0", JSON.stringify(state0, null, 2));
 
 await shot("phone-build-empty.png", 390, 844, true);
 
-const target = state0.slots.find((s) => s.ring === 1 && s.i === 4) || state0.slots[0];
+const target = state0.slots.find((s) => s.i === 4) || state0.slots[0];
 await evalExpr(`(() => {
   const canvas = document.querySelector(".orbit-canvas");
   const r = canvas.getBoundingClientRect();
@@ -189,14 +187,14 @@ const ok = {
   started,
   shopHiddenAtStart: state0.dockHidden === true,
   slotsUncoveredAtStart: state0.covered === 0,
-  startSalvage: state0.salvage === "48",
+  startSalvage: state0.salvage === "85",
   waveButtonVisible: state0.goHidden === false,
   shopOpensOnSlot: state1.dockHidden === false,
   mineCost: state1.shopItems.find((i) => i.id === "mine")?.cost,
   laserCost: state1.shopItems.find((i) => i.id === "laser")?.cost,
   shopClosesAfterPlace: state2.dockHidden === true,
   oneTower: state2.towers === "1",
-  salvageAfterMine: state2.salvage === "3",
+  salvageAfterMine: state2.salvage === "35",
 };
 console.log("ok", JSON.stringify(ok, null, 2));
 const failed = Object.entries(ok).filter(([, v]) => v !== true && v !== "45" && v !== "72" && v !== "3" && v !== "1" && v !== "48" && v !== false);
