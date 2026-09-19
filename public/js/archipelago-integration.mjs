@@ -1,11 +1,11 @@
-import{createMap as createRenderer}from'./archipelago-map.mjs';
+import{createMap as createRenderer}from'./archipelago-map.mjs?v=2';
 export{systemHtml}from'./map.js';
 
 // Galaxy view factory: region chips plus the archipelago renderer.
 export function createMap(canvas,onSelect,onViewChange,options={}){
  const host=canvas.closest('.map-wrap')||canvas.parentElement;
  const cssUrl=new URL('../css/archipelago-map.css',import.meta.url).href;
- if(!document.querySelector('link[data-archipelago-style]')){const css=document.createElement('link');css.rel='stylesheet';css.href=cssUrl;css.dataset.archipelagoStyle='';document.head.append(css);}
+ if(!document.querySelector('link[data-archipelago-style]')){const css=document.createElement('link');css.rel='stylesheet';css.href=cssUrl+(cssUrl.includes('?')?'&':'?')+'v=2';css.dataset.archipelagoStyle='';document.head.append(css);}
  host.classList.add('archipelago-map');const abort=new AbortController(),bar=document.createElement('div');bar.className='archipelago-regions';bar.setAttribute('aria-label','Galaxien auswählen');host.append(bar);
  let map;
  const drawRegions=regions=>{bar.replaceChildren();for(const g of [{id:'all',name:'Alle'},...regions]){const b=document.createElement('button');b.type='button';b.textContent=g.name;b.dataset.region=g.id;b.addEventListener('click',()=>{if(g.id==='all'){map.overview();onSelect?.(null);}else{map.focusRegion(g.id);onSelect?.(null);}},{signal:abort.signal});bar.append(b);}};

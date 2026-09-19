@@ -135,6 +135,12 @@ try {
       throw Error("no region chips: " + (await ev(`document.body.dataset.mode+' '+document.querySelector('#view')?.innerHTML?.slice(0,400)`)));
     }
     assert.deepEqual(names.slice(0, 4), ["Alle", "AURELIA", "VESPER", "SOLARA"]);
+    assert.ok(await ev(`!!document.querySelector('.map-help-toggle')`));
+    await ev(`document.querySelector('.map-help-toggle').click()`);
+    assert.ok(await ev(`!document.querySelector('#map-travel-help').hidden && /Sprungtor/.test(document.querySelector('#map-travel-help').textContent)`));
+    const helpShot = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: false });
+    await writeFile(path.join(out, `live-travel-help-${w}-${h}.png`), Buffer.from(helpShot.data, "base64"));
+    await ev(`document.querySelector('.map-help-toggle').click()`);
     assert.ok(await ev(`document.querySelector('.map-wrap').classList.contains('archipelago-map')`));
     await ev(`document.querySelector('.map-search-toggle').click()`);
     await ev(`{const s=document.querySelector('#map-search');s.value=${JSON.stringify(home.name)};s.dispatchEvent(new Event('input',{bubbles:true}));}`);

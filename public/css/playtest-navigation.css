@@ -7,8 +7,8 @@
 .map-quick-filters input{width:16px!important;height:16px;min-height:0!important;margin:0}
 .shell.view-galaxy .map-tools{top:52px!important;z-index:14!important;max-height:calc(100% - 64px);display:none!important}
 .shell.view-galaxy .map-tools.open{display:block!important}
-.shell.view-galaxy .map-search-toggle,.shell.view-galaxy .map-filter-toggle{position:absolute;display:grid;place-items:center;top:8px!important;left:auto!important;width:38px!important;height:38px!important;min-height:38px;padding:0;border:1px solid #438da480;border-radius:8px;background:#071b2ef5;color:#9eeaff;font:24px/1 system-ui;z-index:16;pointer-events:auto}
-.shell.view-galaxy .map-search-toggle{right:51px!important}.shell.view-galaxy .map-filter-toggle{right:8px}
+.shell.view-galaxy .map-search-toggle,.shell.view-galaxy .map-filter-toggle,.shell.view-galaxy .map-help-toggle{position:absolute;display:grid;place-items:center;top:8px!important;left:auto!important;width:38px!important;height:38px!important;min-height:38px;padding:0;border:1px solid #438da480;border-radius:8px;background:#071b2ef5;color:#9eeaff;font:24px/1 system-ui;z-index:16;pointer-events:auto}
+.shell.view-galaxy .map-search-toggle{right:94px!important}.shell.view-galaxy .map-filter-toggle{right:8px}.shell.view-galaxy .map-help-toggle{right:51px!important;font:700 16px/1 var(--display,system-ui)}
 .map-filter-toggle[aria-expanded="true"]{border-color:#8eeaff}.sys-flight-eta{grid-column:1/-1;font-size:12px;margin:4px}
 .shell.view-galaxy .map-search-toggle{z-index:15}.shell.view-galaxy .map-status{max-width:calc(100% - 80px)}
 body[data-mode="play"] .nav-section[hidden]{display:none!important}
@@ -26,7 +26,7 @@ body[data-mode="play"] .nav{top:var(--game-top,60px)!important;bottom:var(--game
 body[data-mode="play"] .nav-open .nav{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));align-content:start;gap:10px}
 body[data-mode="play"] .nav-section{display:contents}body[data-mode="play"] .nav-group{grid-column:1/-1}
 body[data-mode="play"] .nav button{min-height:48px;margin:0}
-body[data-mode="play"] .nav-logout{grid-column:1/-1}
+body[data-mode="play"] .nav-logout{grid-column:1/-1;margin-top:14px;order:99}
 body[data-mode="play"] .nav-backdrop{top:var(--game-top,60px)!important;bottom:var(--game-bottom,66px)!important;z-index:90!important}
 body[data-mode="play"] .shell:not(.nav-open) .nav-backdrop{display:none!important;pointer-events:none!important}
 body[data-mode="play"] .modal{top:var(--game-top,60px);bottom:var(--game-bottom,66px);height:auto;z-index:125}

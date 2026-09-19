@@ -3,15 +3,19 @@
 .map-wrap.archipelago-map #starmap{position:absolute;inset:0;width:100%;height:100%;touch-action:none;z-index:0}
 .archipelago-map .archipelago-regions{
   position:absolute;z-index:5;top:50px;left:max(8px,env(safe-area-inset-left));
-  right:max(108px,env(safe-area-inset-right));display:flex;gap:6px;
-  overflow-x:auto;scrollbar-width:none;pointer-events:auto;max-width:min(620px,calc(100% - 120px))
+  right:max(150px,env(safe-area-inset-right));display:flex;gap:6px;
+  overflow-x:auto;scrollbar-width:none;pointer-events:auto;max-width:min(620px,calc(100% - 158px))
 }
 .archipelago-regions button{
   flex:none;min-height:40px;padding:7px 13px;border:1px solid #60829860;border-radius:22px;
   background:#071522e8;color:#c5d9e5;font:500 10px var(--body-font,system-ui);touch-action:manipulation
 }
 .archipelago-regions button.active{border-color:#91deee;background:#173347;color:#d5faff}
-.archipelago-map .map-search-toggle,.archipelago-map .map-filter-toggle{z-index:16;min-width:38px;min-height:38px}
+.archipelago-map .map-search-toggle,.archipelago-map .map-filter-toggle,.archipelago-map .map-help-toggle{z-index:16;min-width:38px;min-height:38px}
+.archipelago-map .map-travel-help{position:absolute;z-index:16;top:52px;right:8px;left:auto;width:min(360px,calc(100% - 16px));max-height:calc(100% - 80px);overflow:auto;padding:14px 16px;pointer-events:auto}
+.archipelago-map .map-travel-help b{display:block;margin-bottom:8px;color:#d5f4ff;font:700 12px var(--display,system-ui);letter-spacing:.08em;text-transform:uppercase}
+.archipelago-map .map-travel-help p,.archipelago-map .map-travel-help li{color:#c5d9e5;font-size:13px;line-height:1.45}
+.archipelago-map .map-travel-help ul{margin:8px 0;padding-left:18px}
 .archipelago-map .map-tools,.archipelago-map .map-quick-filters{z-index:16;top:52px;max-height:calc(100% - 68px);overflow:auto;overscroll-behavior:contain}
 .archipelago-map .map-tools input{font-size:16px;min-height:44px}
 .archipelago-map .map-tools button,.archipelago-map .map-quick-filters label{min-height:44px}
@@ -27,7 +31,8 @@
 .archipelago-map:has(#sysbox:not(:empty)) .map-orbit-fire,
 .archipelago-map:has(#sysbox:not(:empty)) .map-season{visibility:hidden;pointer-events:none}
 .archipelago-map:has(#map-tools.open) .archipelago-regions,
-.archipelago-map:has(.map-quick-filters:not([hidden])) .archipelago-regions{visibility:hidden;pointer-events:none}
+.archipelago-map:has(.map-quick-filters:not([hidden])) .archipelago-regions,
+.archipelago-map:has(#map-travel-help:not([hidden])) .archipelago-regions{visibility:hidden;pointer-events:none}
 @media(max-width:760px){
   .archipelago-map .archipelago-regions{top:52px;max-width:calc(100% - 16px);right:8px}
   .archipelago-map .sys-panel{left:8px;right:8px;bottom:8px;width:auto;max-width:calc(100% - 16px);max-height:54%}

@@ -22,6 +22,7 @@ test("command menu prioritizes Bauen, then Kommando, then Reich", () => {
     assert.match(shell, /<span class="nav-group">Kommando<\/span>\s*<button data-view="alliance">Allianz/);
     assert.ok(shell.indexOf('<span class="nav-group">Bauen</span>') < shell.indexOf('<span class="nav-group">Kommando</span>'));
     assert.ok(shell.indexOf('<span class="nav-group">Kommando</span>') < shell.indexOf('<span class="nav-group">Reich</span>'));
+    assert.ok(shell.indexOf('<span class="nav-group">Reich</span>') < shell.indexOf('id="nav-logout"'));
     assert.match(shell, /id="nav-logout"/);
   }
 });
@@ -48,6 +49,7 @@ test("mobile chrome exposes three resources, an expander and map search toggle",
   assert.match(app, /class="res-more"/);
   assert.match(app, /class="resource-toggle"/);
   assert.match(app, /class="map-search-toggle"/);
+  assert.match(app, /id="map-travel-help"/);
   assert.match(app, /mapTools\?\.classList\.toggle\("open"\)/);
   assert.doesNotMatch(app, /map-view-switch/);
   assert.doesNotMatch(app, /data-map-view="sector"/);
