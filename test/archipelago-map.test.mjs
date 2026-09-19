@@ -9,7 +9,7 @@ test('systems are never drawn inside the visual black-hole core',()=>{
  const g=m.regions[0];
  for(const n of m.systems){
   const d=Math.hypot(n.x-g.x,n.y-g.y);
-  assert.ok(d>=g.r*.22-1e-6,`system ${n.id} sits in the hole at ${d}`);
+  assert.ok(d>=g.r*.28-1e-6,`system ${n.id} sits in the hole at ${d}`);
   assert.equal(n.source.x,[1500,1520,2040][[1,2,9].indexOf(n.id)]);
  }
 });

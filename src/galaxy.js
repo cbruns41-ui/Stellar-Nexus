@@ -21,7 +21,7 @@ const ROMAN = ["I", "II", "III", "IV", "V", "VI"];
 const LOCAL_ORIGIN = { x: 1500, y: 1500 };
 const LAYOUT_RADIUS = 2100;
 // Keep systems outside the visual black-hole core (~18% of the disc). Display only.
-const CORE_KEEP_OUT = 0.22;
+const CORE_KEEP_OUT = 0.28;
 const GALAXY_REGIONS = [
   { id: 0, name: "AURELIA", subtitle: "Die Heimatreiche", x: -620, y: 60, r: 650, color: "#83dafa" },
   { id: 1, name: "VESPER", subtitle: "Der violette Schleier", x: 620, y: -470, r: 475, color: "#ceaeff" },

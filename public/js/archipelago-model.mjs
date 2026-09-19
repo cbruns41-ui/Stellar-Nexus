@@ -18,7 +18,7 @@ export function matchesFilter(s,self,filter={}) {
   const c=categories(s,self),checked=Object.keys(c).filter(k=>filter[k]);
   return !filter.none&&(!checked.length||checked.some(k=>c[k]));
 }
-const LAYOUT_ORIGIN={x:1500,y:1500},LAYOUT_RADIUS=2100,CORE_KEEP_OUT=.22;
+const LAYOUT_ORIGIN={x:1500,y:1500},LAYOUT_RADIUS=2100,CORE_KEEP_OUT=.28;
 function regionIdOf(s,display){
   if(Number.isFinite(display?.regionId))return display.regionId;
   if(Number.isFinite(Number(s.galaxyId)))return Number(s.galaxyId);

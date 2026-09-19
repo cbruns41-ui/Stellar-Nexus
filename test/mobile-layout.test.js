@@ -141,7 +141,8 @@ test("funk splits messages, combat reports and spy reports", () => {
 test("star map uses cinematic art and labels every detailed system", () => {
   assert.match(bossGame3d, /alliance-war-titan-v1\.png/);
   assert.match(fs.readFileSync(path.join(root, "public", "js", "app.js"), "utf8"), /archipelago-integration\.mjs/);
-  assert.match(fs.readFileSync(path.join(root, "public", "js", "archipelago-map.mjs"), "utf8"), /archipelago-galaxy-v1\.png/);
+  assert.match(fs.readFileSync(path.join(root, "public", "js", "archipelago-map.mjs"), "utf8"), /galaxy-motion-v4\.mp4/);
+  assert.equal(fs.existsSync(path.join(root, "public", "assets", "map", "galaxy-motion-v4.mp4")), true);
   assert.match(fs.readFileSync(path.join(root, "public", "js", "map.js"), "utf8"), /Kolonieschiff unterwegs/);
   assert.match(routes, /planetCount: planetCounts\[s\.id\]/);
   assert.match(css, /KOMMANDOZENTRALE/);

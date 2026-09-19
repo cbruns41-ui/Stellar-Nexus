@@ -1,4 +1,4 @@
-import{makeModel,matchesFilter,MISSION_COLORS,flightProgress,flightEta}from'./archipelago-model.mjs?v=5';
+import{makeModel,matchesFilter,MISSION_COLORS,flightProgress,flightEta}from'./archipelago-model.mjs?v=6';
 
 // Drop-in createMap contract. No API calls, timers mutating the world, or global DOM handlers.
 export function createMap(canvas,onSelect,onViewChange,options={}) {
@@ -7,10 +7,10 @@ export function createMap(canvas,onSelect,onViewChange,options={}) {
   const cam={x:0,y:0,scale:.3},target={...cam},pointers=new Map();let gesture=null,route=null;
   const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches,textures=[],art=new Image();
   let ready=false,artFailed=false;
-  art.src=options.assetUrl||new URL('../assets/map/archipelago-galaxy-v1.png',import.meta.url).href;
-  // Same detailed motion as the first galaxy; only a light wash so siblings stay readable.
-  const tints=['#8fd4ff18','#d2b8ff1c','#efd7a81c','#a8d2ff16','#cbb6f51a','#efc8a018'];
-  const motionSrc=new URL('../assets/map/galaxy-motion-example.mp4',import.meta.url).href;
+  art.src=options.assetUrl||new URL('../assets/map/galaxy-still-v4.jpg',import.meta.url).href;
+  // Video 4 as the shared high-detail plate; only a light wash so siblings stay readable.
+  const tints=['#8fd4ff14','#d2b8ff16','#efd7a816','#a8d2ff12','#cbb6f514','#efc8a014'];
+  const motionSrc=new URL('../assets/map/galaxy-motion-v4.mp4',import.meta.url).href;
   const clips=[0,1,2].map(i=>{
     const v=document.createElement('video');
     v.muted=true;v.loop=true;v.playsInline=true;v.preload='auto';v.src=motionSrc;
