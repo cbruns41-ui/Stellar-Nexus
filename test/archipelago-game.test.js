@@ -8,7 +8,7 @@ const { openDb } = require("../src/db");
 const game = require("../src/game");
 const { withTx } = require("../src/tx");
 const { ensurePlayer } = require("../src/seed");
-const { ensureOpenGalaxies, galaxyLayout, GALAXY_REGIONS } = require("../src/galaxy");
+const { ensureOpenGalaxies, galaxyLayout, GALAXY_REGIONS, relabelMisnamedGateWorlds } = require("../src/galaxy");
 
 const SMALL_RINGS = [
   { r: 0, count: 1, ring: 0, hub: true },
@@ -64,6 +64,32 @@ test("cross-galaxy travel uses gates, never a straight line, and needs warp", (t
   const fleet = db.prepare("SELECT * FROM fleets WHERE empire_id=? ORDER BY id DESC LIMIT 1").get(empire.id);
   assert.equal(fleet.target_planet_id, foreign.id);
   assert.ok(fleet.arrives_at - fleet.departed_at >= 15 * 60 * 1000);
+});
+
+test("planets named Gate stay planets and are renamed; jump gates stay gates", (t) => {
+  const { db } = fixture(t);
+  const sys = db.prepare("SELECT id FROM systems WHERE id NOT IN (SELECT system_id FROM jump_gates) LIMIT 1").get();
+  assert.ok(sys);
+  db.prepare("UPDATE systems SET name=? WHERE id=?").run("Helio Gate", sys.id);
+  db.prepare("UPDATE planets SET name=? WHERE system_id=?").run("Helio Gate I", sys.id);
+  relabelMisnamedGateWorlds(db);
+  const renamed = db.prepare("SELECT name FROM systems WHERE id=?").get(sys.id);
+  assert.ok(renamed.name);
+  assert.equal(/\bGate\b/i.test(renamed.name), false);
+  assert.equal(db.prepare("SELECT 1 FROM jump_gates WHERE system_id=?").get(sys.id), undefined);
+  const planets = db.prepare("SELECT name FROM planets WHERE system_id=?").all(sys.id);
+  assert.ok(planets.length);
+  assert.ok(planets.every((p) => !/\bGate\b/i.test(p.name)));
+  assert.ok(planets.every((p) => p.name.startsWith(renamed.name)));
+  ensureOpenGalaxies(db, 3, { rings: SMALL_RINGS, planetSpan: 2 });
+  const gates = db.prepare("SELECT system_id FROM jump_gates").all();
+  assert.ok(gates.length >= 2);
+  const stray = db
+    .prepare(
+      "SELECT p.name FROM planets p WHERE p.name LIKE '%Gate%' AND p.system_id NOT IN (SELECT system_id FROM jump_gates)"
+    )
+    .all();
+  assert.equal(stray.length, 0);
 });
 
 test("jump gates cannot be colonized or attacked", (t) => {

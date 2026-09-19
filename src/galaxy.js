@@ -12,7 +12,7 @@ const PREFIX = [
   "Dusk", "Gleam", "Feral", "Titan", "Echo", "Pulse", "Crown", "Ashen",
 ];
 const SUFFIX = [
-  " Prime", " Reach", " Gate", " Deep", " Rim", " Spire", " Drift", " Hollow",
+  " Prime", " Reach", " Deep", " Rim", " Spire", " Drift", " Hollow",
   " Veil", " Expanse", " Anchor", " Fold", "", " Verge", " Halo",
   " March", " Bastion", " Cross", " Well", " Ward", " Strand", " Cradle",
   " Watch", " Flare", " Span", " Crest", " Fall", " Rise",
@@ -370,7 +370,49 @@ function ensureOpenGalaxies(db, count = 3, opts = {}) {
     opened.push(openGalaxy(db, id, opts));
   }
   ensureJumpNetwork(db);
+  relabelMisnamedGateWorlds(db);
   return opened;
+}
+
+function dropGateWord(name) {
+  return String(name || "")
+    .replace(/\s*\bGate\b/gi, " Verge")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function relabelMisnamedGateWorlds(db) {
+  const gateSystems = new Set(
+    db.prepare("SELECT system_id FROM jump_gates").all().map((row) => row.system_id)
+  );
+  const used = new Set(db.prepare("SELECT name FROM systems").all().map((row) => row.name));
+  const systems = db.prepare("SELECT id, name FROM systems").all();
+  for (const system of systems) {
+    if (gateSystems.has(system.id)) continue;
+    if (!/\bGate\b/i.test(system.name)) continue;
+    used.delete(system.name);
+    let next = dropGateWord(system.name) || `${pick(makeRng(system.id), PREFIX)} Verge`;
+    if (used.has(next)) {
+      let n = 2;
+      while (used.has(`${next} ${n}`)) n += 1;
+      next = `${next} ${n}`;
+    }
+    used.add(next);
+    db.prepare("UPDATE systems SET name=? WHERE id=?").run(next, system.id);
+    const planets = db.prepare("SELECT id, name FROM planets WHERE system_id=?").all(system.id);
+    for (const planet of planets) {
+      const renamed = planet.name.replace(system.name, next);
+      db.prepare("UPDATE planets SET name=? WHERE id=?").run(
+        /\bGate\b/i.test(renamed) ? dropGateWord(renamed) : renamed,
+        planet.id
+      );
+    }
+  }
+  const leftover = db.prepare("SELECT id, name FROM planets WHERE name LIKE '%Gate%'").all();
+  for (const planet of leftover) {
+    if (!/\bGate\b/i.test(planet.name)) continue;
+    db.prepare("UPDATE planets SET name=? WHERE id=?").run(dropGateWord(planet.name), planet.id);
+  }
 }
 
 function isJumpGateSystem(db, systemId) {
@@ -442,6 +484,7 @@ module.exports = {
   openGalaxy,
   ensureOpenGalaxies,
   ensureJumpNetwork,
+  relabelMisnamedGateWorlds,
   listJumpNetwork,
   isJumpGateSystem,
   jumpGateCard,

@@ -71,27 +71,18 @@ export function createGpuScene(root, getView) {
     box(g,2.2,1.1,1.3,0,-3.4,0.8,friendly?cyan:orange);
     const exhaust=new T.Mesh(spritePlane,friendly?friendlyPlume:plumeMat);exhaust.scale.set(5,16,1);exhaust.position.set(0,-12,2);g.add(exhaust);
     const flame=glow(g,0,-6,2,7,friendly?blueGlow:engineMat);flame.name='engine';flame.userData.glow=7;return g;}
-  function meshFighter(){const g=new T.Group();
-    const hull=new T.Mesh(geo(new T.CylinderGeometry(1.05,1.55,13,8)),hullSkin);g.add(hull);
-    const nose=new T.Mesh(geo(new T.ConeGeometry(1.05,4.6,8)),hostile);nose.position.y=8.6;g.add(nose);
-    plate(g,[[-7.4,-2.2],[-1.1,3.4],[1.1,3.4],[7.4,-2.2]],0.55,-0.35,wingSkin);
-    box(g,1.9,2.8,1.5,0,2.1,1.05,glass);
-    box(g,1.2,2,2.1,0,-3.6,0,dark);
-    engine(g,-2.4,-6.6,0,1.0);engine(g,2.4,-6.6,0,1.0);
-    plume(g,-2.4,-6.2,5,14);plume(g,2.4,-6.2,5,14);
-    glow(g,0,7.2,1.2,3.4,spriteMat(0xff4a2a,.55));
-    g.scale.setScalar(2.35);return g;}
-  function meshFrigate(){const g=new T.Group();
-    const hull=new T.Mesh(geo(new T.CylinderGeometry(2.1,2.7,22,10)),hullSkin);g.add(hull);
-    const nose=new T.Mesh(geo(new T.ConeGeometry(2.1,6.2,10)),hostile);nose.position.y=13.8;g.add(nose);
-    box(g,12.5,7.2,2,0,-1.6,0,wingSkin);
-    box(g,2.6,5.2,2.8,0,3.6,1.9,dark);
-    box(g,1.8,2.6,1.8,0,5.4,2.3,glass);
-    box(g,16,2.2,1.1,0,-4.2,0,copper);
-    engine(g,-3.6,-11.4,0,1.25);engine(g,0,-12.2,0,1.4);engine(g,3.6,-11.4,0,1.25);
-    plume(g,-3.6,-11,6,16);plume(g,0,-11.6,7,18);plume(g,3.6,-11,6,16);
-    glow(g,-4.6,7.2,1.8,4.2,spriteMat(0xff692c,.5));glow(g,4.6,7.2,1.8,4.2,spriteMat(0xff692c,.5));
-    g.scale.setScalar(2.05);return g;}
+  function paintedFighter(){const g=new T.Group();
+    illustratedSprite(g,'fighter-v8.jpg',46,46,.5,true);
+    for(const x of [-6.4,6.4]){const flame=glow(g,x,-18.4,27,9,engineMat);flame.name='engine';flame.userData.glow=9;}
+    return g;}
+  function paintedFrigate(){const g=new T.Group();
+    illustratedSprite(g,'frigate-v8.jpg',42,64,.46,true);
+    for(const x of [-7.4,0,7.4]){const flame=glow(g,x,-28,27,10,engineMat);flame.name='engine';flame.userData.glow=10;}
+    return g;}
+  function paintedRocket(){const g=new T.Group();
+    illustratedSprite(g,'rocket-v8.jpg',13,30,.4,true);
+    const flame=glow(g,0,-13.5,27,7,engineMat);flame.name='engine';flame.userData.glow=7;
+    return g;}
   function illustratedTower(kind){const g=new T.Group(),gun=new T.Group();gun.name='gun';g.add(gun);
     ring(g,11,.9,-6,silver);ring(g,7.5,.45,-4,guide);
     const art=TURRET_ART[kind];
@@ -103,7 +94,7 @@ export function createGpuScene(root, getView) {
         jet.position.set(x,9,1);jet.scale.set(kind==='laser'?5:10,kind==='gauss'?28:16,1);jet.rotation.z=Math.PI;flash.add(jet);}
     }
     return g;}
-  const templates={fighter:meshFighter(),frigate:meshFrigate(),missile:missile(),interceptor:missile(true)};for(const k of ['laser','silo','flak','gauss','tesla','mine','battery'])templates[k]=illustratedTower(k);
+  const templates={fighter:paintedFighter(),frigate:paintedFrigate(),missile:paintedRocket(),interceptor:missile(true)};for(const k of ['laser','silo','flak','gauss','tesla','mine','battery'])templates[k]=illustratedTower(k);
   function icon(kind){
     if(!templates[kind])return null;if(iconCache.has(kind))return iconCache.get(kind);
     const size=192,target=new T.WebGLRenderTarget(size,size);target.texture.colorSpace=T.SRGBColorSpace;

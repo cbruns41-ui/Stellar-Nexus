@@ -1,5 +1,5 @@
 import { START_SALVAGE, WORK_PER_WAVE, TOWER_BASE, WEAPON_DEFS, weaponCost as passiveCost, weaponLimit as passiveLimit, applyWeaponStats, killPayout, waveClearBonus, waveSpawnCount, waveHp as enemyHp, waveSpawnGap } from "./orbit-economy.mjs?v=2";
-import { createGpuScene } from "./orbit-gpu.mjs?v=2";
+import { createGpuScene } from "./orbit-gpu.mjs?v=3";
 export function startOrbitSiege(opts = {}) {
 const TAU = Math.PI * 2;
 let session = opts.session || {};
@@ -107,9 +107,9 @@ const ART = {
   bg: img("/assets/orbit-siege/arena.jpg"),
   planet: img("/assets/orbit-siege/planet.png"),
   battery: img("/assets/orbit-siege/turret-battery.png"),
-  interceptor: img("/assets/orbit-siege/fighter-v3.png"),
-  frigate: img("/assets/orbit-siege/frigate.png"),
-  rocket: img("/assets/orbit-siege/rocket.png"),
+  interceptor: img("/assets/orbit-siege/fighter-v8.jpg"),
+  frigate: img("/assets/orbit-siege/frigate-v8.jpg"),
+  rocket: img("/assets/orbit-siege/rocket-v8.jpg"),
   missile: img("/assets/orbit-siege/missile.png"),
   turrets: {
     laser: img("/assets/orbit-siege/turret-laser-v7.png"),
@@ -1509,7 +1509,7 @@ function drawTrail(pts, color, width) {
 function drawEnemy(e) {
   drawTrail(e.trail, e.heavy ? "rgba(255,110,50,0.28)" : "rgba(255,80,40,0.22)", e.heavy ? 5 : 3);
   const spr = e.heavy ? ART.frigate : ART.interceptor;
-  const h = e.heavy ? 36 : 24;
+  const h = e.heavy ? 48 : 34;
   const w = h * sprAspect(spr, e.heavy ? 0.67 : 0.68);
   const ang = Math.atan2(cy - e.y, cx - e.x);
   if (e.flash > 0) {
