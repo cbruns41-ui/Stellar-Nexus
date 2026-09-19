@@ -5,16 +5,9 @@ export function createMap(canvas,onSelect,onViewChange,options={}) {
   const ctx=canvas.getContext('2d',{alpha:false}),abort=new AbortController(),signal=abort.signal;
   let model=makeModel(),filter={},selected=null,pending=null,destroyed=false,raf=0,last=0,frames=0,hits=[],labels=[],W=1,H=1,dpr=1,serverAt=Date.now(),receivedAt=performance.now(),regionKey='',mode='';
   const cam={x:0,y:0,scale:.3},target={...cam},pointers=new Map();let gesture=null,route=null;
-  const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches,textures=[],art=new Image(),holeStill=new Image();
-  let ready=false,artFailed=false,holeReady=false;
+  const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches,textures=[],cores=[],art=new Image();
+  let ready=false,artFailed=false;
   art.src=options.assetUrl||new URL('../assets/map/archipelago-galaxy-v1.png',import.meta.url).href;
-  holeStill.src=new URL('../assets/map/black-hole-core.jpg',import.meta.url).href;
-  holeStill.decode().then(()=>{holeReady=true;}).catch(()=>{});
-  const holeVid=document.createElement('video');
-  holeVid.muted=true;holeVid.loop=true;holeVid.playsInline=true;holeVid.preload='auto';
-  holeVid.src=new URL('../assets/map/black-hole-disk.mp4',import.meta.url).href;
-  const playHole=()=>{if(reduced||destroyed)return;holeVid.play?.().catch(()=>{});};
-  holeVid.addEventListener('canplay',playHole,{once:true});
   function sampleBilinear(data,dim,px,py){
     px=Math.max(0,Math.min(dim-1.001,px));py=Math.max(0,Math.min(dim-1.001,py));
     const x0=px|0,y0=py|0,fx=px-x0,fy=py-y0,x1=Math.min(dim-1,x0+1),y1=Math.min(dim-1,y0+1);
@@ -31,8 +24,8 @@ export function createMap(canvas,onSelect,onViewChange,options={}) {
       const dx=x-R,dy=y-R,r=Math.hypot(dx,dy),di=(y*dim+x)*4;
       if(r>=R){dst[di]=srcD[di];dst[di+1]=srcD[di+1];dst[di+2]=srcD[di+2];dst[di+3]=srcD[di+3];continue;}
       if(r<rs){dst[di+3]=255;continue;}
-      const u=(r-rs)/(R-rs),mag=1+1.25*Math.pow(1-u,2.15),srcR=Math.min(R-1.2,rs+(r-rs)*mag);
-      const swirl=1.7*Math.pow(1-u,1.5),a=Math.atan2(dy,dx)+swirl;
+      const u=(r-rs)/(R-rs),mag=1+.72*Math.pow(1-u,2.2),srcR=Math.min(R-1.2,rs+(r-rs)*mag);
+      const swirl=.95*Math.pow(1-u,1.65),a=Math.atan2(dy,dx)+swirl;
       const col=sampleBilinear(srcD,dim,R+Math.cos(a)*srcR,R+Math.sin(a)*srcR);
       if(r<rs*2.35){
         const back=sampleBilinear(srcD,dim,R+Math.cos(a+Math.PI)*srcR*.9,R+Math.sin(a+Math.PI)*srcR*.9);
@@ -47,8 +40,14 @@ export function createMap(canvas,onSelect,onViewChange,options={}) {
     g.globalCompositeOperation='source-atop';g.fillStyle=tint;g.fillRect(0,0,size,size);g.globalCompositeOperation='source-over';
     return c;
   }
+  function extractCore(tex){
+    const size=tex.width,rad=Math.floor(size*.18),c=document.createElement('canvas');
+    c.width=c.height=rad*2;const g=c.getContext('2d');
+    g.drawImage(tex,size/2-rad,size/2-rad,rad*2,rad*2,0,0,rad*2,rad*2);
+    return c;
+  }
   const tints=['#4eb5ff30','#ae70ff45','#ffc66b40','#729bff30','#b481ff40','#ffa86f35'];
-  const load=art.decode().then(()=>{if(destroyed)return;for(let i=0;i<6;i++)textures.push(bakeGalaxy(art,tints[i]));ready=true;playHole();}).catch(()=>{artFailed=true;options.onError?.('Die Galaxiegrafik konnte nicht geladen werden. Systeme bleiben erreichbar.');});
+  const load=art.decode().then(()=>{if(destroyed)return;for(let i=0;i<6;i++){const baked=bakeGalaxy(art,tints[i]);textures.push(baked);cores.push(extractCore(baked));}ready=true;}).catch(()=>{artFailed=true;options.onError?.('Die Galaxiegrafik konnte nicht geladen werden. Systeme bleiben erreichbar.');});
   const rect=()=>canvas.getBoundingClientRect(),screen=(x,y)=>({x:(x-cam.x)*cam.scale+W/2,y:(y-cam.y)*cam.scale+H/2});
   const world=(x,y)=>({x:(x-W/2)/cam.scale+cam.x,y:(y-H/2)/cam.scale+cam.y});
   const local=e=>{const r=rect();return{x:e.clientX-r.left,y:e.clientY-r.top};};
@@ -69,24 +68,25 @@ export function createMap(canvas,onSelect,onViewChange,options={}) {
   canvas.addEventListener('pointerup',e=>end(e),{signal});canvas.addEventListener('pointercancel',e=>end(e,true),{signal});
   function label(text,x,y,color='#b5cbd8',id=null){ctx.font='11px "Segoe UI",sans-serif';const b={l:x-3,r:x+ctx.measureText(text).width+6,t:y-13,b:y+7,id};if(b.l<5||b.r>W-5||b.t<5||b.b>H-5||labels.some(v=>b.l<v.r&&b.r>v.l&&b.t<v.b&&b.b>v.t))return;labels.push(b);ctx.shadowColor='#000';ctx.shadowBlur=5;ctx.fillStyle=color;ctx.fillText(text,x,y);ctx.shadowBlur=0;}
   function glow(x,y,r,color){const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,color);g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.fillRect(x-r,y-r,r*2,r*2);}
-  function drawHole(p,r,t){
-    const span=Math.max(16,r*.17),hole=Math.max(3.4,span*.38),spin=reduced?0:t*.00022;
-    glow(p.x,p.y,span*1.35,'#ffb06022');
-    ctx.save();ctx.beginPath();ctx.arc(p.x,p.y,span,0,Math.PI*2);ctx.clip();ctx.translate(p.x,p.y);
-    ctx.rotate(spin);ctx.globalCompositeOperation='lighter';
-    const disk=holeVid.readyState>=2?holeVid:holeReady?holeStill:null;
-    if(disk){ctx.globalAlpha=.92;ctx.drawImage(disk,-span,-span,span*2,span*2);}
-    ctx.globalCompositeOperation='source-over';ctx.globalAlpha=1;ctx.restore();
-    glow(p.x,p.y,hole*1.55,'#000');ctx.fillStyle='#000';ctx.beginPath();ctx.arc(p.x,p.y,hole,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle='#ffe7c4';ctx.globalAlpha=.95;ctx.lineWidth=Math.max(1.1,hole*.13);
-    ctx.beginPath();ctx.arc(p.x,p.y,hole*1.16,0,Math.PI*2);ctx.stroke();
-    if(!reduced){ctx.strokeStyle='#fff8e8';ctx.globalAlpha=.7;ctx.lineWidth=Math.max(1.2,hole*.1);ctx.beginPath();ctx.arc(p.x,p.y,hole*1.16,spin*8,spin*8+0.9);ctx.stroke();}
+  function drawHole(p,r,t,texI){
+    const mid=Math.max(10,r*.18),inner=Math.max(6,r*.11),hole=Math.max(2.4,r*.032),spin=reduced?0:t*.00011;
+    const core=cores[texI];
+    if(core){
+      ctx.save();ctx.beginPath();ctx.arc(p.x,p.y,mid,0,Math.PI*2);ctx.clip();ctx.translate(p.x,p.y);ctx.rotate(spin);
+      ctx.drawImage(core,-mid,-mid,mid*2,mid*2);ctx.restore();
+      ctx.save();ctx.beginPath();ctx.arc(p.x,p.y,inner,0,Math.PI*2);ctx.clip();ctx.translate(p.x,p.y);ctx.rotate(spin*1.65);
+      ctx.globalAlpha=.9;ctx.drawImage(core,-mid,-mid,mid*2,mid*2);ctx.restore();
+    }
+    glow(p.x,p.y,hole*2.1,'#000000cc');ctx.fillStyle='#000';ctx.beginPath();ctx.arc(p.x,p.y,hole,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#f3ddb4';ctx.globalAlpha=.9;ctx.lineWidth=Math.max(.9,hole*.12);
+    ctx.beginPath();ctx.arc(p.x,p.y,hole*1.18,0,Math.PI*2);ctx.stroke();
+    if(!reduced){ctx.strokeStyle='#fff6e4';ctx.globalAlpha=.55;ctx.lineWidth=Math.max(.8,hole*.08);ctx.beginPath();ctx.arc(p.x,p.y,hole*1.18,spin*14,spin*14+.8);ctx.stroke();}
     ctx.globalAlpha=1;
   }
   function curve(a,b,color,dash=false){const p=screen(a.x,a.y),q=screen(b.x,b.y),bend=Math.min(100,Math.hypot(p.x-q.x,p.y-q.y)*.15),mx=(p.x+q.x)/2,my=(p.y+q.y)/2-bend;ctx.strokeStyle=color;ctx.lineWidth=.8;ctx.setLineDash(dash?[4,6]:[]);ctx.beginPath();ctx.moveTo(p.x,p.y);if(a.id===b.id){ctx.arc(p.x,p.y-17,17,Math.PI/2,Math.PI*2.5);}else ctx.quadraticCurveTo(mx,my,q.x,q.y);ctx.stroke();ctx.setLineDash([]);return{p,q,mx,my};}
   function draw(t){ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#03070e';ctx.fillRect(0,0,W,H);hits=[];labels=[];
     for(let i=0;i<280;i++){const x=((i*71.731-cam.x*.02)%W+W)%W,y=((i*i*3.177-cam.y*.02)%H+H)%H;ctx.fillStyle=i%5?'#627a8b80':'#c4dced90';ctx.fillRect(x,y,i%5?.7:1.1,i%5?.7:1.1);}
-    for(const g of model.regions){const p=screen(g.x,g.y),r=g.r*cam.scale;if(p.x+r<0||p.x-r>W||p.y+r<0||p.y-r>H)continue;if(ready){ctx.globalAlpha=Math.max(.22,.85/Math.max(1,cam.scale*.65));ctx.drawImage(textures[Math.abs(Number(g.id)||0)%6],p.x-r,p.y-r,r*2,r*2);ctx.globalAlpha=1;}else glow(p.x,p.y,r,g.color+'30');drawHole(p,r,t,g.color);if(cam.scale<.6)label(g.name,p.x-r*.25,p.y+r*.86,g.color);}
+    for(const g of model.regions){const p=screen(g.x,g.y),r=g.r*cam.scale;if(p.x+r<0||p.x-r>W||p.y+r<0||p.y-r>H)continue;if(ready){ctx.globalAlpha=Math.max(.22,.85/Math.max(1,cam.scale*.65));ctx.drawImage(textures[Math.abs(Number(g.id)||0)%6],p.x-r,p.y-r,r*2,r*2);ctx.globalAlpha=1;}else glow(p.x,p.y,r,g.color+'30');drawHole(p,r,t,Math.abs(Number(g.id)||0)%6);if(cam.scale<.6)label(g.name,p.x-r*.25,p.y+r*.86,g.color);}
     if(selected!=null)for(const l of model.links){if(l.a===selected||l.b===selected)curve(model.byId.get(l.a),model.byId.get(l.b),'#8bbed34d');}
     const nodes=currentNodes().filter(n=>{const p=screen(n.x,n.y);return p.x>-25&&p.x<W+25&&p.y>-25&&p.y<H+25;});
     const priority=n=>n.id===selected?100:n.id===model.self.homeSystemId?90:n.categories.own?80:n.categories.alliance?60:n.source.isGate?58:n.source.rift?55:n.source.isHub?50:n.source.fleetCount?40:0;
@@ -97,7 +97,7 @@ export function createMap(canvas,onSelect,onViewChange,options={}) {
     if(route){const a=model.byId.get(route.a),b=model.byId.get(route.b);if(a&&b)curve(a,b,'#c7f3ffb0',true);}frames++;
   }
   function loop(t){if(destroyed)return;raf=requestAnimationFrame(loop);if(document.hidden||!canvas.isConnected)return;const frameMs=reduced?100:W<760?33:22;if(t-last<frameMs)return;const dt=Math.min(.1,(t-last)/1000||.02);last=t;if(!pointers.size){const k=reduced?1:1-Math.exp(-dt*10);for(const key of ['x','y','scale'])cam[key]+=(target[key]-cam[key])*k;}emit();draw(t);}
-  document.addEventListener('visibilitychange',()=>{last=0;if(document.hidden)holeVid.pause();else playHole();},{signal});raf=requestAnimationFrame(loop);
+  document.addEventListener('visibilitychange',()=>{last=0;},{signal});raf=requestAnimationFrame(loop);
   const api={
     setData(payload){if(destroyed)return;const first=!model.systems.length;model=makeModel(payload);serverAt=Number.isFinite(payload.now)?payload.now:Date.now();receivedAt=performance.now();if(selected!=null&&!model.byId.has(selected)){selected=null;onSelect?.(null);}const key=model.regions.map(g=>g.id+':'+g.name).join('|');if(key!==regionKey){regionKey=key;options.onRegions?.(model.regions);}if(first){overview();Object.assign(cam,target);}if(pending){const fn=pending;pending=null;fn();}},
     setFilter(next){filter={...filter,...next};},
@@ -111,6 +111,6 @@ export function createMap(canvas,onSelect,onViewChange,options={}) {
     getRegions:()=>model.regions,
     inspect:()=>({camera:{x:cam.x,y:cam.y,z:cam.scale},selected,frames,hits:hits.map(h=>({...h})),ready,artFailed,destroyed,systems:model.systems.length,flights:model.flights.map(f=>({id:f.id,progress:flightProgress(f,clock()),eta:flightEta(f,clock())}))}),
     ready:load,
-    destroy(){if(destroyed)return;destroyed=true;cancelAnimationFrame(raf);abort.abort();observer.disconnect();pointers.clear();holeVid.pause();holeVid.removeAttribute('src');holeVid.load();for(const c of textures){c.width=c.height=1;}textures.length=0;hits=[];}
+    destroy(){if(destroyed)return;destroyed=true;cancelAnimationFrame(raf);abort.abort();observer.disconnect();pointers.clear();for(const c of textures.concat(cores)){c.width=c.height=1;}textures.length=0;cores.length=0;hits=[];}
   };return api;
 }
