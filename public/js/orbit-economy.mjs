@@ -1,14 +1,23 @@
 // Shared Orbit-Feuer economy: kill payouts, wave pressure, passive cannon upgrades.
-export const START_SALVAGE = 125;
+export const START_SALVAGE = 160;
+export const WORK_PER_WAVE = 2;
+export const TOWER_BASE = {
+  laser: 70,
+  mine: 35,
+  flak: 75,
+  silo: 80,
+  gauss: 105,
+  tesla: 120,
+};
 export const WEAPON_DEFS = [
-  { id: "dmg", title: "SCHADEN", blurb: "Jeder Schuss trifft härter", cost: 55, max: 5, icon: "dmg" },
-  { id: "rate", title: "FEUERRATE", blurb: "Die Kanone taktet schneller", cost: 60, max: 5, icon: "rate" },
-  { id: "pierce", title: "DURCHSCHLAG", blurb: "Schüsse gehen durch weitere Ziele", cost: 80, max: 3, icon: "range" },
-  { id: "missiles", title: "RAKETEN", blurb: "Begleitraketen neben dem Schuss", cost: 100, max: 3, icon: "missiles" },
+  { id: "dmg", title: "SCHADEN", blurb: "Jeder Schuss trifft härter", cost: 50, max: 5, icon: "dmg" },
+  { id: "rate", title: "FEUERRATE", blurb: "Die Kanone taktet schneller", cost: 55, max: 5, icon: "rate" },
+  { id: "pierce", title: "DURCHSCHLAG", blurb: "Schüsse gehen durch weitere Ziele", cost: 70, max: 3, icon: "range" },
+  { id: "missiles", title: "RAKETEN", blurb: "Begleitraketen neben dem Schuss", cost: 90, max: 3, icon: "missiles" },
 ];
 
 export function weaponCost(def, level) {
-  return Math.ceil(def.cost * Math.pow(1.5, Math.max(0, level)));
+  return Math.ceil(def.cost * Math.pow(1.45, Math.max(0, level)));
 }
 
 export function weaponLimit(def, heldWaves) {
@@ -30,14 +39,14 @@ export function applyWeaponStats(levels = {}) {
 
 export function killPayout({ heavy = false, rocket = false, wave = 1, player = false } = {}) {
   const w = Math.max(1, Math.floor(Number(wave) || 1));
-  let n = rocket ? 2 + Math.floor(w / 4) : heavy ? 7 + w : 3 + Math.floor(w / 3);
-  if (player) n += heavy ? 2 : rocket ? 1 : 1;
+  let n = rocket ? 3 + Math.floor(w / 4) : heavy ? 10 + w : 5 + Math.floor(w / 3);
+  if (player) n += heavy ? 3 : rocket ? 1 : 2;
   return n;
 }
 
 export function waveClearBonus(wave) {
   const w = Math.max(1, Math.floor(Number(wave) || 1));
-  return 12 + Math.min(30, w * 3);
+  return 20 + Math.min(36, w * 4);
 }
 
 export function waveSpawnCount(wave) {

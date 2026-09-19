@@ -49,13 +49,22 @@ body.orbit-siege-open { overflow: hidden; }
   background: radial-gradient(ellipse at 50% 44%, transparent 34%, rgba(70, 6, 4, .58) 100%);
   z-index: 2;
 }
+.orbit-game .orbit-gpu {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
 .orbit-game .orbit-canvas {
   position: absolute !important;
   inset: 0 !important;
   width: 100% !important;
   height: 100% !important;
   display: block;
-  z-index: 0;
+  z-index: 1;
+  background: transparent;
 }
 .orbit-game .orbit-exit,
 .orbit-game .orbit-pause {
@@ -147,7 +156,8 @@ body.orbit-siege-open { overflow: hidden; }
 }
 .orbit-game .hud-sub { display: flex; justify-content: space-between; gap: 10px; min-height: 26px; padding: 6px 8px; border-top: 1px solid #7190a93b; align-items: center; flex-wrap: wrap; }
 .orbit-game .hud-sub>span:nth-child(2){display:none}
-.orbit-game #build-go {
+.orbit-game #build-go,
+.orbit-game #build-open {
   pointer-events: auto;
   min-height: 28px;
   padding: 0 10px;
@@ -160,7 +170,14 @@ body.orbit-siege-open { overflow: hidden; }
   letter-spacing: .08em;
   cursor: pointer;
 }
-.orbit-game #build-go[hidden] { display: none !important; }
+.orbit-game #build-open {
+  border-color: #e0c07a;
+  background: linear-gradient(180deg, #6a4a18, #3a280c);
+  color: #ffe7a8;
+  box-shadow: 0 0 14px rgba(240, 180, 60, .28);
+}
+.orbit-game #build-go[hidden],
+.orbit-game #build-open[hidden] { display: none !important; }
 .orbit-game .hud-sub b { display: inline; font-size: 13px; letter-spacing: .04em; margin-left: 6px; }
 
 .orbit-game .wave-banner {

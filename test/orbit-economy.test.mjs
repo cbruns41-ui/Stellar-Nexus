@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   START_SALVAGE,
+  WORK_PER_WAVE,
+  TOWER_BASE,
   WEAPON_DEFS,
   weaponCost,
   weaponLimit,
@@ -12,17 +14,18 @@ import {
   waveHp,
 } from "../public/js/orbit-economy.mjs";
 
-test("starting salvage buys a laser and leaves room for a first passive later", () => {
-  assert.equal(START_SALVAGE, 125);
-  assert.ok(START_SALVAGE >= 80);
-  assert.ok(START_SALVAGE < 80 + weaponCost(WEAPON_DEFS[0], 0));
+test("starting salvage buys a laser and a mine in the same build phase", () => {
+  assert.equal(START_SALVAGE, 160);
+  assert.equal(WORK_PER_WAVE, 2);
+  assert.ok(START_SALVAGE >= TOWER_BASE.laser + TOWER_BASE.mine);
+  assert.ok(START_SALVAGE - TOWER_BASE.laser >= TOWER_BASE.mine);
 });
 
 test("kills pay more for heavies and player last hits, and scale with the wave", () => {
-  assert.equal(killPayout({ wave: 1 }), 3);
-  assert.equal(killPayout({ wave: 1, player: true }), 4);
-  assert.equal(killPayout({ wave: 1, heavy: true }), 8);
-  assert.equal(killPayout({ wave: 6, heavy: true, player: true }), 15);
+  assert.equal(killPayout({ wave: 1 }), 5);
+  assert.equal(killPayout({ wave: 1, player: true }), 7);
+  assert.equal(killPayout({ wave: 1, heavy: true }), 11);
+  assert.equal(killPayout({ wave: 6, heavy: true, player: true }), 19);
   assert.ok(killPayout({ wave: 8, rocket: true }) < killPayout({ wave: 8, heavy: true }));
   assert.ok(killPayout({ wave: 10 }) > killPayout({ wave: 1 }));
 });
