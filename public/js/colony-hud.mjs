@@ -4,7 +4,7 @@ const escape = value => String(value ?? "").replace(/[&<>"']/g, ch => ({ "&": "&
 export function colonyRows(snap, catalog, previews, selected, now = Date.now()) {
   const byId = Object.fromEntries((previews?.planetId === String(snap?.planet?.id) ? previews.buildings || [] : []).map(p => [p.id, p]));
   return {
-    planetId: String(snap?.planet?.id || ""), selected: selected || "",
+    planetId: String(snap?.planet?.id || ""), planetType: snap?.planet?.type || "terran", selected: selected || "",
     plots: CITY_PLOTS.map(plot => ({
       id: plot.id, name: catalog?.buildings?.[plot.id]?.name || plot.short,
       locked: byId[plot.id]?.unlocked === false,

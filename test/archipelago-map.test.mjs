@@ -4,6 +4,15 @@ import {createRequire} from 'node:module';
 import {makeModel,categories,matchesFilter,flightProgress,flightEta} from '../public/js/archipelago-model.mjs';
 const require=createRequire(import.meta.url);
 const system=(id,extra={})=>({id,name:'System '+id,x:1500+id*31,y:1500-id*12,planetCount:4,planetNames:['Welt I','Welt II'],owners:[],...extra});
+test('systems are never drawn inside the visual black-hole core',()=>{
+ const m=makeModel({self:{empireId:1},systems:[system(1,{galaxyId:0,x:1500,y:1500}),system(2,{galaxyId:0,x:1520,y:1490}),system(9,{galaxyId:0,x:2040,y:1500})]});
+ const g=m.regions[0];
+ for(const n of m.systems){
+  const d=Math.hypot(n.x-g.x,n.y-g.y);
+  assert.ok(d>=g.r*.22-1e-6,`system ${n.id} sits in the hole at ${d}`);
+  assert.equal(n.source.x,[1500,1520,2040][[1,2,9].indexOf(n.id)]);
+ }
+});
 test('display layout is stable under reorder and never mutates world coordinates',()=>{
  const a=system(1,{galaxyId:0}),b=system(2,{galaxyId:0}),data={self:{empireId:1},systems:[a,b],links:[{a:1,b:2}],flights:[]},original=JSON.stringify(data),before=makeModel(data);
  const after=makeModel({...data,systems:[system(3,{galaxyId:1}),{...b,owners:[{empireId:1,planets:1}]},a]});

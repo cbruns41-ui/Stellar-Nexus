@@ -22,7 +22,7 @@ const {
   TIME_SPEED_CAP,
   TICK_MS,
 } = require("./catalog");
-const { remnantFleet, setRemnantFleet, listJumpNetwork } = require("./galaxy");
+const { remnantFleet, setRemnantFleet, listJumpNetwork, isJumpGateSystem } = require("./galaxy");
 const { planIntergalacticTravel, JUMP_HOP_EQUIV } = require("./archipelagoTravel");
 const npcSites = require('./npc-sites');
 const progress = require("./progress");
@@ -1967,6 +1967,12 @@ function sendFleet(db, empire, origin, target, mission, shipsWanted, cargo, opts
   } else if ((techs.warp || 0) < 1) {
     throw new Error("Warp-Forschung nötig, um Galaxien zu wechseln.");
   }
+  if (isJumpGateSystem(db, target.system_id)) {
+    const blocked = { attack: 1, spy: 1, colonize: 1, ally_colonize: 1, salvage: 1, expedition: 1 };
+    if (blocked[mission]) {
+      throw new Error("Sprungtore sind Transitstationen, keine Welten. Kolonisieren, Angriff und Spionage sind hier nicht möglich.");
+    }
+  }
   if (mission === "attack" && target.empire_id === empire.id) throw new Error("Eigene Welten kann man nicht angreifen.");
   if (mission === "attack" && target.alliance_id) {
     const mine = social.myAlliance(db, empire.id);
@@ -2821,7 +2827,7 @@ function tickGalaxy(db) {
 
   let rift = getRift(db);
   if (!rift && Math.random() < 0.28) {
-    const sys = db.prepare("SELECT id FROM systems WHERE is_hub = 0 ORDER BY RANDOM() LIMIT 1").get();
+    const sys = db.prepare("SELECT id FROM systems WHERE is_hub = 0 AND id NOT IN (SELECT system_id FROM jump_gates) ORDER BY RANDOM() LIMIT 1").get();
     if (sys) {
       db.prepare("INSERT OR REPLACE INTO world_meta(key, value) VALUES('rift', ?)").run(
         JSON.stringify({ systemId: sys.id, until: Date.now() + 3 * 60 * 60 * 1000 })

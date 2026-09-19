@@ -8,6 +8,13 @@
 .living-colony .colony-preview {
   position: absolute; inset: 0; background: #171b20 url("/assets/colony/colony-approved.png?v=2") center / cover no-repeat;
 }
+.living-colony[data-planet-type="terran"] .colony-preview { background-image: url("/assets/colony/colony-terran.jpg?v=1"); }
+.living-colony[data-planet-type="ocean"] .colony-preview { background-image: url("/assets/colony/colony-ocean.jpg?v=1"); }
+.living-colony[data-planet-type="desert"] .colony-preview { background-image: url("/assets/colony/colony-approved.png?v=2"); }
+.living-colony[data-planet-type="ice"] .colony-preview { background-image: url("/assets/colony/colony-ice.jpg?v=1"); }
+.living-colony[data-planet-type="lava"] .colony-preview { background-image: url("/assets/colony/colony-lava.jpg?v=1"); }
+.living-colony[data-planet-type="gas"] .colony-preview { background-image: url("/assets/colony/colony-gas.jpg?v=1"); }
+.living-colony[data-planet-type="ruin"] .colony-preview { background-image: url("/assets/colony/colony-ruin.jpg?v=1"); }
 .living-colony.is-unity .colony-preview { display: none; }
 .colony-markers { position: absolute; inset: 0; pointer-events: none; }
 .living-colony .colony-marker {

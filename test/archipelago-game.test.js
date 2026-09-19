@@ -47,7 +47,7 @@ test("cross-galaxy travel uses gates, never a straight line, and needs warp", (t
   ensureOpenGalaxies(db, 3, { rings: SMALL_RINGS, planetSpan: 2 });
   const homeSys = db.prepare("SELECT * FROM systems WHERE id=?").get(home.system_id);
   assert.equal(homeSys.galaxy_id, 0);
-  const foreign = db.prepare("SELECT * FROM planets p JOIN systems s ON s.id=p.system_id WHERE s.galaxy_id=1 LIMIT 1").get();
+  const foreign = db.prepare("SELECT p.* FROM planets p JOIN systems s ON s.id=p.system_id WHERE s.galaxy_id=1 AND s.id NOT IN (SELECT system_id FROM jump_gates) LIMIT 1").get();
   assert.ok(foreign);
   game.addShips(db, home.id, { probe: 2 });
   assert.throws(() => game.previewTravel(db, empire, home, foreign, { probe: 1 }), /Warp/);
@@ -64,6 +64,22 @@ test("cross-galaxy travel uses gates, never a straight line, and needs warp", (t
   const fleet = db.prepare("SELECT * FROM fleets WHERE empire_id=? ORDER BY id DESC LIMIT 1").get(empire.id);
   assert.equal(fleet.target_planet_id, foreign.id);
   assert.ok(fleet.arrives_at - fleet.departed_at >= 15 * 60 * 1000);
+});
+
+test("jump gates cannot be colonized or attacked", (t) => {
+  const { db, empire, home } = fixture(t);
+  ensureOpenGalaxies(db, 3, { rings: SMALL_RINGS, planetSpan: 2 });
+  const gatePlanet = db
+    .prepare(
+      "SELECT p.* FROM planets p JOIN jump_gates g ON g.system_id=p.system_id WHERE p.empire_id IS NULL LIMIT 1"
+    )
+    .get();
+  assert.ok(gatePlanet);
+  game.addShips(db, home.id, { fighter: 2, colony: 1, probe: 1 });
+  db.prepare("INSERT INTO research(empire_id,tech_id,level) VALUES(?,?,?)").run(empire.id, "warp", 18);
+  assert.throws(() => game.sendFleet(db, empire, home, gatePlanet, "colonize", { colony: 1 }, {}), /Sprungtore/);
+  assert.throws(() => game.sendFleet(db, empire, home, gatePlanet, "attack", { fighter: 1 }, {}), /Sprungtore/);
+  assert.throws(() => game.sendFleet(db, empire, home, gatePlanet, "spy", { probe: 1 }, {}), /Sprungtore/);
 });
 
 test("new homes stay in Aurelia after other galaxies open", (t) => {

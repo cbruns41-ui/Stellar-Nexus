@@ -359,6 +359,7 @@ function occupyEmpty(db, level) {
        WHERE s.remnant = 0 AND s.is_hub = 0 AND IFNULL(s.pirate,0) = 0
          AND NOT EXISTS (SELECT 1 FROM npc_sites n WHERE n.system_id=s.id)
          AND NOT EXISTS (SELECT 1 FROM planets p WHERE p.system_id = s.id AND p.empire_id IS NOT NULL)
+         AND NOT EXISTS (SELECT 1 FROM jump_gates g WHERE g.system_id=s.id)
          AND NOT EXISTS (SELECT 1 FROM fleets f JOIN planets p ON p.id=f.target_planet_id
            WHERE p.system_id=s.id AND f.is_return=0 AND f.mission IN ('colonize','ally_colonize'))
        ORDER BY RANDOM() LIMIT 1`

@@ -75,6 +75,7 @@ namespace Colony
                 var data=JsonUtility.FromJson<StateDto>(json);
                 if(data?.plots==null) return;
                 if(_planet!=data.planetId) { _planet=data.planetId; _cam.FramePlaza(); }
+                _world.ApplyBiome(data.planetType);
                 _selected=data.selected ?? "";
                 foreach(var row in data.plots)
                     if(row!=null && _plots.TryGetValue(row.id,out var plot))
@@ -95,7 +96,7 @@ namespace Colony
             if(notify) SN_NotifySelect(_selected);
 #endif
         }
-        [Serializable] class StateDto { public PlotDto[] plots; public string selected,planetId; }
+        [Serializable] class StateDto { public PlotDto[] plots; public string selected,planetId,planetType; }
         [Serializable] class PlotDto { public string id; public int level; public bool locked,busy,active,idle; }
         [Serializable] class FrameDto { public AnchorDto[] anchors; }
         [Serializable] class AnchorDto { public string id; public float x,y; public bool visible; }

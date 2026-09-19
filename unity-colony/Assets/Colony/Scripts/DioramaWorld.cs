@@ -43,6 +43,12 @@ namespace Colony
             return world;
         }
         public void ApplyAspect(bool mobile) { }
+        public void ApplyBiome(string type)
+        {
+            var key = "Vista/colony-" + (string.IsNullOrEmpty(type) ? "desert" : type.ToLowerInvariant());
+            var tex = Resources.Load<Texture2D>(key) ?? Resources.Load<Texture2D>("Vista/colony-approved");
+            if (tex && Surface) Surface.mainTexture = tex;
+        }
         public Vector3 UvToLocal(Vector2 uv) => new Vector3((uv.x - .5f) * Width, (.5f - uv.y) * Height, 0);
         public Vector2 PlotUv(PlotSpec spec) => spec.Desk;
     }

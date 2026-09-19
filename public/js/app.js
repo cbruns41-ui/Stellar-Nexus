@@ -1,13 +1,13 @@
 import { api, getState, getCatalog, getPreview as fetchBuildingPreview, getGalaxy, getSystem, getReports, getRanks, getEmpire, combatPreview, combatSim, getAlliances, getAlliance, getAllianceActivity } from "./api.js?v=5";
 import { esc, fmt, eta, when, costHtml, planetCss, planetGlobeUrl, planetColonyUrl, mediaTag, bindMediaFallbacks, toast, showModal as showModalEl, hideModal as hideModalEl, shipList, starfield, resourceIcon, icon, beep, notify, tickEta, ticksOf, tickMsFrom } from "./ui.js?v=2";
-import { createMap } from "./archipelago-integration.mjs?v=4";
-import { systemHtml } from "./map.js?v=70";
+import { createMap } from "./archipelago-integration.mjs?v=6";
+import { systemHtml } from "./map.js?v=71";
 import { battleReplayHtml, bindBattleReplays } from "./battle.js?v=2";
 import { startAllianceBossEncounter } from "./alliance-boss-game.js?v=16";
 import { CITY_PLOTS } from "./city.mjs?v=11";
 import { shipBudget } from "./ship-budget.mjs?v=1";
-import { colonyRows, colonyHudHtml, paintColonyMarkers, paintColonyFrame } from "./colony-hud.mjs?v=8";
-import { createColonyUnity, setUnityColonyVisible } from "./colony-unity.js?v=14";
+import { colonyRows, colonyHudHtml, paintColonyMarkers, paintColonyFrame } from "./colony-hud.mjs?v=9";
+import { createColonyUnity, setUnityColonyVisible } from "./colony-unity.js?v=15";
 import { startOrbitSiege } from "./orbit-siege.mjs?v=14";
 
 
@@ -1694,7 +1694,7 @@ function paintCityQuest(root) {
 }
 
 function colonyCityHtml() {
-  return `<section class="city-view diorama living-colony" aria-label="Lebende Planetenbasis">
+  return `<section class="city-view diorama living-colony" data-planet-type="${esc(state.snap.planet?.type || "terran")}" aria-label="Lebende Planetenbasis">
     <div class="colony-preview" aria-hidden="true"></div>
     ${colonyHudHtml(state.citySheet === "quests")}
     ${state.citySheet === "quests" ? `<section class="city-sheet colony-quests" id="colony-quests" aria-labelledby="colony-quests-title">

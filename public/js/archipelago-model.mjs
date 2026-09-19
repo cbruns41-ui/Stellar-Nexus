@@ -18,17 +18,24 @@ export function matchesFilter(s,self,filter={}) {
   const c=categories(s,self),checked=Object.keys(c).filter(k=>filter[k]);
   return !filter.none&&(!checked.length||checked.some(k=>c[k]));
 }
-const LAYOUT_ORIGIN={x:1500,y:1500},LAYOUT_RADIUS=2100;
+const LAYOUT_ORIGIN={x:1500,y:1500},LAYOUT_RADIUS=2100,CORE_KEEP_OUT=.22;
 function regionIdOf(s,display){
   if(Number.isFinite(display?.regionId))return display.regionId;
   if(Number.isFinite(Number(s.galaxyId)))return Number(s.galaxyId);
   if(Number.isFinite(Number(s.galaxy_id)))return Number(s.galaxy_id);
   return 0;
 }
+function pushOutOfCore(dx,dy,id){
+  const dist=Math.hypot(dx,dy),minR=CORE_KEEP_OUT*LAYOUT_RADIUS;
+  if(dist>=minR)return{dx,dy};
+  const ang=dist<1e-6?((Number(id)||0)*2.399963229728653)%(Math.PI*2):Math.atan2(dy,dx);
+  const mapped=minR+(LAYOUT_RADIUS-minR)*(dist/LAYOUT_RADIUS);
+  return{dx:Math.cos(ang)*mapped,dy:Math.sin(ang)*mapped};
+}
 function displayOf(s,region,display){
   if(Number.isFinite(display?.x)&&Number.isFinite(display?.y))return{x:display.x,y:display.y};
-  const scale=region.r/LAYOUT_RADIUS;
-  return{x:region.x+(s.x-LAYOUT_ORIGIN.x)*scale,y:region.y+(s.y-LAYOUT_ORIGIN.y)*scale};
+  const scale=region.r/LAYOUT_RADIUS,pushed=pushOutOfCore(s.x-LAYOUT_ORIGIN.x,s.y-LAYOUT_ORIGIN.y,s.id);
+  return{x:region.x+pushed.dx*scale,y:region.y+pushed.dy*scale};
 }
 export function makeModel(payload={}) {
   const self=payload.self||{},regions=new Map(),byId=new Map(),systems=[];

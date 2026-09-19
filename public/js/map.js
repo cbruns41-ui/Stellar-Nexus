@@ -684,6 +684,19 @@ export function systemHtml(sys, catalog, originShips, opts = {}) {
       </article>`;
     })
     .join("");
+  if (sys.isGate) {
+    const links = (sys.gate?.connections || []).map((c) => esc(c.galaxyName)).join(", ");
+    const ownHere = sys.planets.filter((p) => p.own || p.canManage);
+    return `
+    <div class="sys-panel panel">
+      <i class="sys-sheet-handle" aria-hidden="true"></i>
+      <div class="section-title"><h2>${esc(sys.gate?.title || sys.name)}</h2><button type="button" class="sys-close" data-sys-close aria-label="Schließen">×</button></div>
+      <p class="muted" style="margin:0 0 8px">${esc(sys.galaxyName || "")} · Öffentliche Transitstation</p>
+      <p class="hint">Kein Planet. Hier gibt es nichts zu kolonisieren, anzugreifen oder auszuspionieren. Wähle ein Ziel in einer anderen Galaxie — die Route führt automatisch über das Tor.</p>
+      ${links ? `<p class="muted">Verbindungen: ${links}</p>` : ""}
+      ${ownHere.length ? `<p class="hint">Alte Kolonie an dieser Station: ${ownHere.map((p) => `<button type="button" class="linkish" data-focus="${p.id}">${esc(p.name)}</button>`).join(", ")}</p>` : ""}
+    </div>`;
+  }
   const focus = sys.planets.find((x) => x.id === highlightPlanetId) || sys.planets.find((x) => x.own || x.canManage) || sys.planets[0];
   const orbitPlanet = (focus?.own && focus) || sys.planets.find((x) => x.own);
   const orbitFleet = orbitPlanet ? Object.values(orbitPlanet.ships || {}).reduce((sum, n) => sum + Number(n || 0), 0) : 0;

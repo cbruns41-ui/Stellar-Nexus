@@ -20,6 +20,8 @@ const SUFFIX = [
 const ROMAN = ["I", "II", "III", "IV", "V", "VI"];
 const LOCAL_ORIGIN = { x: 1500, y: 1500 };
 const LAYOUT_RADIUS = 2100;
+// Keep systems outside the visual black-hole core (~18% of the disc). Display only.
+const CORE_KEEP_OUT = 0.22;
 const GALAXY_REGIONS = [
   { id: 0, name: "AURELIA", subtitle: "Die Heimatreiche", x: -620, y: 60, r: 650, color: "#83dafa" },
   { id: 1, name: "VESPER", subtitle: "Der violette Schleier", x: 620, y: -470, r: 475, color: "#ceaeff" },
@@ -246,12 +248,22 @@ function setRemnantFleet(db, systemId, ships) {
   db.prepare("INSERT OR REPLACE INTO world_meta(key, value) VALUES(?, ?)").run("remnant_fleets", JSON.stringify(map));
 }
 
+function pushOutOfCore(dx, dy, id) {
+  const dist = Math.hypot(dx, dy);
+  const minR = CORE_KEEP_OUT * LAYOUT_RADIUS;
+  if (dist >= minR) return { dx, dy };
+  const ang = dist < 1e-6 ? ((Number(id) || 0) * 2.399963229728653) % (Math.PI * 2) : Math.atan2(dy, dx);
+  const mapped = minR + (LAYOUT_RADIUS - minR) * (dist / LAYOUT_RADIUS);
+  return { dx: Math.cos(ang) * mapped, dy: Math.sin(ang) * mapped };
+}
+
 function galaxyLayout(system, region) {
   const scale = region.r / LAYOUT_RADIUS;
+  const pushed = pushOutOfCore(system.x - LOCAL_ORIGIN.x, system.y - LOCAL_ORIGIN.y, system.id);
   return {
     regionId: region.id,
-    x: region.x + (system.x - LOCAL_ORIGIN.x) * scale,
-    y: region.y + (system.y - LOCAL_ORIGIN.y) * scale,
+    x: region.x + pushed.dx * scale,
+    y: region.y + pushed.dy * scale,
   };
 }
 
@@ -361,6 +373,40 @@ function ensureOpenGalaxies(db, count = 3, opts = {}) {
   return opened;
 }
 
+function isJumpGateSystem(db, systemId) {
+  return !!db.prepare("SELECT 1 FROM jump_gates WHERE system_id=?").get(systemId);
+}
+
+function jumpGateCard(db, systemId) {
+  const gate = db.prepare("SELECT id, galaxy_id AS galaxyId FROM jump_gates WHERE system_id=?").get(systemId);
+  if (!gate) return null;
+  const region = GALAXY_REGIONS.find((g) => g.id === Number(gate.galaxyId)) || GALAXY_REGIONS[0];
+  const role = String(gate.id).includes("outer") ? "outer" : "core";
+  const rows = db
+    .prepare(
+      `SELECT other.galaxy_id AS galaxyId, other.system_id AS systemId
+       FROM jump_connections jc
+       JOIN jump_gates other ON other.id = CASE WHEN jc.a = ? THEN jc.b ELSE jc.a END
+       WHERE jc.enabled != 0 AND (jc.a = ? OR jc.b = ?)`
+    )
+    .all(gate.id, gate.id, gate.id);
+  const seen = new Set();
+  const connections = [];
+  for (const row of rows) {
+    if (seen.has(row.galaxyId)) continue;
+    seen.add(row.galaxyId);
+    const g = GALAXY_REGIONS.find((x) => x.id === Number(row.galaxyId));
+    if (g) connections.push({ galaxyId: g.id, galaxyName: g.name, systemId: row.systemId });
+  }
+  return {
+    id: gate.id,
+    role,
+    title: role === "outer" ? `Äußeres Tor ${region.name}` : `Sprungtor ${region.name}`,
+    galaxyName: region.name,
+    connections,
+  };
+}
+
 function listJumpNetwork(db) {
   return {
     gates: db.prepare("SELECT id, system_id AS systemId, galaxy_id AS galaxyId FROM jump_gates").all(),
@@ -389,10 +435,14 @@ module.exports = {
   GALAXY_REGIONS,
   LOCAL_ORIGIN,
   LAYOUT_RADIUS,
+  CORE_KEEP_OUT,
   galaxyLayout,
+  pushOutOfCore,
   listOpenRegions,
   openGalaxy,
   ensureOpenGalaxies,
   ensureJumpNetwork,
   listJumpNetwork,
+  isJumpGateSystem,
+  jumpGateCard,
 };

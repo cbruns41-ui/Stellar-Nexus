@@ -28,7 +28,7 @@ const {
 const game = require("./game");
 const progress = require("./progress");
 const social = require("./social");
-const { remnantFleet, listOpenRegions, galaxyLayout, GALAXY_REGIONS, listJumpNetwork } = require("./galaxy");
+const { remnantFleet, listOpenRegions, galaxyLayout, GALAXY_REGIONS, listJumpNetwork, jumpGateCard } = require("./galaxy");
 const { withTx } = require("./tx");
 const chat = require("./chat");
 const moderation = require("./moderation");
@@ -859,7 +859,7 @@ function attachRoutes(app, db) {
       )
       .get(empire.id);
     const regions = listOpenRegions(db);
-    const gateSystems = new Set(listJumpNetwork(db).gates.map((g) => g.systemId));
+    const gateBySystem = new Map(listJumpNetwork(db).gates.map((g) => [g.systemId, g]));
     const layout = {};
     for (const s of systems) {
       const galaxyId = Number(s.galaxy_id || 0);
@@ -879,16 +879,25 @@ function attachRoutes(app, db) {
       riftSystemId: riftId || null,
       regions,
       layout,
-      systems: systems.map((s) => ({
+      systems: systems.map((s) => {
+        const galaxyId = Number(s.galaxy_id || 0);
+        const region = regions.find((g) => g.id === galaxyId) || GALAXY_REGIONS[galaxyId] || GALAXY_REGIONS[0];
+        const gate = gateBySystem.get(s.id);
+        const gateName = gate
+          ? String(gate.id).includes("outer")
+            ? `Äußeres Tor ${region.name}`
+            : `Sprungtor ${region.name}`
+          : s.name;
+        return {
         id: s.id,
-        name: s.name,
+        name: gateName,
         x: s.x,
         y: s.y,
-        galaxyId: Number(s.galaxy_id || 0),
+        galaxyId,
         starType: s.star_type,
         star: STAR_TYPES[s.star_type] || STAR_TYPES.yellow,
         isHub: !!s.is_hub,
-        isGate: gateSystems.has(s.id),
+        isGate: !!gate,
         remnant: !!s.remnant,
         warlord: s.warlord || "",
         pirate: s.pirate || 0,
@@ -897,7 +906,8 @@ function attachRoutes(app, db) {
         fleetCount: Number(stationedBySystem[s.id] || 0),
         planetCount: planetCounts[s.id] || 0,
         planetNames: planetNames[s.id] || [],
-      })),
+      };
+      }),
       links,
       flights,
     });
@@ -918,9 +928,10 @@ function attachRoutes(app, db) {
     const techs = game.techsMap(db, empire.id);
     const galaxyId = Number(sys.galaxy_id || 0);
     const galaxy = GALAXY_REGIONS.find((g) => g.id === galaxyId) || GALAXY_REGIONS[0];
+    const gate = jumpGateCard(db, sys.id);
     res.json({
       id: sys.id,
-      name: sys.name,
+      name: gate ? gate.title : sys.name,
       x: sys.x,
       y: sys.y,
       galaxyId,
@@ -928,7 +939,8 @@ function attachRoutes(app, db) {
       starType: sys.star_type,
       star: STAR_TYPES[sys.star_type],
       isHub: !!sys.is_hub,
-      isGate: !!db.prepare("SELECT 1 FROM jump_gates WHERE system_id=?").get(sys.id),
+      isGate: !!gate,
+      gate,
       remnant: !!sys.remnant,
       remnantShips: sys.remnant ? remnantFleet(db, sys.id) : {},
       npc: require('./npc-sites').status(db, sys.id),
