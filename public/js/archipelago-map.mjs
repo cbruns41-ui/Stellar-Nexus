@@ -5,9 +5,50 @@ export function createMap(canvas,onSelect,onViewChange,options={}) {
   const ctx=canvas.getContext('2d',{alpha:false}),abort=new AbortController(),signal=abort.signal;
   let model=makeModel(),filter={},selected=null,pending=null,destroyed=false,raf=0,last=0,frames=0,hits=[],labels=[],W=1,H=1,dpr=1,serverAt=Date.now(),receivedAt=performance.now(),regionKey='',mode='';
   const cam={x:0,y:0,scale:.3},target={...cam},pointers=new Map();let gesture=null,route=null;
-  const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches,textures=[],art=new Image();
-  let ready=false,artFailed=false;art.src=options.assetUrl||new URL('../assets/map/archipelago-galaxy-v1.png',import.meta.url).href;
-  const load=art.decode().then(()=>{if(destroyed)return;for(let i=0;i<6;i++){const c=document.createElement('canvas');c.width=c.height=1536;const g=c.getContext('2d');g.filter='saturate(.65)';g.drawImage(art,0,0,1536,1536);g.filter='none';g.globalCompositeOperation='source-atop';g.fillStyle=['#4eb5ff30','#ae70ff45','#ffc66b40','#729bff30','#b481ff40','#ffa86f35'][i];g.fillRect(0,0,1536,1536);textures.push(c);}ready=true;}).catch(()=>{artFailed=true;options.onError?.('Die Galaxiegrafik konnte nicht geladen werden. Systeme bleiben erreichbar.');});
+  const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches,textures=[],art=new Image(),holeStill=new Image();
+  let ready=false,artFailed=false,holeReady=false;
+  art.src=options.assetUrl||new URL('../assets/map/archipelago-galaxy-v1.png',import.meta.url).href;
+  holeStill.src=new URL('../assets/map/black-hole-core.jpg',import.meta.url).href;
+  holeStill.decode().then(()=>{holeReady=true;}).catch(()=>{});
+  const holeVid=document.createElement('video');
+  holeVid.muted=true;holeVid.loop=true;holeVid.playsInline=true;holeVid.preload='auto';
+  holeVid.src=new URL('../assets/map/black-hole-disk.mp4',import.meta.url).href;
+  const playHole=()=>{if(reduced||destroyed)return;holeVid.play?.().catch(()=>{});};
+  holeVid.addEventListener('canplay',playHole,{once:true});
+  function sampleBilinear(data,dim,px,py){
+    px=Math.max(0,Math.min(dim-1.001,px));py=Math.max(0,Math.min(dim-1.001,py));
+    const x0=px|0,y0=py|0,fx=px-x0,fy=py-y0,x1=Math.min(dim-1,x0+1),y1=Math.min(dim-1,y0+1);
+    const i00=(y0*dim+x0)*4,i10=(y0*dim+x1)*4,i01=(y1*dim+x0)*4,i11=(y1*dim+x1)*4,o=[0,0,0];
+    for(let k=0;k<3;k++)o[k]=data[i00+k]*(1-fx)*(1-fy)+data[i10+k]*fx*(1-fy)+data[i01+k]*(1-fx)*fy+data[i11+k]*fx*fy;
+    return o;
+  }
+  function bakeGalaxy(src,tint){
+    const size=1536,c=document.createElement('canvas');c.width=c.height=size;const g=c.getContext('2d');
+    g.filter='saturate(.65)';g.drawImage(src,0,0,size,size);g.filter='none';
+    const cx=size/2,cy=size/2,R=Math.floor(size*.22),rs=size*.028,dim=R*2,x0=cx-R,y0=cy-R;
+    const img=g.getImageData(x0,y0,dim,dim),srcD=img.data,out=g.createImageData(dim,dim),dst=out.data;
+    for(let y=0;y<dim;y++)for(let x=0;x<dim;x++){
+      const dx=x-R,dy=y-R,r=Math.hypot(dx,dy),di=(y*dim+x)*4;
+      if(r>=R){dst[di]=srcD[di];dst[di+1]=srcD[di+1];dst[di+2]=srcD[di+2];dst[di+3]=srcD[di+3];continue;}
+      if(r<rs){dst[di+3]=255;continue;}
+      const u=(r-rs)/(R-rs),mag=1+1.25*Math.pow(1-u,2.15),srcR=Math.min(R-1.2,rs+(r-rs)*mag);
+      const swirl=1.7*Math.pow(1-u,1.5),a=Math.atan2(dy,dx)+swirl;
+      const col=sampleBilinear(srcD,dim,R+Math.cos(a)*srcR,R+Math.sin(a)*srcR);
+      if(r<rs*2.35){
+        const back=sampleBilinear(srcD,dim,R+Math.cos(a+Math.PI)*srcR*.9,R+Math.sin(a+Math.PI)*srcR*.9);
+        const w=Math.pow(Math.max(0,1-(r-rs)/(rs*1.35)),1.35)*0.58;
+        col[0]=col[0]*(1-w)+back[0]*w;col[1]=col[1]*(1-w)+back[1]*w;col[2]=col[2]*(1-w)+back[2]*w;
+      }
+      const m=Math.pow(u,.62);
+      dst[di]=col[0]*(1-m)+srcD[di]*m;dst[di+1]=col[1]*(1-m)+srcD[di+1]*m;dst[di+2]=col[2]*(1-m)+srcD[di+2]*m;dst[di+3]=255;
+    }
+    g.putImageData(out,x0,y0);
+    g.fillStyle='#000';g.beginPath();g.arc(cx,cy,rs,0,Math.PI*2);g.fill();
+    g.globalCompositeOperation='source-atop';g.fillStyle=tint;g.fillRect(0,0,size,size);g.globalCompositeOperation='source-over';
+    return c;
+  }
+  const tints=['#4eb5ff30','#ae70ff45','#ffc66b40','#729bff30','#b481ff40','#ffa86f35'];
+  const load=art.decode().then(()=>{if(destroyed)return;for(let i=0;i<6;i++)textures.push(bakeGalaxy(art,tints[i]));ready=true;playHole();}).catch(()=>{artFailed=true;options.onError?.('Die Galaxiegrafik konnte nicht geladen werden. Systeme bleiben erreichbar.');});
   const rect=()=>canvas.getBoundingClientRect(),screen=(x,y)=>({x:(x-cam.x)*cam.scale+W/2,y:(y-cam.y)*cam.scale+H/2});
   const world=(x,y)=>({x:(x-W/2)/cam.scale+cam.x,y:(y-H/2)/cam.scale+cam.y});
   const local=e=>{const r=rect();return{x:e.clientX-r.left,y:e.clientY-r.top};};
@@ -28,27 +69,19 @@ export function createMap(canvas,onSelect,onViewChange,options={}) {
   canvas.addEventListener('pointerup',e=>end(e),{signal});canvas.addEventListener('pointercancel',e=>end(e,true),{signal});
   function label(text,x,y,color='#b5cbd8',id=null){ctx.font='11px "Segoe UI",sans-serif';const b={l:x-3,r:x+ctx.measureText(text).width+6,t:y-13,b:y+7,id};if(b.l<5||b.r>W-5||b.t<5||b.b>H-5||labels.some(v=>b.l<v.r&&b.r>v.l&&b.t<v.b&&b.b>v.t))return;labels.push(b);ctx.shadowColor='#000';ctx.shadowBlur=5;ctx.fillStyle=color;ctx.fillText(text,x,y);ctx.shadowBlur=0;}
   function glow(x,y,r,color){const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,color);g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.fillRect(x-r,y-r,r*2,r*2);}
-  function drawHole(p,r,t,tint){
-    const hole=Math.max(3.2,r*.042),disk=hole*2.55,tilt=-.48,spin=reduced?-.2:t*.00016;
-    glow(p.x,p.y,hole*7,tint+'26');glow(p.x,p.y,hole*3.6,'#ffd7a050');
-    ctx.save();ctx.translate(p.x,p.y);ctx.rotate(tilt);
-    ctx.save();ctx.scale(1,.36);
-    const ring=ctx.createRadialGradient(0,0,hole*.72,0,0,disk);
-    ring.addColorStop(0,'rgba(0,0,0,0)');ring.addColorStop(.34,'rgba(8,4,0,0)');ring.addColorStop(.46,'#4a2a1288');
-    ring.addColorStop(.58,'#f8d9a4');ring.addColorStop(.7,'#ffb56a');ring.addColorStop(.86,'#c56a2c66');ring.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.fillStyle=ring;ctx.beginPath();ctx.arc(0,0,disk,0,Math.PI*2);ctx.fill();
-    ctx.globalCompositeOperation='lighter';
-    const beam=ctx.createLinearGradient(-disk,0,disk,0);
-    beam.addColorStop(0,'rgba(255,170,80,0)');beam.addColorStop(.62,'rgba(255,210,140,0)');beam.addColorStop(.82,'rgba(255,246,220,.7)');beam.addColorStop(1,'rgba(255,186,92,0)');
-    ctx.fillStyle=beam;ctx.beginPath();ctx.arc(0,0,disk,0,Math.PI*2);ctx.fill();
-    ctx.globalCompositeOperation='source-over';ctx.restore();
-    ctx.strokeStyle='#ffe9c4';ctx.globalAlpha=.95;ctx.lineWidth=Math.max(1.2,hole*.18);
-    ctx.beginPath();ctx.ellipse(0,0,hole*1.22,hole*.48,0,0,Math.PI*2);ctx.stroke();
-    ctx.strokeStyle='#fff';ctx.globalAlpha=.9;ctx.lineWidth=Math.max(1.5,hole*.24);
-    ctx.beginPath();ctx.ellipse(0,0,hole*1.22,hole*.48,0,spin,spin+1.05);ctx.stroke();
-    ctx.globalAlpha=1;ctx.restore();
-    glow(p.x,p.y,hole*1.35,'#000c');ctx.fillStyle='#000000';ctx.beginPath();ctx.arc(p.x,p.y,hole,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle='#140c08';ctx.lineWidth=Math.max(.7,hole*.07);ctx.beginPath();ctx.arc(p.x,p.y,hole*1.04,0,Math.PI*2);ctx.stroke();
+  function drawHole(p,r,t){
+    const span=Math.max(16,r*.17),hole=Math.max(3.4,span*.38),spin=reduced?0:t*.00022;
+    glow(p.x,p.y,span*1.35,'#ffb06022');
+    ctx.save();ctx.beginPath();ctx.arc(p.x,p.y,span,0,Math.PI*2);ctx.clip();ctx.translate(p.x,p.y);
+    ctx.rotate(spin);ctx.globalCompositeOperation='lighter';
+    const disk=holeVid.readyState>=2?holeVid:holeReady?holeStill:null;
+    if(disk){ctx.globalAlpha=.92;ctx.drawImage(disk,-span,-span,span*2,span*2);}
+    ctx.globalCompositeOperation='source-over';ctx.globalAlpha=1;ctx.restore();
+    glow(p.x,p.y,hole*1.55,'#000');ctx.fillStyle='#000';ctx.beginPath();ctx.arc(p.x,p.y,hole,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#ffe7c4';ctx.globalAlpha=.95;ctx.lineWidth=Math.max(1.1,hole*.13);
+    ctx.beginPath();ctx.arc(p.x,p.y,hole*1.16,0,Math.PI*2);ctx.stroke();
+    if(!reduced){ctx.strokeStyle='#fff8e8';ctx.globalAlpha=.7;ctx.lineWidth=Math.max(1.2,hole*.1);ctx.beginPath();ctx.arc(p.x,p.y,hole*1.16,spin*8,spin*8+0.9);ctx.stroke();}
+    ctx.globalAlpha=1;
   }
   function curve(a,b,color,dash=false){const p=screen(a.x,a.y),q=screen(b.x,b.y),bend=Math.min(100,Math.hypot(p.x-q.x,p.y-q.y)*.15),mx=(p.x+q.x)/2,my=(p.y+q.y)/2-bend;ctx.strokeStyle=color;ctx.lineWidth=.8;ctx.setLineDash(dash?[4,6]:[]);ctx.beginPath();ctx.moveTo(p.x,p.y);if(a.id===b.id){ctx.arc(p.x,p.y-17,17,Math.PI/2,Math.PI*2.5);}else ctx.quadraticCurveTo(mx,my,q.x,q.y);ctx.stroke();ctx.setLineDash([]);return{p,q,mx,my};}
   function draw(t){ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#03070e';ctx.fillRect(0,0,W,H);hits=[];labels=[];
@@ -64,7 +97,7 @@ export function createMap(canvas,onSelect,onViewChange,options={}) {
     if(route){const a=model.byId.get(route.a),b=model.byId.get(route.b);if(a&&b)curve(a,b,'#c7f3ffb0',true);}frames++;
   }
   function loop(t){if(destroyed)return;raf=requestAnimationFrame(loop);if(document.hidden||!canvas.isConnected)return;const frameMs=reduced?100:W<760?33:22;if(t-last<frameMs)return;const dt=Math.min(.1,(t-last)/1000||.02);last=t;if(!pointers.size){const k=reduced?1:1-Math.exp(-dt*10);for(const key of ['x','y','scale'])cam[key]+=(target[key]-cam[key])*k;}emit();draw(t);}
-  document.addEventListener('visibilitychange',()=>{last=0;},{signal});raf=requestAnimationFrame(loop);
+  document.addEventListener('visibilitychange',()=>{last=0;if(document.hidden)holeVid.pause();else playHole();},{signal});raf=requestAnimationFrame(loop);
   const api={
     setData(payload){if(destroyed)return;const first=!model.systems.length;model=makeModel(payload);serverAt=Number.isFinite(payload.now)?payload.now:Date.now();receivedAt=performance.now();if(selected!=null&&!model.byId.has(selected)){selected=null;onSelect?.(null);}const key=model.regions.map(g=>g.id+':'+g.name).join('|');if(key!==regionKey){regionKey=key;options.onRegions?.(model.regions);}if(first){overview();Object.assign(cam,target);}if(pending){const fn=pending;pending=null;fn();}},
     setFilter(next){filter={...filter,...next};},
@@ -78,6 +111,6 @@ export function createMap(canvas,onSelect,onViewChange,options={}) {
     getRegions:()=>model.regions,
     inspect:()=>({camera:{x:cam.x,y:cam.y,z:cam.scale},selected,frames,hits:hits.map(h=>({...h})),ready,artFailed,destroyed,systems:model.systems.length,flights:model.flights.map(f=>({id:f.id,progress:flightProgress(f,clock()),eta:flightEta(f,clock())}))}),
     ready:load,
-    destroy(){if(destroyed)return;destroyed=true;cancelAnimationFrame(raf);abort.abort();observer.disconnect();pointers.clear();for(const c of textures){c.width=c.height=1;}textures.length=0;hits=[];}
+    destroy(){if(destroyed)return;destroyed=true;cancelAnimationFrame(raf);abort.abort();observer.disconnect();pointers.clear();holeVid.pause();holeVid.removeAttribute('src');holeVid.load();for(const c of textures){c.width=c.height=1;}textures.length=0;hits=[];}
   };return api;
 }

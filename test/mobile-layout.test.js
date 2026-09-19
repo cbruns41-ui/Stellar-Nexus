@@ -147,6 +147,8 @@ test("star map uses cinematic art and labels every detailed system", () => {
   assert.match(css, /KOMMANDOZENTRALE/);
   assert.match(css, /grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
   assert.equal(fs.existsSync(path.join(root, "public", "assets", "map", "archipelago-galaxy-v1.png")), true);
+  assert.equal(fs.existsSync(path.join(root, "public", "assets", "map", "black-hole-core.jpg")), true);
+  assert.equal(fs.existsSync(path.join(root, "public", "assets", "map", "black-hole-disk.mp4")), true);
   assert.match(css, /\.shell\.view-home \.city-commander\{display:none!important\}/);
   assert.match(css, /\.shell\.view-home \.dock\{display:none!important\}/);
 });

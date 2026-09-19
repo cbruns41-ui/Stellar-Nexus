@@ -1,4 +1,4 @@
-import{createMap as createRenderer}from'./archipelago-map.mjs?v=2';
+import{createMap as createRenderer}from'./archipelago-map.mjs?v=3';
 export{systemHtml}from'./map.js';
 
 // Galaxy view factory: region chips plus the archipelago renderer.

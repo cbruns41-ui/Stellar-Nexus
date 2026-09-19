@@ -6,7 +6,7 @@ const root=fileURLToPath(new URL('./',import.meta.url));
 const shared=new Map(['archipelago-map.mjs','archipelago-model.mjs','archipelago-integration.mjs','map.js','ui.js'].map(name=>['/integration/'+name,fileURLToPath(new URL('../../public/js/'+name,import.meta.url))]));
 shared.set('/css/archipelago-map.css',fileURLToPath(new URL('../../public/css/archipelago-map.css',import.meta.url)));
 shared.set('/css/style.css',fileURLToPath(new URL('../../public/css/style.css',import.meta.url)));
-const mime={'.html':'text/html; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.jpg':'image/jpeg','.json':'application/json','.md':'text/plain; charset=utf-8'};
+const mime={'.html':'text/html; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.jpg':'image/jpeg','.mp4':'video/mp4','.json':'application/json','.md':'text/plain; charset=utf-8'};
 export function createDemoServer(){return http.createServer(async(req,res)=>{
   try {
     if(req.method!=='GET'&&req.method!=='HEAD'){res.writeHead(405);res.end();return;}
