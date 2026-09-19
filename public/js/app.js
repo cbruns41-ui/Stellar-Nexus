@@ -8,7 +8,7 @@ import { CITY_PLOTS } from "./city.mjs?v=11";
 import { shipBudget } from "./ship-budget.mjs?v=1";
 import { colonyRows, colonyHudHtml, paintColonyMarkers, paintColonyFrame } from "./colony-hud.mjs?v=9";
 import { createColonyUnity, setUnityColonyVisible } from "./colony-unity.js?v=15";
-import { startOrbitSiege } from "./orbit-siege.mjs?v=16";
+import { startOrbitSiege } from "./orbit-siege.mjs?v=17";
 
 
 const $ = (id) => document.getElementById(id);

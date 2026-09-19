@@ -1,5 +1,5 @@
 import { START_SALVAGE, WORK_PER_WAVE, TOWER_BASE, WEAPON_DEFS, weaponCost as passiveCost, weaponLimit as passiveLimit, applyWeaponStats, killPayout, waveClearBonus, waveSpawnCount, waveHp as enemyHp, waveSpawnGap } from "./orbit-economy.mjs?v=2";
-import { createGpuScene } from "./orbit-gpu.mjs?v=1";
+import { createGpuScene } from "./orbit-gpu.mjs?v=2";
 export function startOrbitSiege(opts = {}) {
 const TAU = Math.PI * 2;
 let session = opts.session || {};
@@ -711,8 +711,8 @@ function openBuild(first) {
   game.workUsed=0;
   root.querySelector("#build-go").hidden = false;
   const loot = first ? "" : lootLine(game.wave);
-  showBanner(first ? "BAUEN · 2 AUFTRÄGE" : (loot ? `WELLE ${game.wave} GEHALTEN · ${loot}` : `WELLE ${game.wave} GEHALTEN`));
-  openBuildShop();
+  closeShop();
+  showBanner(first ? "2 AUFTRÄGE · BAUEN" : (loot ? `WELLE ${game.wave} GEHALTEN · ${loot}` : `WELLE ${game.wave} GEHALTEN`));
 }
 function startCombat() {
   if (game.mode !== "build") return;
@@ -864,7 +864,7 @@ function spawnEnemy() {
   const speed = (heavy ? 34 + game.wave * 1.5 : 50 + game.wave * 3.1) * (0.88 + Math.random() * 0.24);
   game.enemies.push({
     x: p.x, y: p.y,
-    r: heavy ? 20 : 13,
+    r: heavy ? 13 : 9,
     hp, max: hp,
     heavy, flash: 0, speed,
     wobble: Math.random() * TAU,
@@ -880,7 +880,7 @@ function spawnRocket(x, y) {
     x: p.x, y: p.y,
     vx: (cx - p.x) / d * speed,
     vy: (cy - p.y) / d * speed,
-    hp: 1 + Math.floor(game.wave / 5), r: 8, trail: [], warn: 1,
+    hp: 1 + Math.floor(game.wave / 5), r: 5, trail: [], warn: 1,
   });
 }
 function launchInterceptor(x, y, ang, target, dmg) {
@@ -945,7 +945,7 @@ function boom(x, y, heavy) {
     x, y, r: 6, vr: heavy ? 240 : 170,
     life: 0.38, color: heavy ? "255,120,60" : "110,230,255",
   });
-  if (game.flashes.length < 28) game.flashes.push({ x, y, life: 0.45, radius: heavy ? 95 : 65 });
+  if (game.flashes.length < 28) game.flashes.push({ x, y, life: 0.38, radius: heavy ? 26 : 14 });
 }
 function interceptBoom(x, y) {
   burst(x, y, "#b8fff4", 14);
@@ -1148,7 +1148,7 @@ function step(dt) {
     e.y += ny * e.speed * dt + nx * sway * dt * 3.2;
     e.flash = Math.max(0, e.flash - dt * 4);
     e.trail.push({ x: e.x, y: e.y });
-    if (e.trail.length > 11) e.trail.shift();
+    if (e.trail.length > 22) e.trail.shift();
     if (e.heavy) {
       e.launchCd -= dt;
       if (e.launchCd <= 0) {
@@ -1170,7 +1170,7 @@ function step(dt) {
     r.x += r.vx * dt; r.y += r.vy * dt;
     r.flash = Math.max(0, (r.flash || 0) - dt * 4);
     r.trail.push({ x: r.x, y: r.y });
-    if (r.trail.length > 14) r.trail.shift();
+    if (r.trail.length > 20) r.trail.shift();
     if (game.smoke.length < 70 && Math.random() < 0.18) puff(r.x, r.y, "rgba(255,140,60,0.35)", 1);
     const d = Math.hypot(cx - r.x, cy - r.y);
     if (d < shieldR + r.r) {
@@ -1211,7 +1211,7 @@ function step(dt) {
     if (m.target) steer(m, m.target.x, m.target.y, dt, 11);
     m.x += m.vx * dt; m.y += m.vy * dt;
     m.trail.push({ x: m.x, y: m.y });
-    if (m.trail.length > 10) m.trail.shift();
+    if (m.trail.length > 16) m.trail.shift();
     if (game.smoke.length < 70 && Math.random() < 0.22) puff(m.x, m.y, "rgba(120,230,255,0.28)", 1);
     let hit = false;
     for (const r of game.rockets) {
@@ -1448,7 +1448,7 @@ function drawAimGuide() {
 function drawTurret(t, player) {
   const p = player ? { x: cx + Math.cos(game.aim) * shieldR * 0.96, y: cy + Math.sin(game.aim) * shieldR * 0.96, ang: game.aim } : towerPos(t);
   const kind = player ? "battery" : t.kind;
-  const size = player ? planetR * 2.35 : kind === "mine" ? planetR * 1.35 : planetR * 1.8;
+  const size = player ? 22 : kind === "mine" ? 16 : 24;
   const spr = player ? ART.battery : ART.turrets[kind] || ART.turrets.laser;
   const glowCol = kind === "gauss" ? "255,210,90" : kind === "flak" || kind === "mine" ? "255,150,70" : kind === "silo" ? "255,180,70" : kind === "tesla" ? "120,240,255" : "80,230,255";
   ctx.save();
@@ -1509,7 +1509,7 @@ function drawTrail(pts, color, width) {
 function drawEnemy(e) {
   drawTrail(e.trail, e.heavy ? "rgba(255,110,50,0.28)" : "rgba(255,80,40,0.22)", e.heavy ? 5 : 3);
   const spr = e.heavy ? ART.frigate : ART.interceptor;
-  const h = e.heavy ? planetR * 1.05 : planetR * 0.78;
+  const h = e.heavy ? 36 : 24;
   const w = h * sprAspect(spr, e.heavy ? 0.67 : 0.68);
   const ang = Math.atan2(cy - e.y, cx - e.x);
   if (e.flash > 0) {
@@ -1531,7 +1531,7 @@ function drawEnemy(e) {
 
 function drawRocket(r) {
   drawTrail(r.trail, "rgba(255,120,40,0.45)", 3.5);
-  const h = planetR * 0.72;
+  const h = 11;
   const w = h * sprAspect(ART.rocket, 0.34);
   const ang = Math.atan2(r.vy, r.vx);
   drawSprite(ART.rocket, r.x, r.y, ang + Math.PI / 2, w, h, 0.5, 0.38);
@@ -1539,7 +1539,7 @@ function drawRocket(r) {
 
 function drawInterceptor(m) {
   drawTrail(m.trail, "rgba(90,230,255,0.5)", 2.4);
-  const h = planetR * 0.62;
+  const h = 10;
   const w = h * sprAspect(ART.missile, 0.31);
   const ang = Math.atan2(m.vy, m.vx);
   drawSprite(ART.missile, m.x, m.y, ang + Math.PI / 2, w, h, 0.5, 0.38);
@@ -1669,6 +1669,9 @@ function draw() {
     ctx.translate(screenCx + shakeX, screenCy + shakeY);
     ctx.scale(cameraScale, cameraScale);
     ctx.translate(-cx, -cy);
+    for (const e of game.enemies) drawTrail(e.trail, e.heavy ? "rgba(255,110,40,0.35)" : "rgba(255,70,50,0.28)", e.heavy ? 2.4 : 1.5);
+    for (const r of game.rockets) drawTrail(r.trail, "rgba(255,130,40,0.55)", 2);
+    for (const m of game.interceptors) drawTrail(m.trail, "rgba(90,230,255,0.55)", 1.6);
     drawAimGuide();
     drawSlots();
     ctx.textAlign = "center";

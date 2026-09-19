@@ -9,11 +9,11 @@ export function createGpuScene(root, getView) {
   const renderer=new T.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});
   renderer.domElement.className='orbit-gpu';renderer.domElement.setAttribute('aria-hidden','true');
   root.prepend(renderer.domElement);root.dataset.renderer='webgl2';root.dataset.renderPipeline='direct-v7';
-  renderer.setClearColor(0x030815);renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=.95;
+  renderer.setClearColor(0x02040c);renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;
   const scene=new T.Scene(),camera=new T.OrthographicCamera(-500,500,500,-500,.1,16000);
   camera.position.set(0,0,3600);camera.lookAt(0,0,0);
   scene.add(new T.HemisphereLight(0xc9e9ff,0x10223d,.85));
-  const sun=new T.DirectionalLight(0xd7edff,1.8);sun.position.set(-300,500,1000);scene.add(sun);
+  const sun=new T.DirectionalLight(0xd7edff,2.6);sun.position.set(-300,500,1000);scene.add(sun);
   const rim=new T.DirectionalLight(0x6cbfff,.9);rim.position.set(600,-200,400);scene.add(rim);
   const warm=new T.DirectionalLight(0xffbf85,.45);warm.position.set(-400,-700,300);scene.add(warm);
   const materials=new Set(),geometries=new Set(),textures=new Set();
@@ -21,6 +21,7 @@ export function createGpuScene(root, getView) {
   const metal=(color,roughness=.38,metalness=.7)=>{const m=new T.MeshStandardMaterial({color,roughness,metalness});materials.add(m);return m;};
   const emissive=(color,intensity=3)=>{const m=new T.MeshStandardMaterial({color:0x152432,emissive:color,emissiveIntensity:intensity,roughness:.25,metalness:.3});materials.add(m);return m;};
   const navy=metal(0x263a52),silver=metal(0x526a7d,.42),dark=metal(0x101b29),armor=metal(0x536979),red=metal(0x9e3932),copper=metal(0xad7352);
+  const hullSkin=metal(0xc5d2de,.28,.78),hostile=metal(0xe25a3c,.32,.42),wingSkin=metal(0x3d5870,.4,.55);
   const cyan=emissive(0x65dcff,4),orange=emissive(0xff692c,4),white=emissive(0xccfaff,4),glass=metal(0x1d829b,.24,.5);
   const guide=emissive(0x488aa7,.6);
   const cube=geo(new T.BoxGeometry(1,1,1)),sphere=geo(new T.SphereGeometry(1,12,8));
@@ -58,33 +59,51 @@ export function createGpuScene(root, getView) {
       vec3 c=mix(vec3(1.,.16,.015),vec3(1.,.9,.65),smoothstep(.4,.95,y)*(1.-smoothstep(0.,w*.5,x)));
       gl_FragColor=vec4(c,a);
     }`});materials.add(plumeMat);
-  function plume(parent,x,y){const m=new T.Mesh(spritePlane,plumeMat);m.scale.set(18,49,1);m.position.set(x,y-24,23);parent.add(m);}
+  function plume(parent,x,y,w=7,h=18){const m=new T.Mesh(spritePlane,plumeMat);m.scale.set(w,h,1);m.position.set(x,y-h*0.42,4);parent.add(m);}
   function glow(parent,x,y,z,size,mat){const s=new T.Sprite(mat);s.position.set(x,y,z);s.scale.set(size,size,1);parent.add(s);return s;}
-  function engine(parent,x,y,z,r=7){const tube=new T.Mesh(geo(new T.CylinderGeometry(r*.75,r,20,12)),dark);tube.position.set(x,y,z);parent.add(tube);box(parent,r*1.2,3,5,x,y-11,z,orange);const flame=glow(parent,x,y-22,z,38,engineMat);flame.name='engine';return flame;}
+  function engine(parent,x,y,z,r=1.15){const tube=new T.Mesh(geo(new T.CylinderGeometry(r*.7,r,3.6,10)),dark);tube.position.set(x,y,z);parent.add(tube);box(parent,r*1.35,1,1,x,y-2,z,orange);const flame=glow(parent,x,y-4.2,z+1,6.5,engineMat);flame.name='engine';flame.userData.glow=6.5;return flame;}
   const friendlyPlume=plumeMat.clone();friendlyPlume.uniforms=plumeMat.uniforms;
   friendlyPlume.fragmentShader=friendlyPlume.fragmentShader.replace('vec3(1.,.16,.015)','vec3(.04,.35,1.)').replace('vec3(1.,.9,.65)','vec3(.7,.95,1.)');materials.add(friendlyPlume);
   function missile(friendly=false){const g=new T.Group();
-    const body=new T.Mesh(geo(new T.CylinderGeometry(2.4,2.9,19,12)),silver);g.add(body);
-    const nose=new T.Mesh(geo(new T.ConeGeometry(2.4,8,12)),friendly?navy:red);nose.position.y=13.5;g.add(nose);
-    plate(g,[[-7,-11],[-2,-3],[2,-3],[7,-11]],1,2,navy);
-    box(g,5,2,3,0,-7,2,friendly?cyan:orange);
-    const exhaust=new T.Mesh(spritePlane,friendly?friendlyPlume:plumeMat);exhaust.scale.set(12,40,1);exhaust.position.set(0,-29,3);g.add(exhaust);
-    glow(g,0,-11,4,19,friendly?blueGlow:engineMat);return g;}
-  function illustratedFighter(){const g=new T.Group();illustratedSprite(g,'fighter-v3.png',136,136,.5,true);
-    for(const x of [-14,14]){plume(g,x,-56);const flame=glow(g,x,-61,26,34,engineMat);flame.name='engine';}
-    return g;}
-  function illustratedFrigate(){const g=new T.Group();illustratedSprite(g,'frigate.png',120,180);return g;}
+    const body=new T.Mesh(geo(new T.CylinderGeometry(1.05,1.25,11,10)),friendly?silver:armor);g.add(body);
+    const nose=new T.Mesh(geo(new T.ConeGeometry(1.05,4.2,10)),friendly?cyan:red);nose.position.y=7.4;g.add(nose);
+    plate(g,[[-3.2,-5.2],[-0.8,-1.2],[0.8,-1.2],[3.2,-5.2]],0.6,0.6,navy);
+    box(g,2.2,1.1,1.3,0,-3.4,0.8,friendly?cyan:orange);
+    const exhaust=new T.Mesh(spritePlane,friendly?friendlyPlume:plumeMat);exhaust.scale.set(5,16,1);exhaust.position.set(0,-12,2);g.add(exhaust);
+    const flame=glow(g,0,-6,2,7,friendly?blueGlow:engineMat);flame.name='engine';flame.userData.glow=7;return g;}
+  function meshFighter(){const g=new T.Group();
+    const hull=new T.Mesh(geo(new T.CylinderGeometry(1.05,1.55,13,8)),hullSkin);g.add(hull);
+    const nose=new T.Mesh(geo(new T.ConeGeometry(1.05,4.6,8)),hostile);nose.position.y=8.6;g.add(nose);
+    plate(g,[[-7.4,-2.2],[-1.1,3.4],[1.1,3.4],[7.4,-2.2]],0.55,-0.35,wingSkin);
+    box(g,1.9,2.8,1.5,0,2.1,1.05,glass);
+    box(g,1.2,2,2.1,0,-3.6,0,dark);
+    engine(g,-2.4,-6.6,0,1.0);engine(g,2.4,-6.6,0,1.0);
+    plume(g,-2.4,-6.2,5,14);plume(g,2.4,-6.2,5,14);
+    glow(g,0,7.2,1.2,3.4,spriteMat(0xff4a2a,.55));
+    g.scale.setScalar(2.35);return g;}
+  function meshFrigate(){const g=new T.Group();
+    const hull=new T.Mesh(geo(new T.CylinderGeometry(2.1,2.7,22,10)),hullSkin);g.add(hull);
+    const nose=new T.Mesh(geo(new T.ConeGeometry(2.1,6.2,10)),hostile);nose.position.y=13.8;g.add(nose);
+    box(g,12.5,7.2,2,0,-1.6,0,wingSkin);
+    box(g,2.6,5.2,2.8,0,3.6,1.9,dark);
+    box(g,1.8,2.6,1.8,0,5.4,2.3,glass);
+    box(g,16,2.2,1.1,0,-4.2,0,copper);
+    engine(g,-3.6,-11.4,0,1.25);engine(g,0,-12.2,0,1.4);engine(g,3.6,-11.4,0,1.25);
+    plume(g,-3.6,-11,6,16);plume(g,0,-11.6,7,18);plume(g,3.6,-11,6,16);
+    glow(g,-4.6,7.2,1.8,4.2,spriteMat(0xff692c,.5));glow(g,4.6,7.2,1.8,4.2,spriteMat(0xff692c,.5));
+    g.scale.setScalar(2.05);return g;}
   function illustratedTower(kind){const g=new T.Group(),gun=new T.Group();gun.name='gun';g.add(gun);
+    ring(g,11,.9,-6,silver);ring(g,7.5,.45,-4,guide);
     const art=TURRET_ART[kind];
     const body=illustratedSprite(gun,art.file,art.size,art.size,art.pivot);body.name='turret-body';
     const flash=new T.Group();flash.position.set(0,art.muzzle,28);flash.name='muzzle';flash.visible=false;gun.add(flash);
     for(const x of art.ports||[0]){
-      glow(flash,x,0,0,27,spriteMat(art.color,.85));
+      glow(flash,x,0,0,18,spriteMat(art.color,.9));
       if(kind!=='tesla'&&kind!=='mine'){const jet=new T.Mesh(spritePlane,kind==='flak'||kind==='silo'?plumeMat:friendlyPlume);
-        jet.position.set(x,9,1);jet.scale.set(kind==='laser'?7:14,kind==='gauss'?38:24,1);jet.rotation.z=Math.PI;flash.add(jet);}
+        jet.position.set(x,9,1);jet.scale.set(kind==='laser'?5:10,kind==='gauss'?28:16,1);jet.rotation.z=Math.PI;flash.add(jet);}
     }
     return g;}
-  const templates={fighter:illustratedFighter(),frigate:illustratedFrigate(),missile:missile(),interceptor:missile(true)};for(const k of ['laser','silo','flak','gauss','tesla','mine','battery'])templates[k]=illustratedTower(k);
+  const templates={fighter:meshFighter(),frigate:meshFrigate(),missile:missile(),interceptor:missile(true)};for(const k of ['laser','silo','flak','gauss','tesla','mine','battery'])templates[k]=illustratedTower(k);
   function icon(kind){
     if(!templates[kind])return null;if(iconCache.has(kind))return iconCache.get(kind);
     const size=192,target=new T.WebGLRenderTarget(size,size);target.texture.colorSpace=T.SRGBColorSpace;
@@ -129,13 +148,13 @@ export function createGpuScene(root, getView) {
   const shield=ring(scene,71,1.1,30,cyan);shield.material=cyan;shield.visible=false;
   const orbitMat=new T.LineBasicMaterial({color:0x9fc9df,transparent:true,opacity:.3});materials.add(orbitMat);
   const ringPoints=Array.from({length:128},(_,i)=>new T.Vector3(Math.cos(i*Math.PI/64),Math.sin(i*Math.PI/64),-4/197.6));const orbitLine=new T.LineLoop(geo(new T.BufferGeometry().setFromPoints(ringPoints)),orbitMat);scene.add(orbitLine);
-  const pads=[];for(let i=0;i<6;i++){const a=-Math.PI/2+i*Math.PI/3;const g=new T.Group();g.position.set(Math.cos(a)*197.6,-Math.sin(a)*197.6,0);ring(g,23,1.2,0,silver);ring(g,19,.6,1,guide);pads.push(g);scene.add(g);}
+  const pads=[];for(let i=0;i<6;i++){const a=-Math.PI/2+i*Math.PI/3;const g=new T.Group();g.position.set(Math.cos(a)*197.6,-Math.sin(a)*197.6,0);ring(g,8.5,.7,0,silver);ring(g,6.2,.35,1,guide);pads.push(g);scene.add(g);}
   const skyTexture=new T.TextureLoader().load(ASSET+'deep-space.png');skyTexture.colorSpace=T.SRGBColorSpace;skyTexture.wrapS=skyTexture.wrapT=T.MirroredRepeatWrapping;textures.add(skyTexture);
-  const skyMat=new T.ShaderMaterial({uniforms:{map:{value:skyTexture}},depthWrite:false,vertexShader:'varying vec2 pos;void main(){pos=position.xy;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',fragmentShader:'uniform sampler2D map;varying vec2 pos;void main(){vec3 c=texture2D(map,pos/vec2(2800.,1866.)+.5).rgb;gl_FragColor=vec4(c*.65,1.);\n#include <tonemapping_fragment>\n#include <colorspace_fragment>\n}'});materials.add(skyMat);
+  const skyMat=new T.ShaderMaterial({uniforms:{map:{value:skyTexture}},depthWrite:false,vertexShader:'varying vec2 pos;void main(){pos=position.xy;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',fragmentShader:'uniform sampler2D map;varying vec2 pos;void main(){vec3 c=texture2D(map,pos/vec2(2800.,1866.)+.5).rgb;gl_FragColor=vec4(c*.92,1.);\n#include <tonemapping_fragment>\n#include <colorspace_fragment>\n}'});materials.add(skyMat);
   const sky=new T.Mesh(geo(new T.PlaneGeometry(20000,20000)),skyMat);sky.position.z=-1200;scene.add(sky);
   let seed=4491;const rand=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
-  const starPositions=new Float32Array(1600*3);for(let i=0;i<1600;i++){starPositions[i*3]=(rand()-.5)*7500;starPositions[i*3+1]=(rand()-.5)*9500;starPositions[i*3+2]=-500+rand()*200;}
-  const starGeo=geo(new T.BufferGeometry());starGeo.setAttribute('position',new T.BufferAttribute(starPositions,3));const starMat=new T.PointsMaterial({color:0xb7dcff,size:1.5,transparent:true,opacity:.6,depthWrite:false});materials.add(starMat);scene.add(new T.Points(starGeo,starMat));
+  const starPositions=new Float32Array(2800*3);for(let i=0;i<2800;i++){starPositions[i*3]=(rand()-.5)*7500;starPositions[i*3+1]=(rand()-.5)*9500;starPositions[i*3+2]=-500+rand()*200;}
+  const starGeo=geo(new T.BufferGeometry());starGeo.setAttribute('position',new T.BufferAttribute(starPositions,3));const starMat=new T.PointsMaterial({color:0xd4ecff,size:2.1,transparent:true,opacity:.78,depthWrite:false});materials.add(starMat);scene.add(new T.Points(starGeo,starMat));
   const rockGeo=geo(new T.IcosahedronGeometry(1,2));const rp=rockGeo.attributes.position;for(let i=0;i<rp.count;i++){
     const x=rp.getX(i),y=rp.getY(i),z=rp.getZ(i),f=.88+.1*Math.sin(x*8+y*5+z*11)+.06*Math.sin(x*21-z*17);
     rp.setXYZ(i,x*f,y*f,z*f);
@@ -233,7 +252,7 @@ export function createGpuScene(root, getView) {
     });
     for(let i=0;i<rockData.length;i++){const r=rockData[i];dummy.position.set(r.x,r.y,r.z);dummy.rotation.set(r.rx+game.time*r.speed,r.ry,game.time*r.speed*.3);dummy.scale.set(r.r,r.r*.8,r.r*.65);dummy.updateMatrix();rocks.setMatrixAt(i,dummy.matrix);}rocks.instanceMatrix.needsUpdate=true;
     const active=new Set();
-    for(const e of game.enemies){const m=object(e,e.heavy?'frigate':'fighter');active.add(e);m.position.set(e.x,-e.y,20);m.rotation.set(Math.sin(e.wobble)*.07,Math.cos(e.wobble)*.09,-Math.atan2(-e.y,-e.x)-Math.PI/2);m.traverse(o=>{if(o.name==='engine')o.scale.setScalar(32+Math.sin(game.time*30+e.wobble)*4);});}
+    for(const e of game.enemies){const m=object(e,e.heavy?'frigate':'fighter');active.add(e);m.position.set(e.x,-e.y,22);m.rotation.set(Math.sin(e.wobble)*.05,Math.cos(e.wobble)*.06,-Math.atan2(-e.y,-e.x)-Math.PI/2);const pulse=.72+.38*Math.sin(game.time*26+e.wobble);m.traverse(o=>{if(o.name==='engine')o.scale.setScalar((o.userData.glow||6.5)*pulse);});}
     for(const t of game.towers){const m=object(t,t.kind);active.add(t);const a=-Math.PI/2+(t.slot+0.5)*Math.PI*2/6+spin,x=Math.cos(a)*v.ringR,y=Math.sin(a)*v.ringR;m.position.set(x,-y,12);
       const shot=t.shotVisual,flash=shot?Math.max(0,1-(game.time-shot.at)*5):0;
       const angle=flash>.1?shot.angle:t.lock?Math.atan2(t.lock.y-y,t.lock.x-x):a;m.getObjectByName('gun').rotation.z=-angle-Math.PI/2;m.scale.setScalar(TURRET_WORLD_SCALE*(t.buildLeft>0?.6+.4*(1-t.buildLeft/4):1));
@@ -248,13 +267,13 @@ export function createGpuScene(root, getView) {
     upgradeHalo.visible=game.upgradePulse>0;upgradeHalo.position.set(player.position.x,player.position.y,60);upgradeHalo.scale.setScalar(1+(1-(game.upgradePulse||0))*1.4);
     for(const [entries,type] of [[game.rockets,'missile'],[game.interceptors,'interceptor']])for(const e of entries){const m=object(e,type);active.add(e);m.position.set(e.x,-e.y,20);m.rotation.z=-Math.atan2(e.vy,e.vx)-Math.PI/2;}
     cleanup(active);
-    let bi=0;for(const s of game.shots){const m=boltAt(bi++),palette=shotPalettes[s.kind]||shotPalettes.player,boost=s.kind==='player'?Math.max(0,s.dmg-1):0;m.children[0].material=palette.core;m.children[1].material=palette.halo;m.visible=true;m.position.set(s.x,-s.y,25);m.rotation.z=-Math.atan2(s.vy,s.vx)-Math.PI/2;m.scale.set(s.kind==='gauss'?2.2:1.6+boost*.65,s.kind==='gauss'?49:s.kind==='flak'?16:25+boost*10,1);}for(let i=bi;i<boltPool.length;i++)boltPool[i].visible=false;
+    let bi=0;for(const s of game.shots){const m=boltAt(bi++),palette=shotPalettes[s.kind]||shotPalettes.player,boost=s.kind==='player'?Math.max(0,s.dmg-1):0;m.children[0].material=palette.core;m.children[1].material=palette.halo;m.visible=true;m.position.set(s.x,-s.y,28);m.rotation.z=-Math.atan2(s.vy,s.vx)-Math.PI/2;m.scale.set(s.kind==='gauss'?1.6:1.15+boost*.4,s.kind==='gauss'?36:s.kind==='flak'?12:22+boost*8,1);}for(let i=bi;i<boltPool.length;i++)boltPool[i].visible=false;
     let be=0;for(const t of game.towers){const shot=t.shotVisual,flash=shot?Math.max(0,1-(game.time-shot.at)*5):0;if(t.kind!=='laser'||flash<.1)continue;
       const a=-Math.PI/2+(t.slot+0.5)*Math.PI*2/6+spin,x=Math.cos(a)*v.ringR,y=Math.sin(a)*v.ringR,dx=shot.x-x,dy=shot.y-y,distance=Math.hypot(dx,dy),offset=Math.min((TURRET_ART.laser.muzzle-.6*flash*flash)*TURRET_WORLD_SCALE,distance),m=beamAt(be++);m.visible=true;const fraction=distance>0?offset/distance:0;m.position.set(x+dx*(1+fraction)/2,-y-dy*(1+fraction)/2,25);m.rotation.z=-Math.atan2(dy,dx)-Math.PI/2;m.scale.set(.6+flash,Math.max(.01,distance-offset),1.7);
     }for(let i=be;i<beamPool.length;i++)beamPool[i].visible=false;
-    let pi=0;for(const p of game.sparks){if(pi>=900)break;pp[pi*3]=p.x;pp[pi*3+1]=-p.y;pp[pi*3+2]=35;color.set(p.color).multiplyScalar(Math.min(4,p.life*8));pc[pi*3]=color.r;pc[pi*3+1]=color.g;pc[pi*3+2]=color.b;pi++;}particleGeo.setDrawRange(0,pi);particleGeo.attributes.position.needsUpdate=true;particleGeo.attributes.color.needsUpdate=true;particleMat.size=Math.max(2,v.cameraScale*10);
+    let pi=0;for(const p of game.sparks){if(pi>=900)break;pp[pi*3]=p.x;pp[pi*3+1]=-p.y;pp[pi*3+2]=35;color.set(p.color).multiplyScalar(Math.min(4,p.life*8));pc[pi*3]=color.r;pc[pi*3+1]=color.g;pc[pi*3+2]=color.b;pi++;}particleGeo.setDrawRange(0,pi);particleGeo.attributes.position.needsUpdate=true;particleGeo.attributes.color.needsUpdate=true;particleMat.size=Math.max(1.6,v.cameraScale*7);
     let fi=0;for(const f of game.flashes||[]){const s=flareAt(fi++);s.visible=true;s.position.set(f.x,-f.y,60);s.scale.setScalar(f.radius*(1-f.life/.45+.2)*2.8);s.material.uniforms.phase.value=1-f.life/.45;}for(let i=fi;i<flarePool.length;i++)flarePool[i].visible=false;
-    let hi=0;for(const e of [...game.enemies,...game.rockets]){if(!(e.flash>0))continue;const s=hitAt(hi++);s.visible=true;s.position.set(e.x,-e.y,70);s.scale.setScalar(16+e.flash*48);}for(let i=hi;i<hitPool.length;i++)hitPool[i].visible=false;
+    let hi=0;for(const e of [...game.enemies,...game.rockets]){if(!(e.flash>0))continue;const s=hitAt(hi++);s.visible=true;s.position.set(e.x,-e.y,32);s.scale.setScalar(7+e.flash*16);}for(let i=hi;i<hitPool.length;i++)hitPool[i].visible=false;
     let ri=0;for(const r of game.rings){const m=shockAt(ri++);m.visible=true;m.position.set(r.x,-r.y,65);m.scale.setScalar(Math.max(1,r.r));m.material.color.setStyle('rgb('+r.color+')');m.material.opacity=Math.min(.7,r.life*2);}for(let i=ri;i<shockPool.length;i++)shockPool[i].visible=false;
     let si=0;for(const p of game.smoke){const s=smokeAt(si++);s.visible=true;s.position.set(p.x,-p.y,10);s.scale.setScalar(p.r*5);s.material.uniforms.phase.value=Math.max(0,Math.min(1,1-p.life/.8));}for(let i=si;i<smokePool.length;i++)smokePool[i].visible=false;
     lights.forEach((l,i)=>{const f=(game.flashes||[])[i];l.intensity=f?f.life*1200:0;if(f)l.position.set(f.x,-f.y,100);});
