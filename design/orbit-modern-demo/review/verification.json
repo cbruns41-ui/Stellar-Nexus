@@ -1,6 +1,6 @@
 {
   "passed": true,
-  "at": "2026-09-13T22:03:53.283Z",
+  "at": "2026-09-16T14:26:29.109Z",
   "results": [
     {
       "w": 390,
@@ -64,14 +64,19 @@
         844
       ],
       "phase": "combat",
-      "samples": 569,
+      "samples": 562,
       "blackFrames": 0,
       "glErrors": 0,
-      "minBrightness": 128.546875,
+      "minBrightness": 109.52083333333333,
       "healthy": true,
-      "cpuMs": 1.89,
-      "meshes": 11,
-      "frames": 571
+      "cpuMs": 2.17,
+      "meshes": 8,
+      "frames": 564,
+      "veil": {
+        "active": 41,
+        "peak": 269,
+        "capacity": 320
+      }
     },
     {
       "viewport": [
@@ -79,14 +84,19 @@
         844
       ],
       "phase": "simultaneous-effects",
-      "samples": 593,
+      "samples": 584,
       "blackFrames": 0,
       "glErrors": 0,
-      "minBrightness": 128.546875,
+      "minBrightness": 109.52083333333333,
       "healthy": true,
-      "cpuMs": 1.92,
-      "meshes": 11,
-      "frames": 595
+      "cpuMs": 2.18,
+      "meshes": 8,
+      "frames": 586,
+      "veil": {
+        "active": 39,
+        "peak": 269,
+        "capacity": 320
+      }
     },
     {
       "viewport": [
@@ -94,14 +104,19 @@
         568
       ],
       "phase": "simultaneous-effects",
-      "samples": 151,
+      "samples": 152,
       "blackFrames": 0,
       "glErrors": 0,
-      "minBrightness": 129.98958333333334,
+      "minBrightness": 86.03645833333333,
       "healthy": true,
-      "cpuMs": 3.3,
-      "meshes": 10,
-      "frames": 153
+      "cpuMs": 3.49,
+      "meshes": 11,
+      "frames": 154,
+      "veil": {
+        "active": 59,
+        "peak": 59,
+        "capacity": 320
+      }
     },
     {
       "viewport": [
@@ -109,14 +124,19 @@
         390
       ],
       "phase": "simultaneous-effects",
-      "samples": 154,
+      "samples": 156,
       "blackFrames": 0,
       "glErrors": 0,
-      "minBrightness": 122.21354166666667,
+      "minBrightness": 66.1875,
       "healthy": true,
-      "cpuMs": 3.83,
+      "cpuMs": 3.34,
       "meshes": 10,
-      "frames": 156
+      "frames": 158,
+      "veil": {
+        "active": 56,
+        "peak": 56,
+        "capacity": 320
+      }
     },
     {
       "viewport": [
@@ -124,14 +144,19 @@
         800
       ],
       "phase": "simultaneous-effects",
-      "samples": 405,
+      "samples": 409,
       "blackFrames": 0,
       "glErrors": 0,
-      "minBrightness": 113.0625,
+      "minBrightness": 144.64583333333334,
       "healthy": true,
-      "cpuMs": 4.46,
+      "cpuMs": 2.2,
       "meshes": 12,
-      "frames": 407
+      "frames": 411,
+      "veil": {
+        "active": 32,
+        "peak": 33,
+        "capacity": 320
+      }
     },
     {
       "viewport": [
@@ -139,59 +164,79 @@
         800
       ],
       "phase": "continuous-combat",
-      "samples": 2018,
+      "samples": 2012,
       "blackFrames": 0,
       "glErrors": 0,
-      "minBrightness": 113.0625,
+      "minBrightness": 15.59375,
       "healthy": true,
-      "cpuMs": 3.97,
-      "meshes": 12,
-      "frames": 2020
-    },
-    {
-      "viewport": [
-        1280,
-        720
-      ],
-      "phase": "simultaneous-effects",
-      "samples": 376,
-      "blackFrames": 0,
-      "glErrors": 0,
-      "minBrightness": 107.28125,
-      "healthy": true,
-      "cpuMs": 5.26,
-      "meshes": 13,
-      "frames": 378
-    },
-    {
-      "viewport": [
-        1280,
-        720
-      ],
-      "phase": "continuous-combat",
-      "samples": 1989,
-      "blackFrames": 0,
-      "glErrors": 0,
-      "minBrightness": 107.28125,
-      "healthy": true,
-      "cpuMs": 5.05,
-      "meshes": 9,
-      "frames": 1991
-    },
-    {
-      "viewport": [
-        1920,
-        1080
-      ],
-      "phase": "simultaneous-effects",
-      "samples": 207,
-      "blackFrames": 0,
-      "glErrors": 0,
-      "minBrightness": 105.375,
-      "healthy": true,
-      "cpuMs": 6.38,
+      "cpuMs": 1.58,
       "meshes": 11,
-      "frames": 209
+      "frames": 2014,
+      "veil": {
+        "active": 26,
+        "peak": 131,
+        "capacity": 320
+      }
+    },
+    {
+      "viewport": [
+        1280,
+        720
+      ],
+      "phase": "simultaneous-effects",
+      "samples": 373,
+      "blackFrames": 0,
+      "glErrors": 0,
+      "minBrightness": 154.44791666666666,
+      "healthy": true,
+      "cpuMs": 2.73,
+      "meshes": 13,
+      "frames": 375,
+      "veil": {
+        "active": 72,
+        "peak": 89,
+        "capacity": 320
+      }
+    },
+    {
+      "viewport": [
+        1280,
+        720
+      ],
+      "phase": "continuous-combat",
+      "samples": 1976,
+      "blackFrames": 0,
+      "glErrors": 0,
+      "minBrightness": 14.65625,
+      "healthy": true,
+      "cpuMs": 3.79,
+      "meshes": 10,
+      "frames": 1978,
+      "veil": {
+        "active": 19,
+        "peak": 89,
+        "capacity": 320
+      }
+    },
+    {
+      "viewport": [
+        1920,
+        1080
+      ],
+      "phase": "simultaneous-effects",
+      "samples": 204,
+      "blackFrames": 0,
+      "glErrors": 0,
+      "minBrightness": 161.40625,
+      "healthy": true,
+      "cpuMs": 3.08,
+      "meshes": 11,
+      "frames": 206,
+      "veil": {
+        "active": 0,
+        "peak": 0,
+        "capacity": 320
+      }
     },
     {
       "viewport": [
@@ -199,14 +244,19 @@
         1080
       ],
       "phase": "continuous-combat",
-      "samples": 1820,
+      "samples": 1803,
       "blackFrames": 0,
       "glErrors": 0,
-      "minBrightness": 105.375,
+      "minBrightness": 14.390625,
       "healthy": true,
-      "cpuMs": 4.74,
-      "meshes": 6,
-      "frames": 1822
+      "cpuMs": 1.69,
+      "meshes": 9,
+      "frames": 1805,
+      "veil": {
+        "active": 24,
+        "peak": 66,
+        "capacity": 320
+      }
     }
   ],
   "presentationChecks": [
@@ -215,37 +265,48 @@
       "h": 800,
       "scale": 1,
       "frames": 45,
-      "minBrightness": 133.41145833333334
+      "minBrightness": 15.901041666666666
     },
     {
       "w": 1280,
       "h": 720,
       "scale": 1.5,
       "frames": 45,
-      "minBrightness": 129.76041666666666
+      "minBrightness": 26.666666666666668
     },
     {
       "w": 1920,
       "h": 1080,
       "scale": 1,
       "frames": 45,
-      "minBrightness": 130.44791666666666
+      "minBrightness": 14.776041666666666
     }
   ],
   "errors": [],
   "requests": [
-    "http://127.0.0.1:59247/",
-    "http://127.0.0.1:59247/game-base.css",
-    "http://127.0.0.1:59247/demo.css",
-    "http://127.0.0.1:59247/demo.mjs",
-    "http://127.0.0.1:59247/game.mjs",
-    "http://127.0.0.1:59247/gpu-scene.mjs",
-    "http://127.0.0.1:59247/vendor/three.module.js",
-    "http://127.0.0.1:59247/vendor/environments/RoomEnvironment.js",
-    "http://127.0.0.1:59247/vendor/three.core.js",
-    "http://127.0.0.1:59247/favicon.ico",
-    "http://127.0.0.1:59247/assets/planet.png",
-    "http://127.0.0.1:59247/assets/deep-space.png",
-    "http://127.0.0.1:59247/assets/upgrade-repair.jpg"
+    "http://127.0.0.1:54454/",
+    "http://127.0.0.1:54454/game-base.css",
+    "http://127.0.0.1:54454/demo.css",
+    "http://127.0.0.1:54454/demo.mjs",
+    "http://127.0.0.1:54454/game.mjs",
+    "http://127.0.0.1:54454/turret-art.mjs",
+    "http://127.0.0.1:54454/gpu-scene.mjs",
+    "http://127.0.0.1:54454/vendor/three.module.js",
+    "http://127.0.0.1:54454/vendor/environments/RoomEnvironment.js",
+    "http://127.0.0.1:54454/missile-veil.mjs",
+    "http://127.0.0.1:54454/vendor/three.core.js",
+    "http://127.0.0.1:54454/favicon.ico",
+    "http://127.0.0.1:54454/assets/earth-blue-marble-july.jpg",
+    "http://127.0.0.1:54454/assets/earth-clouds.jpg",
+    "http://127.0.0.1:54454/assets/deep-space.png",
+    "http://127.0.0.1:54454/assets/fighter-v3-key.png",
+    "http://127.0.0.1:54454/assets/frigate.png",
+    "http://127.0.0.1:54454/assets/turret-laser-v7.png",
+    "http://127.0.0.1:54454/assets/turret-flak-v7.png",
+    "http://127.0.0.1:54454/assets/turret-silo-v7.png",
+    "http://127.0.0.1:54454/assets/turret-gauss-v7.png",
+    "http://127.0.0.1:54454/assets/turret-tesla-v7.png",
+    "http://127.0.0.1:54454/assets/turret-mine-v7.png",
+    "http://127.0.0.1:54454/assets/upgrade-repair.jpg"
   ]
 }

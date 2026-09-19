@@ -27,3 +27,15 @@
 @media(min-width:700px){.orbit-game .hud{left:20px;right:20px}.orbit-game .hud-top{grid-template-columns:150px 1fr 180px}.orbit-game .chip{gap:14px;padding:10px 16px}.orbit-game .chip small{font-size:11px}.orbit-game .hp-block{display:flex;align-items:center;gap:16px;padding:12px 18px}.orbit-game .hp-lab{gap:12px}.orbit-game .hp-track{flex:1}.orbit-game .hud-sub{font-size:10px}.orbit-game .controls{left:30px;right:30px;bottom:36px}.orbit-game #stick{width:124px;height:124px}.orbit-game #fire{width:112px;height:112px}}
 @media(max-height:500px){.orbit-game .hud{top:58px;left:12px;right:12px}.orbit-game .orbit-toolbar{min-height:52px;padding:4px 12px}.orbit-game .hud-top{min-height:30px}.orbit-game .chip{padding:4px 10px}.orbit-game .hud-sub{min-height:22px;padding:4px 8px}.orbit-game.is-short .hud-sub{width:auto;display:flex}.orbit-game.is-short .controls{bottom:25px}.orbit-game.is-short #stick,.orbit-game.is-short #fire{width:72px;height:72px}.orbit-game.is-short #aa{width:54px;height:54px}.orbit-game.is-short #build-go{top:auto;bottom:120px;right:14px}.orbit-game.is-short .wave-banner{top:120px;bottom:auto}.orbit-game.is-short .fire-col{gap:18px}.orbit-game.is-short .orbit-build{top:128px}}
 @media(max-height:500px){#lobby{padding:14px}.launch-card{width:min(700px,100%);padding:20px}.launch-card h1{font-size:30px;margin:12px 0}.launch-card h1 span{display:inline;margin-left:10px}.launch-card .lead{margin:8px 0}.launch-card>p{margin:6px 0;font-size:12px;line-height:1.45}.launch-card details{margin:14px 0}.launch-button{margin-top:12px}}
+.orbit-game #weapon-open{position:absolute;z-index:8;left:16px;bottom:calc(160px + env(safe-area-inset-bottom));min-height:44px;padding:7px 12px;border:1px solid #60889c;border-radius:9px;background:#0c2232e8;color:#c3efff;cursor:pointer;touch-action:manipulation;font-family:inherit;font-size:11px;font-weight:600}
+.orbit-game #weapon-levels{display:block;margin-top:3px;font-size:9px;color:#91b5c6}
+.orbit-game:has(.overlay:not([hidden])) #weapon-open,.orbit-game:has(.orbit-build:not([hidden])) #weapon-open{visibility:hidden;pointer-events:none}
+.orbit-game .is-weapon-shop .orbit-shop{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));overflow:visible}
+.orbit-game .is-weapon-shop .orbit-shop-item{min-width:0;white-space:normal}
+.orbit-game .is-weapon-shop .orbit-shop-item small{display:block;font-size:10px;line-height:1.4;white-space:normal}
+.orbit-game .is-weapon-shop header b{font-size:10px;letter-spacing:0}
+@media(min-width:700px){.orbit-game #weapon-open{left:30px;bottom:180px}}
+@media(max-height:500px){.orbit-game #weapon-open{left:calc(50% - 46px);bottom:20px}.orbit-game .is-weapon-shop .orbit-shop-item{padding:6px}.orbit-game .is-weapon-shop .orbit-shop-item img{height:30px}}
+.preview-button{width:100%;min-height:44px;margin-top:12px;border:1px solid #507086;border-radius:9px;background:#11212d;color:#bddbe7;font:inherit;cursor:pointer}
+/* The wave button lives in the HUD but must escape its clipped status row. */
+@media(max-height:500px){.orbit-game.is-short #build-go{position:fixed;top:auto;bottom:120px;right:14px}}

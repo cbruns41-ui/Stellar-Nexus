@@ -17,7 +17,17 @@ const SUFFIX = [
   " March", " Bastion", " Cross", " Well", " Ward", " Strand", " Cradle",
   " Watch", " Flare", " Span", " Crest", " Fall", " Rise",
 ];
-const ROMAN = ["I", "II", "III", "IV", "V"];
+const ROMAN = ["I", "II", "III", "IV", "V", "VI"];
+const LOCAL_ORIGIN = { x: 1500, y: 1500 };
+const LAYOUT_RADIUS = 2100;
+const GALAXY_REGIONS = [
+  { id: 0, name: "AURELIA", subtitle: "Die Heimatreiche", x: -620, y: 60, r: 650, color: "#83dafa" },
+  { id: 1, name: "VESPER", subtitle: "Der violette Schleier", x: 620, y: -470, r: 475, color: "#ceaeff" },
+  { id: 2, name: "SOLARA", subtitle: "Die goldene Grenze", x: 750, y: 650, r: 500, color: "#efd199" },
+  { id: 3, name: "ELYRA", subtitle: "Jenseits der bekannten Wege", x: -1900, y: -640, r: 560, color: "#acd6ff" },
+  { id: 4, name: "NOCTIS", subtitle: "Die stillen Tiefen", x: -1900, y: 780, r: 550, color: "#c9b5f5" },
+  { id: 5, name: "CAELIS", subtitle: "Ein neuer Horizont", x: -450, y: -1410, r: 550, color: "#efc298" },
+];
 const PTYPES = Object.keys(PLANET_TYPES);
 const STYPES = Object.keys(STAR_TYPES).filter((s) => s !== "neutron");
 
@@ -129,9 +139,9 @@ function placeRingSystems(rng, usedNames, rings, startId, cx, cy) {
   return systems;
 }
 
-function insertSystemsAndWorld(db, rng, systems, allForLinks) {
+function insertSystemsAndWorld(db, rng, systems, allForLinks, opts = {}) {
   const insertSys = db.prepare(
-    "INSERT INTO systems(id, name, x, y, star_type, is_hub, remnant, ring) VALUES(?, ?, ?, ?, ?, ?, ?, ?)"
+    "INSERT INTO systems(id, name, x, y, star_type, is_hub, remnant, ring, galaxy_id) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)"
   );
   const insertPlanet = db.prepare(
     "INSERT INTO planets(system_id, slot, name, type, size, empire_id, metal, helium, titan, energy, crystal, diamond, last_tick) VALUES(?, ?, ?, ?, ?, NULL, 0, 0, 0, 0, 0, 0, ?)"
@@ -139,11 +149,14 @@ function insertSystemsAndWorld(db, rng, systems, allForLinks) {
   const insertLink = db.prepare("INSERT OR IGNORE INTO links(a, b) VALUES(?, ?)");
   const now = Date.now();
   const pool = allForLinks || systems;
+  const planetSpan = Number(opts.planetSpan) > 0 ? Number(opts.planetSpan) : 4;
+  const defaultGalaxy = Number.isFinite(opts.galaxyId) ? opts.galaxyId : 0;
 
   withTx(db, () => {
     for (const s of systems) {
-      insertSys.run(s.id, s.name, s.x, s.y, s.starType, s.isHub, s.remnant, s.ring);
-      const nPlanets = 2 + Math.floor(rng() * 4);
+      const galaxyId = Number.isFinite(s.galaxyId) ? s.galaxyId : defaultGalaxy;
+      insertSys.run(s.id, s.name, s.x, s.y, s.starType, s.isHub, s.remnant, s.ring, galaxyId);
+      const nPlanets = 2 + Math.floor(rng() * planetSpan);
       for (let slot = 0; slot < nPlanets; slot++) {
         const type = pick(rng, PTYPES);
         const size = 1 + Math.floor(rng() * 4);
@@ -187,17 +200,18 @@ function generateGalaxy(db, seedStr) {
   const cx = 1500;
   const cy = 1500;
   const systems = placeRingSystems(rng, usedNames, CORE_RINGS, 1, cx, cy);
-  insertSystemsAndWorld(db, rng, systems, systems);
+  for (const s of systems) s.galaxyId = 0;
+  insertSystemsAndWorld(db, rng, systems, systems, { galaxyId: 0, planetSpan: 4 });
   mergeRemnantMeta(db, systems);
   db.prepare("INSERT OR REPLACE INTO world_meta(key, value) VALUES(?, ?)").run("galaxy_scale", "v2");
 }
 
 function expandGalaxy(db) {
-  const n = db.prepare("SELECT COUNT(*) AS n FROM systems").get().n;
+  const n = db.prepare("SELECT COUNT(*) AS n FROM systems WHERE IFNULL(galaxy_id,0)=0").get().n;
   const scale = db.prepare("SELECT value FROM world_meta WHERE key = 'galaxy_scale'").get()?.value || "";
   if (n >= 900 || scale === "v3-outer") return { added: 0, total: n };
   if (n >= 450) return { added: 0, total: n };
-  const existing = db.prepare("SELECT id, name, x, y, is_hub FROM systems").all();
+  const existing = db.prepare("SELECT id, name, x, y, is_hub FROM systems WHERE IFNULL(galaxy_id,0)=0").all();
   const usedNames = new Set(existing.map((s) => s.name));
   const maxId = existing.reduce((m, s) => Math.max(m, s.id), 0);
   const cx = existing.reduce((s, o) => s + o.x, 0) / Math.max(1, existing.length);
@@ -207,10 +221,11 @@ function expandGalaxy(db) {
   if (scale === tag) return { added: 0, total: n };
   const rng = makeRng(hashSeed(`${tag}-${maxId}-${n}`));
   const added = placeRingSystems(rng, usedNames, rings, maxId + 1, cx, cy);
+  for (const s of added) s.galaxyId = 0;
   const pool = existing
     .map((s) => ({ id: s.id, x: s.x, y: s.y, isHub: s.is_hub }))
     .concat(added);
-  insertSystemsAndWorld(db, rng, added, pool);
+  insertSystemsAndWorld(db, rng, added, pool, { galaxyId: 0, planetSpan: 4 });
   mergeRemnantMeta(db, added);
   db.prepare("INSERT OR REPLACE INTO world_meta(key, value) VALUES(?, ?)").run("galaxy_scale", tag);
   return { added: added.length, total: n + added.length };
@@ -231,4 +246,153 @@ function setRemnantFleet(db, systemId, ships) {
   db.prepare("INSERT OR REPLACE INTO world_meta(key, value) VALUES(?, ?)").run("remnant_fleets", JSON.stringify(map));
 }
 
-module.exports = { generateGalaxy, expandGalaxy, remnantFleet, setRemnantFleet, remnantFleetForRing, makeRng, hashSeed };
+function galaxyLayout(system, region) {
+  const scale = region.r / LAYOUT_RADIUS;
+  return {
+    regionId: region.id,
+    x: region.x + (system.x - LOCAL_ORIGIN.x) * scale,
+    y: region.y + (system.y - LOCAL_ORIGIN.y) * scale,
+  };
+}
+
+function listOpenRegions(db) {
+  const ids = new Set(
+    db.prepare("SELECT DISTINCT IFNULL(galaxy_id,0) AS id FROM systems").all().map((row) => Number(row.id) || 0)
+  );
+  return GALAXY_REGIONS.filter((region) => ids.has(region.id));
+}
+
+function pickGalaxyGates(db, galaxyId) {
+  const hubs = db
+    .prepare(
+      "SELECT id, x, y, ring, is_hub FROM systems WHERE IFNULL(galaxy_id,0)=? ORDER BY ring ASC, id ASC"
+    )
+    .all(galaxyId);
+  if (!hubs.length) return [];
+  const core =
+    hubs.find((s) => s.ring === 0) ||
+    hubs.reduce((best, s) => {
+      const d = (s.x - LOCAL_ORIGIN.x) ** 2 + (s.y - LOCAL_ORIGIN.y) ** 2;
+      const bd = (best.x - LOCAL_ORIGIN.x) ** 2 + (best.y - LOCAL_ORIGIN.y) ** 2;
+      return d < bd ? s : best;
+    });
+  const outer = hubs.reduce((best, s) => (s.ring > best.ring ? s : best));
+  const picked = [core];
+  if (outer && outer.id !== core.id) picked.push(outer);
+  return picked;
+}
+
+function ensureJumpNetwork(db) {
+  const regions = listOpenRegions(db);
+  const insertGate = db.prepare(
+    "INSERT OR IGNORE INTO jump_gates(id, system_id, galaxy_id) VALUES(?, ?, ?)"
+  );
+  const insertLink = db.prepare(
+    "INSERT OR IGNORE INTO jump_connections(id, a, b, base_ms, one_way, enabled) VALUES(?, ?, ?, 1800000, 0, 1)"
+  );
+  const gatesByGalaxy = new Map();
+  withTx(db, () => {
+    for (const region of regions) {
+      const systems = pickGalaxyGates(db, region.id);
+      const ids = [];
+      systems.forEach((sys, index) => {
+        const id = `g${region.id}-${index ? "outer" : "core"}`;
+        insertGate.run(id, sys.id, region.id);
+        ids.push(id);
+      });
+      gatesByGalaxy.set(region.id, ids);
+    }
+    const home = gatesByGalaxy.get(0) || [];
+    for (const region of regions) {
+      if (region.id === 0) continue;
+      const remote = gatesByGalaxy.get(region.id) || [];
+      for (const a of home) {
+        for (const b of remote) {
+          insertLink.run(`${a}__${b}`, a, b);
+        }
+      }
+    }
+  });
+}
+
+function openGalaxy(db, galaxyId, opts = {}) {
+  const id = Number(galaxyId);
+  if (!Number.isInteger(id) || id <= 0 || !GALAXY_REGIONS[id]) {
+    throw new Error("Unbekannte Galaxie.");
+  }
+  if (db.prepare("SELECT 1 FROM systems WHERE IFNULL(galaxy_id,0)=? LIMIT 1").get(id)) {
+    ensureJumpNetwork(db);
+    return { added: 0, galaxyId: id };
+  }
+  const existing = db.prepare("SELECT id, name FROM systems").all();
+  const usedNames = new Set(existing.map((s) => s.name));
+  const maxId = existing.reduce((m, s) => Math.max(m, s.id), 0);
+  const rng = makeRng(hashSeed(`archipelago-${id}-${maxId}`));
+  const rings = opts.rings || CORE_RINGS;
+  const added = placeRingSystems(rng, usedNames, rings, maxId + 1, LOCAL_ORIGIN.x, LOCAL_ORIGIN.y);
+  for (const s of added) s.galaxyId = id;
+  insertSystemsAndWorld(db, rng, added, added, { galaxyId: id, planetSpan: opts.planetSpan || 5 });
+  mergeRemnantMeta(db, added);
+  ensureJumpNetwork(db);
+  return { added: added.length, galaxyId: id };
+}
+
+const COMPACT_RINGS = [
+  { r: 0, count: 1, ring: 0, hub: true },
+  { r: 220, count: 8, ring: 1, hubs: 1 },
+  { r: 520, count: 10, ring: 3, hubs: 1 },
+  { r: 940, count: 12, ring: 5, hubs: 2 },
+];
+
+function ensureOpenGalaxies(db, count = 3, opts = {}) {
+  if (process.env.ARCHIPELAGO_COMPACT === "1" && !opts.rings) {
+    opts = { ...opts, rings: COMPACT_RINGS, planetSpan: 2 };
+  }
+  const target = Math.max(1, Math.min(Number(count) || 1, GALAXY_REGIONS.length));
+  const have = new Set(
+    db.prepare("SELECT DISTINCT IFNULL(galaxy_id,0) AS id FROM systems").all().map((row) => Number(row.id) || 0)
+  );
+  const opened = [];
+  for (let id = 1; id < target; id += 1) {
+    if (have.has(id)) continue;
+    opened.push(openGalaxy(db, id, opts));
+  }
+  ensureJumpNetwork(db);
+  return opened;
+}
+
+function listJumpNetwork(db) {
+  return {
+    gates: db.prepare("SELECT id, system_id AS systemId, galaxy_id AS galaxyId FROM jump_gates").all(),
+    connections: db
+      .prepare("SELECT id, a, b, base_ms AS baseMs, one_way AS oneWay, enabled FROM jump_connections")
+      .all()
+      .map((row) => ({
+        id: row.id,
+        a: row.a,
+        b: row.b,
+        baseMs: row.baseMs,
+        oneWay: !!row.oneWay,
+        enabled: row.enabled !== 0,
+      })),
+  };
+}
+
+module.exports = {
+  generateGalaxy,
+  expandGalaxy,
+  remnantFleet,
+  setRemnantFleet,
+  remnantFleetForRing,
+  makeRng,
+  hashSeed,
+  GALAXY_REGIONS,
+  LOCAL_ORIGIN,
+  LAYOUT_RADIUS,
+  galaxyLayout,
+  listOpenRegions,
+  openGalaxy,
+  ensureOpenGalaxies,
+  ensureJumpNetwork,
+  listJumpNetwork,
+};

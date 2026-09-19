@@ -166,7 +166,8 @@ CREATE TABLE IF NOT EXISTS systems (
   is_hub INTEGER NOT NULL DEFAULT 0,
   remnant INTEGER NOT NULL DEFAULT 0,
   warlord TEXT NOT NULL DEFAULT '',
-  pirate INTEGER NOT NULL DEFAULT 0
+  pirate INTEGER NOT NULL DEFAULT 0,
+  galaxy_id INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS links (
@@ -650,6 +651,21 @@ function migrate(db) {
   )`);
   if (!hasCol(db, "systems", "warlord")) db.exec("ALTER TABLE systems ADD COLUMN warlord TEXT NOT NULL DEFAULT ''");
   if (!hasCol(db, "systems", "pirate")) db.exec("ALTER TABLE systems ADD COLUMN pirate INTEGER NOT NULL DEFAULT 0");
+  if (!hasCol(db, "systems", "galaxy_id")) db.exec("ALTER TABLE systems ADD COLUMN galaxy_id INTEGER NOT NULL DEFAULT 0");
+  db.exec(`CREATE TABLE IF NOT EXISTS jump_gates (
+    id TEXT PRIMARY KEY,
+    system_id INTEGER NOT NULL,
+    galaxy_id INTEGER NOT NULL
+  )`);
+  db.exec(`CREATE TABLE IF NOT EXISTS jump_connections (
+    id TEXT PRIMARY KEY,
+    a TEXT NOT NULL,
+    b TEXT NOT NULL,
+    base_ms INTEGER NOT NULL DEFAULT 1800000,
+    one_way INTEGER NOT NULL DEFAULT 0,
+    enabled INTEGER NOT NULL DEFAULT 1
+  )`);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_systems_galaxy ON systems(galaxy_id)");
   if (!hasCol(db, "planets", "directive")) db.exec("ALTER TABLE planets ADD COLUMN directive TEXT NOT NULL DEFAULT ''");
   if (!hasCol(db, "planet_bookmarks", "system_id")) db.exec("ALTER TABLE planet_bookmarks ADD COLUMN system_id INTEGER");
   db.exec(`CREATE TABLE IF NOT EXISTS relics (

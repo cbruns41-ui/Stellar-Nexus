@@ -60,10 +60,32 @@ try{
     assert.ok(brightness>=5,'Composited Chrome frame '+i+' is visible at '+w);
    }
    await send('Input.dispatchKeyEvent',{type:'keyUp',code:'Space',key:' '});
-   const continuous=await ev(`document.querySelector('.orbit-game').orbitGpuAudit()`);assert.ok(continuous.healthy);assert.ok(continuous.samples>=100);
+   const continuous=await ev(`document.querySelector('.orbit-game').orbitGpuAudit()`);console.log('Continuous audit',w,continuous);assert.ok(continuous.healthy);assert.ok(continuous.samples>=100);
    gpuChecks.push({viewport:[w,h],phase:'continuous-combat',...continuous});presentationChecks.push({w,h,scale,frames:45,minBrightness});await shot('continuous-combat-'+w);
   }
   console.log('Passed viewport',w);results.push({w,h,scale,...geometry});await tap('.orbit-exit');await tap('#again');assert.ok(await ev(`!document.querySelector('.orbit-game')&&!document.querySelector('#lobby').hidden`));await tap('#launch');await sleep(300);assert.equal((await ev(`document.querySelector('.orbit-game').orbitView()`)).towers.length,3,'Restart resets demo');await tap('.orbit-exit');await tap('#again');
+  await tap('#campaign');await sleep(400);
+  assert.deepEqual(await ev(`(()=>{const g=document.querySelector('.orbit-game').orbitGame;return [g.wave,g.towers.length,g.mode,g.weaponLevels.dmg,g.weaponLevels.rate,g.weaponLevels.missiles];})()`),[0,0,'build',0,0,0],'Full round starts fresh before wave one');
+  await tap('#weapon-open');await shot('weapon-shop-'+w+'-'+h);
+  await tap('[data-shop="weapon-dmg"]');
+  assert.deepEqual(await ev(`(()=>{const g=document.querySelector('.orbit-game').orbitGame;return [g.salvage,g.playerDmg,g.weaponLevels.dmg,g.workUsed];})()`),[75,1.35,1,1],'Damage purchase commits exactly once');
+  assert.ok(await ev(`document.querySelector('[data-shop="weapon-rate"]').disabled`),'Shared work order blocks second purchase');
+  if(w===390){
+   // Isolate progression/cost rules using a funded next-order fixture, buy through real UI.
+   await ev(`(()=>{const g=document.querySelector('.orbit-game').orbitGame;g.workUsed=0;g.salvage=500;})()`);await sleep(100);
+   assert.ok(await ev(`document.querySelector('[data-shop="weapon-dmg"]').disabled`),'Second damage level waits for held waves');
+   await tap('[data-shop="weapon-rate"]');assert.ok(Math.abs(await ev(`document.querySelector('.orbit-game').orbitGame.playerRate`)-.162)<1e-8);
+   await ev(`document.querySelector('.orbit-game').orbitGame.workUsed=0`);await sleep(100);await tap('[data-shop="weapon-missiles"]');
+   assert.equal(await ev(`document.querySelector('.orbit-game').orbitGame.salvage`),305);
+  }
+  await tap('#build-close');await tap('#build-go');assert.equal(await ev(`document.querySelector('.orbit-game').orbitGame.wave`),1);
+  if(w===390){
+   await send('Input.dispatchKeyEvent',{type:'keyDown',code:'Space',key:' '});await sleep(1120);await send('Input.dispatchKeyEvent',{type:'keyUp',code:'Space',key:' '});
+   const weapon=await ev(`(()=>{const r=document.querySelector('.orbit-game'),g=r.orbitGame;return {shots:g.shotN,missiles:g.interceptors.length,damage:g.shots.filter(s=>s.kind==='player').map(s=>s.dmg),veil:r.orbitGpuAudit().veil};})()`);
+   assert.ok(weapon.shots>=6&&weapon.missiles>=1,'Upgraded main weapon launches companion missile');assert.ok(weapon.damage.length&&weapon.damage.every(n=>n===1.35));assert.ok(weapon.veil.peak>0&&weapon.veil.active<=weapon.veil.capacity,'Rocket veil emitted within its limit');
+   await shot('weapon-upgraded-combat');
+  }
+  await tap('.orbit-exit');await tap('#again');
  }
  assert.ok(requests.every(url=>url.startsWith(base)||url.startsWith('data:')),'No external requests');assert.ok(!requests.some(url=>url.includes('/api/')),'No game API calls');assert.deepEqual(errors,[]);
  await writeFile(path.join(out,'verification.json'),JSON.stringify({passed:true,at:new Date().toISOString(),results,gpuChecks,presentationChecks,errors,requests:[...new Set(requests.filter(url=>!url.startsWith("data:")))]},null,2));console.log('Demo: controls, combat, consecutive framebuffer samples and composited Chrome frames passed');

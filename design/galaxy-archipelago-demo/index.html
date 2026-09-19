@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#040910"><title>Stellar Nexus · Galaxien-Archipel Demo</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<canvas id="map" aria-label="Interaktive Galaxiekarte. Suche oder Systemliste als Alternative verwenden."></canvas>
+<header><div class="brand"><span class="sigil">✧</span><div>STELLAR NEXUS<small>GALAXIEN-ARCHIPEL <em>DEMO</em></small></div></div><div class="tools"><button id="search-toggle" aria-label="System suchen" aria-expanded="false">⌕</button><button id="filter-toggle" aria-label="Filter öffnen" aria-expanded="false">☷</button><button id="info-toggle" aria-label="Kartengröße und Bedienung" aria-expanded="false">i</button></div></header>
+<aside id="search-panel" class="panel popover" hidden><label for="search">System oder Planet suchen</label><input id="search" type="search" placeholder="Neme, Kael, Kepler …" autocomplete="off"><div id="search-results"></div></aside>
+<aside id="filter-panel" class="panel popover" hidden><b>Auf der Karte anzeigen</b><div id="filters"></div><small>Ein System erscheint, wenn mindestens ein Planet zum Filter passt.</small></aside>
+<aside id="info-panel" class="panel popover" hidden><b>Eine wachsende Galaxiekarte</b><p><span id="world-count"></span> · ausschließlich Beispieldaten.</p><p>Ziehen verschiebt die Karte. Mausrad oder zwei Finger zoomen zum gewählten Ausschnitt. Ein Stern öffnet seine Planeten. „Alle“ zeigt den Archipel.</p><p>Die Übersicht bündelt Sterne. Beim Hineinzoomen werden einzelne Systeme sichtbar. Die Suche erreicht jedes System unabhängig vom Zoom.</p><button id="browse-systems">Systemliste öffnen</button><button id="expand">Drei weitere Galaxien entdecken</button><a href="PLANUNG.md" target="_blank">Kapazitätsplanung lesen ↗</a></aside>
+<div id="galaxy-tabs" aria-label="Galaxie wählen"></div>
+<div id="location"><small>INTERGALAKTISCHER RAUM</small><b>Die nächsten Horizonte.</b><span id="location-detail">Drei Galaxien. Tausende mögliche Welten.</span></div>
+<div id="hint">Ziehen verschiebt · Zwei Finger oder Mausrad zoomen</div>
+<section id="system-sheet" class="panel" aria-label="Sternsystem" hidden><div class="sheet-top"><div><small id="system-region"></small><h1 id="system-name"></h1></div><button id="sheet-close" aria-label="System schließen">×</button></div><div id="system-summary"></div><div id="planets"></div><div id="planet-detail"></div><div class="sheet-footer"><button id="route">Route ab Neme anzeigen</button><button id="list-toggle">Systemliste</button></div></section>
+<aside id="system-list" class="panel" hidden><div class="sheet-top"><b>Systeme im Ausschnitt</b><button id="list-close" aria-label="Systemliste schließen">×</button></div><div id="list-content"></div></aside>
+<nav aria-label="Vorschau-Navigation"><button data-preview="PLANET">PLANET</button><button id="map-tab" aria-current="page">KARTE</button><button data-preview="KOMMANDO">KOMMANDO</button></nav>
+<div id="toast" role="status" aria-live="polite"></div><div id="loading">Der Archipel wird sichtbar …</div>
+<script type="module" src="map.mjs"></script></body></html>

@@ -15,7 +15,7 @@ root.setAttribute("role", "dialog");
 root.setAttribute("aria-label", `Orbit-Belagerung über ${planetName}`);
 root.innerHTML = `
   <canvas class="orbit-canvas" aria-label="Orbit-Belagerung"></canvas>
-  <div class="orbit-toolbar"><span>${escText(planetName)}<small>STELLAR NEXUS · 3D-DEMO 02</small></span><div class="orbit-camera-actions">
+  <div class="orbit-toolbar"><span>${escText(planetName)}<small>STELLAR NEXUS · DEMO 07</small></span><div class="orbit-camera-actions">
     <button type="button" data-zoom="out" aria-label="Aus dem gesamten Spielfeld herauszoomen">−</button>
     <button type="button" data-zoom="in" aria-label="In das gesamte Spielfeld hineinzoomen">+</button>
     <button class="orbit-pause" type="button" aria-label="Pause">II</button>
@@ -40,6 +40,7 @@ root.innerHTML = `
     </div>
   </header>
   <p class="wave-banner" id="banner" hidden></p>
+  <button type="button" id="weapon-open" aria-label="Hauptwaffe verbessern">WAFFE <span id="weapon-levels">0 · 0 · 0</span></button>
   <div class="controls">
     <div id="stick" class="orbit-stick" aria-label="Zielen"><b></b><small>ZIELEN</small></div>
     <div class="fire-col">
@@ -111,6 +112,27 @@ const TOWER_DEFS = [
   { id: "mine", title: "MINE", blurb: "Explodiert bei Nähe", cost: 50, kind: "mine" },
 ];
 
+const WEAPON_DEFS = [
+  {id:'dmg',title:'SCHADEN',cost:65,max:5},
+  {id:'rate',title:'FEUERRATE',cost:75,max:5},
+  {id:'missiles',title:'RAKETEN',cost:120,max:3},
+];
+let shopMode='tower';
+function weaponCost(def){return Math.ceil(def.cost*Math.pow(1.55,game.weaponLevels[def.id]));}
+function weaponLimit(def){return Math.min(def.max,1+Math.floor(game.heldWaves/2));}
+function buyWeapon(id){
+  const def=WEAPON_DEFS.find(d=>d.id===id);if(!def)return;
+  const level=game.weaponLevels[id],cost=weaponCost(def);
+  if(workReason()){showBanner(workReason());return;}
+  if(level>=weaponLimit(def)){showBanner(level>=def.max?'MAXIMALE WAFFENSTUFE':`NÄCHSTE STUFE AB ${level*2} GEHALTENEN WELLEN`);return;}
+  if(game.salvage<cost){showBanner('ZU WENIG BAUPUNKTE');return;}
+  game.salvage-=cost;game.workUsed++;game.weaponLevels[id]++;
+  game.playerDmg=1+game.weaponLevels.dmg*.35;
+  game.playerRate=.18*Math.pow(.9,game.weaponLevels.rate);
+  game.playerMissiles=game.weaponLevels.missiles;game.upgradePulse=1;
+  showBanner(`${def.title} STUFE ${level+1}`);paintShop();paintHud();
+}
+
 const SLOT_N = 6;
 const TOWER_MAX = 8;
 const PLANET_PX = 52;
@@ -141,7 +163,7 @@ function fresh() {
     time: 0,
     hp: 100, maxHp: 100, salvage: 140, earned: 0, workUsed: 0, wave: 0, kills: 0,
     playerRate: 0.18, playerDmg: 1, playerCd: 0, flak: 0, range: 1,
-    playerMissiles: 0, shotN: 0, repairs: 0,
+    playerMissiles: 0, weaponLevels:{dmg:0,rate:0,missiles:0}, upgradePulse:0, shotN: 0, repairs: 0,
     aim: -Math.PI / 2, recoil: 0, flash: 0,
     shake: 0, hitFlash: 0,
     heldWaves: 0,
@@ -356,6 +378,7 @@ function shopDockSide(slot) {
   buildDock.classList.toggle("dock-top", s.y > H * 0.46);
 }
 function openShop(slot) {
+  shopMode='tower';buildDock.classList.remove('is-weapon-shop');
   if (game.paused || game.mode === "dead") return;
   game.pendingSlot = { ring: 0, i: slot.i, ang: slot.ang };
   const tower = occupying(slot);
@@ -380,6 +403,7 @@ function openShop(slot) {
   paintShop();
 }
 function closeShop() {
+  shopMode='tower';buildDock.classList.remove('is-weapon-shop');
   game.pendingSlot = null;
   buildDock.hidden = true;
 }
@@ -485,6 +509,7 @@ function begin() {
   closeShop();
   root.querySelector("#dead").hidden = true;
   root.querySelector("#pause").hidden = true;
+  if(opts.quickStart===false){game.buildTimer=25;showBanner('BAUE EINEN TURM ODER VERBESSERE DEINE WAFFE');paintHud();return;}
   game.wave=2;game.heldWaves=2;
   game.towers=[{slot:0,kind:'laser',level:1,cd:0,flash:0},{slot:2,kind:'flak',level:1,cd:0,flash:0},{slot:4,kind:'silo',level:1,cd:0,flash:0}];
   nextWave();
@@ -507,7 +532,7 @@ function paintResult({ lootText, error } = {}) {
   root.querySelector("#dead-label").textContent = error ? "ABBRUCH" : "RUNDE BEENDET";
   root.querySelector("#dead-title").textContent = `${game.kills} Abschüsse`;
   const hits = root.querySelector("#dead-hits");
-  if (hits) hits.textContent = `${Math.max(0,game.heldWaves-2)} Wellen in der Demo gehalten · ${game.earned} Baupunkte verdient`;
+  if (hits) hits.textContent = `${Math.max(0,game.heldWaves-(opts.quickStart===false?0:2))} Wellen gehalten · ${game.earned} Baupunkte verdient`;
   const detail = root.querySelector("#dead-detail");
   if (detail) detail.textContent = error || "Die Demo läuft unabhängig von deinem Imperium. Du kannst sie beliebig oft neu starten.";
   const back = root.querySelector("#again");
@@ -609,6 +634,12 @@ function startCombat() {
 root.querySelector("#build-go").onclick = startCombat;
 root.querySelector("#build-close").onclick = closeShop;
 
+root.querySelector('#weapon-open').onclick=()=>{
+  if(game.paused||game.mode==='dead')return;
+  shopMode='weapon';game.pendingSlot=null;buildDock.hidden=false;
+  buildDock.classList.remove('dock-top');buildDock.classList.add('is-weapon-shop');paintShop();
+};
+
 function paintShop() {
   if (buildDock.hidden) return;
   const slot = game.pendingSlot;
@@ -631,6 +662,14 @@ function paintShop() {
   if(locked)buildHint.textContent=locked;
   else if(tower?.buildLeft>0)buildHint.textContent=`Im Bau · ${Math.ceil(tower.buildLeft)} s`;
   else if(tower && tower.level>=availableLevel() && tower.level<TOWER_MAX)buildHint.textContent=`Nächste Stufe ab ${tower.level*3} gehaltenen Wellen`;
+  if(shopMode==='weapon'){
+    title.textContent='SPIELERWAFFE';buildHint.textContent=locked||'Ein Auftrag pro Welle · bleibt bis Rundenende';
+    for(const def of WEAPON_DEFS){
+      const level=game.weaponLevels[def.id],maxed=level>=def.max,gated=level>=weaponLimit(def);
+      const value=def.id==='dmg'?`${game.playerDmg.toFixed(2)} → ${(game.playerDmg+.35).toFixed(2)} Schaden`:def.id==='rate'?`${(1/game.playerRate).toFixed(1)} → ${(1/(game.playerRate*.9)).toFixed(1)} Schuss/s`:`Begleitrakete bei jedem ${7-(level+1)}. Schuss`;
+      items.push({...def,id:'weapon-'+def.id,type:'weapon',icon:def.id,title:`${def.title} ${level}/${def.max}`,cost:weaponCost(def),maxed,gated,blurb:maxed?'Voll verbessert':gated?`Ab ${level*2} gehaltenen Wellen`:value});
+    }
+  } else {
   if (tower) {
     const def = TOWER_DEFS.find((d) => d.kind === tower.kind);
     const maxed = tower.level >= TOWER_MAX;
@@ -654,16 +693,17 @@ function paintShop() {
     cost: repairCost(),
     icon: "repair",
   });
-  const signature=JSON.stringify([slot?.i,tower?.level,!!locked,(tower?.buildLeft||0)>0,availableLevel(),game.hp>=game.maxHp,items.map(i=>[i.id,i.cost,game.salvage>=i.cost])]);
+  }
+  const signature=JSON.stringify([shopMode,game.weaponLevels,slot?.i,tower?.level,!!locked,(tower?.buildLeft||0)>0,availableLevel(),game.hp>=game.maxHp,items.map(i=>[i.id,i.cost,i.gated,game.salvage>=i.cost])]);
   if(shopEl.dataset.signature===signature)return;
   shopEl.dataset.signature=signature;
   shopEl.innerHTML = items.map((item) => {
     const on = game.pick === item.id || item.type === "upgrade" ? " on" : "";
     const poor = item.maxed || game.salvage < item.cost ? " poor" : "";
     const cost = item.maxed ? "—" : item.cost;
-    const blocked=locked || item.maxed || game.salvage<item.cost || item.id==='repair'&&game.hp>=game.maxHp || item.id==='upgrade'&&(tower.buildLeft>0 || tower.level>=availableLevel());
+    const blocked=locked || item.maxed || item.gated || game.salvage<item.cost || item.id==='repair'&&game.hp>=game.maxHp || item.id==='upgrade'&&(tower.buildLeft>0 || tower.level>=availableLevel());
     return `<button type="button" class="orbit-shop-item${on}${poor}" data-shop="${item.id}" data-kind="${item.type}" ${blocked?'disabled':''}>
-      <img src="${gpu.icon(item.icon) || './assets/upgrade-repair.jpg'}" alt="">
+      <img src="${gpu.icon(({dmg:'gauss',rate:'flak',missiles:'silo'})[item.icon]||item.icon)||'./assets/upgrade-repair.jpg'}" alt="">
       <b>${item.title}</b>
       <em>${cost}</em>
       <small>${item.blurb}</small>
@@ -673,6 +713,7 @@ function paintShop() {
     btn.onclick = () => {
       if(game.paused || game.mode==='dead')return;
       const id = btn.dataset.shop;
+      if(id.startsWith('weapon-')){buyWeapon(id.slice(7));return;}
       if (id === "upgrade") {
         upgradeOn(game.pendingSlot);
         return;
@@ -902,6 +943,7 @@ function fireTower(t, p) {
     t.lock = nearest(game.rockets, p.x, p.y, reach * 1.4) || nearest(game.enemies, p.x, p.y, reach);
     if (!t.lock || t.cd > 0) return;
     t.cd = 0.72 * cdMul; t.flash = 1;
+    t.shotVisual={at:game.time,x:t.lock.x,y:t.lock.y,angle:Math.atan2(t.lock.y-p.y,t.lock.x-p.x)};
     launchInterceptor(p.x, p.y, Math.atan2(t.lock.y - p.y, t.lock.x - p.x), t.lock, shotDmg);
     return;
   }
@@ -916,6 +958,7 @@ function fireTower(t, p) {
   if (!t.lock || t.cd > 0) return;
   const ang = Math.atan2(t.lock.y - p.y, t.lock.x - p.x);
   t.flash = 1;
+  t.shotVisual={at:game.time,x:t.lock.x,y:t.lock.y,angle:ang};
   if (t.kind === "laser") {
     t.cd = 0.34 * cdMul;
     t.lock.hp -= shotDmg; game.numbers.push({x:t.lock.x,y:t.lock.y,life:1,text:Number(shotDmg.toFixed(1)),player:false});t.lock.lastHitByPlayer=false;t.lock.flash = 1;
@@ -945,7 +988,7 @@ function fireTower(t, p) {
 
 function step(dt) {
   if (game.paused) return;
-  game.time += dt;
+  game.time += dt;game.upgradePulse=Math.max(0,game.upgradePulse-dt);
   for(const f of game.flashes)f.life-=dt;
   game.flashes=game.flashes.filter(f=>f.life>0);
   for(const n of game.numbers)n.life-=dt;
@@ -991,8 +1034,8 @@ function step(dt) {
     const mx = cx + Math.cos(game.aim) * muzzle;
     const my = cy + Math.sin(game.aim) * muzzle;
     shootFrom(mx, my, game.aim, game.playerDmg, 680, "player");
-    if (game.playerMissiles > 0 && game.shotN % 2 === 0) {
-      launchInterceptor(mx, my, game.aim, nearest(game.rockets, mx, my, 900) || nearest(game.enemies, mx, my, 900));
+    if (game.playerMissiles > 0 && game.shotN % (7-game.playerMissiles) === 0) {
+      launchInterceptor(mx, my, game.aim, nearest(game.rockets, mx, my, 900) || nearest(game.enemies, mx, my, 900),1+.5*game.playerMissiles);
     }
   }
   if (game.spawnLeft > 0) {
@@ -1041,7 +1084,7 @@ function step(dt) {
     r.x += r.vx * dt; r.y += r.vy * dt;
     r.flash = Math.max(0, (r.flash || 0) - dt * 4);
     r.trail.push({ x: r.x, y: r.y });
-    if (r.trail.length > 14) r.trail.shift();
+    if (r.trail.length > 22) r.trail.shift();
     if (game.smoke.length < 70 && Math.random() < 0.18) puff(r.x, r.y, "rgba(255,140,60,0.35)", 1);
     const d = Math.hypot(cx - r.x, cy - r.y);
     if (d < shieldR + r.r) {
@@ -1082,7 +1125,7 @@ function step(dt) {
     if (m.target) steer(m, m.target.x, m.target.y, dt, 11);
     m.x += m.vx * dt; m.y += m.vy * dt;
     m.trail.push({ x: m.x, y: m.y });
-    if (m.trail.length > 10) m.trail.shift();
+    if (m.trail.length > 18) m.trail.shift();
     if (game.smoke.length < 70 && Math.random() < 0.22) puff(m.x, m.y, "rgba(120,230,255,0.28)", 1);
     let hit = false;
     for (const r of game.rockets) {
@@ -1147,11 +1190,16 @@ function drawAimGuide() {
   ctx.restore();
 }
 
-function drawTrail(pts, color, width) {
+function drawTrail(pts, color, width, taper=false) {
   if (pts.length < 2) return;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   ctx.strokeStyle = color;
+  ctx.lineCap = 'round';ctx.lineJoin='round';
+  if(taper){
+    for(let i=1;i<pts.length;i++){const t=i/(pts.length-1);ctx.globalAlpha=t*t;ctx.lineWidth=width*(.2+t*.8);ctx.beginPath();ctx.moveTo(pts[i-1].x,pts[i-1].y);ctx.lineTo(pts[i].x,pts[i].y);ctx.stroke();}
+    ctx.restore();return;
+  }
   ctx.lineWidth = width;
   ctx.beginPath();
   ctx.moveTo(pts[0].x, pts[0].y);
@@ -1161,11 +1209,14 @@ function drawTrail(pts, color, width) {
 }
 
 function drawCombatTraces() {
-  for(const r of game.rockets)drawTrail(r.trail, 'rgba(255,140,65,.35)', 3);
-  for(const r of game.interceptors)drawTrail(r.trail, 'rgba(100,230,255,.35)', 2);
+  for(const r of game.rockets){drawTrail(r.trail, 'rgba(255,110,35,.25)', 8,true);drawTrail(r.trail,'rgba(255,204,123,.75)',1.8,true);}
+  for(const r of game.interceptors){drawTrail(r.trail, 'rgba(75,167,255,.25)', 7,true);drawTrail(r.trail,'rgba(178,241,255,.8)',1.4,true);}
   for(const b of game.bolts){
-    drawTrail(b.pts, 'rgba(90,200,255,.7)', 5);
-    drawTrail(b.pts, 'rgba(215,255,255,.9)', 1.4);
+    ctx.save();ctx.globalAlpha=Math.min(1,b.life/.08);
+    drawTrail(b.pts, 'rgba(164,85,255,.20)', 12);
+    drawTrail(b.pts, 'rgba(184,123,255,.65)', 5);
+    drawTrail(b.pts, 'rgba(246,230,255,.95)', 1.4);
+    ctx.restore();
   }
 }
 
@@ -1201,7 +1252,7 @@ function drawOrbs() {
 
 function drawIncoming() {
   if (game.mode !== "play") return;
-  const pad = 18, padT = 174, padB = H < 500 ? 80 : 160;
+  const pad = 14, padT = root.querySelector('.hud').getBoundingClientRect().bottom-root.getBoundingClientRect().top+12, padB = 12;
   const marks = game.enemies.map((e) => ({ e, rocket: false })).concat(game.rockets.map((e) => ({ e, rocket: true })));
   for (const m of marks) {
     const e = m.e;
@@ -1235,6 +1286,7 @@ function draw() {
 }
 
 function paintHud() {
+  root.querySelector('#weapon-levels').textContent=`${game.weaponLevels.dmg} · ${game.weaponLevels.rate} · ${game.weaponLevels.missiles}`;
   const hp01 = Math.max(0, game.hp / game.maxHp);
   hpBar.style.width = `${hp01 * 100}%`;
   hpN.textContent = String(Math.max(0, Math.ceil(game.hp)));

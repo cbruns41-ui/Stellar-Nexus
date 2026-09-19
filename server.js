@@ -5,10 +5,12 @@ const express = require("express");
 const { openDb } = require("./src/db");
 const { attachRoutes } = require("./src/routes");
 const { ensureAdmin, ensurePlayer } = require("./src/seed");
+const { ensureOpenGalaxies } = require("./src/galaxy");
 const { userFromRequest, trustProxySetting, applySecurityHeaders } = require("./src/auth");
 
 const PORT = Number(process.env.PORT) || 3000;
 const db = openDb();
+ensureOpenGalaxies(db, 3);
 ensureAdmin(db);
 if (process.env.SEED_DEMO_USERS === "1") {
   ensurePlayer(db, "Spieler", "Wurm4444", "Neme", "#7ecbff");

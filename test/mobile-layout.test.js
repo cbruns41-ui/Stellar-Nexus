@@ -138,13 +138,13 @@ test("funk splits messages, combat reports and spy reports", () => {
 
 test("star map uses cinematic art and labels every detailed system", () => {
   assert.match(bossGame3d, /alliance-war-titan-v1\.png/);
-  assert.match(fs.readFileSync(path.join(root, "public", "js", "map.js"), "utf8"), /starfield-nebula-v1\.png/);
-  assert.match(fs.readFileSync(path.join(root, "public", "js", "map.js"), "utf8"), /s\.planetCount \? ` · \$\{s\.planetCount\}`/);
+  assert.match(fs.readFileSync(path.join(root, "public", "js", "app.js"), "utf8"), /archipelago-integration\.mjs/);
+  assert.match(fs.readFileSync(path.join(root, "public", "js", "archipelago-map.mjs"), "utf8"), /archipelago-galaxy-v1\.png/);
   assert.match(fs.readFileSync(path.join(root, "public", "js", "map.js"), "utf8"), /Kolonieschiff unterwegs/);
   assert.match(routes, /planetCount: planetCounts\[s\.id\]/);
   assert.match(css, /KOMMANDOZENTRALE/);
   assert.match(css, /grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
-  assert.equal(fs.existsSync(path.join(root, "public", "assets", "map", "starfield-nebula-v1.png")), true);
+  assert.equal(fs.existsSync(path.join(root, "public", "assets", "map", "archipelago-galaxy-v1.png")), true);
   assert.match(css, /\.shell\.view-home \.city-commander\{display:none!important\}/);
   assert.match(css, /\.shell\.view-home \.dock\{display:none!important\}/);
 });

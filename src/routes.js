@@ -28,7 +28,7 @@ const {
 const game = require("./game");
 const progress = require("./progress");
 const social = require("./social");
-const { remnantFleet } = require("./galaxy");
+const { remnantFleet, listOpenRegions, galaxyLayout, GALAXY_REGIONS, listJumpNetwork } = require("./galaxy");
 const { withTx } = require("./tx");
 const chat = require("./chat");
 const moderation = require("./moderation");
@@ -858,6 +858,14 @@ function attachRoutes(app, db) {
         "SELECT id, system_id FROM planets WHERE empire_id = ? AND IFNULL(alliance_id,0) = 0 ORDER BY id LIMIT 1"
       )
       .get(empire.id);
+    const regions = listOpenRegions(db);
+    const gateSystems = new Set(listJumpNetwork(db).gates.map((g) => g.systemId));
+    const layout = {};
+    for (const s of systems) {
+      const galaxyId = Number(s.galaxy_id || 0);
+      const region = regions.find((g) => g.id === galaxyId) || GALAXY_REGIONS[galaxyId] || GALAXY_REGIONS[0];
+      layout[s.id] = galaxyLayout(s, region);
+    }
     res.json({
       now: Date.now(),
       self: {
@@ -869,14 +877,18 @@ function attachRoutes(app, db) {
         allianceId: mine?.id || 0,
       },
       riftSystemId: riftId || null,
+      regions,
+      layout,
       systems: systems.map((s) => ({
         id: s.id,
         name: s.name,
         x: s.x,
         y: s.y,
+        galaxyId: Number(s.galaxy_id || 0),
         starType: s.star_type,
         star: STAR_TYPES[s.star_type] || STAR_TYPES.yellow,
         isHub: !!s.is_hub,
+        isGate: gateSystems.has(s.id),
         remnant: !!s.remnant,
         warlord: s.warlord || "",
         pirate: s.pirate || 0,
@@ -904,14 +916,19 @@ function attachRoutes(app, db) {
       )
       .get(empire.id);
     const techs = game.techsMap(db, empire.id);
+    const galaxyId = Number(sys.galaxy_id || 0);
+    const galaxy = GALAXY_REGIONS.find((g) => g.id === galaxyId) || GALAXY_REGIONS[0];
     res.json({
       id: sys.id,
       name: sys.name,
       x: sys.x,
       y: sys.y,
+      galaxyId,
+      galaxyName: galaxy.name,
       starType: sys.star_type,
       star: STAR_TYPES[sys.star_type],
       isHub: !!sys.is_hub,
+      isGate: !!db.prepare("SELECT 1 FROM jump_gates WHERE system_id=?").get(sys.id),
       remnant: !!sys.remnant,
       remnantShips: sys.remnant ? remnantFleet(db, sys.id) : {},
       npc: require('./npc-sites').status(db, sys.id),

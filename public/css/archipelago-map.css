@@ -1,0 +1,42 @@
+/* Loaded by archipelago-integration when the live galaxy view mounts. */
+.map-wrap.archipelago-map{isolation:isolate;overflow:hidden}
+.map-wrap.archipelago-map #starmap{position:absolute;inset:0;width:100%;height:100%;touch-action:none;z-index:0}
+.archipelago-map .archipelago-regions{
+  position:absolute;z-index:5;top:50px;left:max(8px,env(safe-area-inset-left));
+  right:max(108px,env(safe-area-inset-right));display:flex;gap:6px;
+  overflow-x:auto;scrollbar-width:none;pointer-events:auto;max-width:min(620px,calc(100% - 120px))
+}
+.archipelago-regions button{
+  flex:none;min-height:40px;padding:7px 13px;border:1px solid #60829860;border-radius:22px;
+  background:#071522e8;color:#c5d9e5;font:500 10px var(--body-font,system-ui);touch-action:manipulation
+}
+.archipelago-regions button.active{border-color:#91deee;background:#173347;color:#d5faff}
+.archipelago-map .map-search-toggle,.archipelago-map .map-filter-toggle{z-index:16;min-width:38px;min-height:38px}
+.archipelago-map .map-tools,.archipelago-map .map-quick-filters{z-index:16;top:52px;max-height:calc(100% - 68px);overflow:auto;overscroll-behavior:contain}
+.archipelago-map .map-tools input{font-size:16px;min-height:44px}
+.archipelago-map .map-tools button,.archipelago-map .map-quick-filters label{min-height:44px}
+.archipelago-map .map-status{max-width:calc(100% - 120px);pointer-events:none}
+.archipelago-map .map-status small,.archipelago-map .map-legend,.archipelago-map .map-flight-note{display:none}
+.archipelago-map #sysbox{position:absolute;inset:0;z-index:12;pointer-events:none}
+.archipelago-map #sysbox>*{pointer-events:auto}
+.archipelago-map .sys-panel{z-index:12;max-height:calc(100% - 115px);overscroll-behavior:contain;scroll-padding-top:64px}
+.archipelago-map .sys-panel>.section-title{position:sticky;top:0;z-index:2;background:#071421;box-shadow:0 6px 8px #071421}
+.archipelago-map .sys-panel [data-sys-close],.archipelago-map .sys-panel [data-loading-close]{min-height:44px;min-width:44px}
+.archipelago-map .map-raid-banner{z-index:5}
+.archipelago-map:has(#sysbox:not(:empty)) .map-raid-banner,
+.archipelago-map:has(#sysbox:not(:empty)) .map-orbit-fire,
+.archipelago-map:has(#sysbox:not(:empty)) .map-season{visibility:hidden;pointer-events:none}
+.archipelago-map:has(#map-tools.open) .archipelago-regions,
+.archipelago-map:has(.map-quick-filters:not([hidden])) .archipelago-regions{visibility:hidden;pointer-events:none}
+@media(max-width:760px){
+  .archipelago-map .archipelago-regions{top:52px;max-width:calc(100% - 16px);right:8px}
+  .archipelago-map .sys-panel{left:8px;right:8px;bottom:8px;width:auto;max-width:calc(100% - 16px);max-height:54%}
+  .archipelago-map .sys-planet-card{padding:9px;gap:8px}
+  .archipelago-map .sys-planet-acts{display:flex;flex-wrap:wrap;gap:6px}
+  .archipelago-map .sys-planet-acts button{min-height:44px}
+  .archipelago-map .map-season{max-width:145px;font-size:10px}
+}
+@media(max-height:500px){
+  .archipelago-map .archipelago-regions{top:46px}
+  .archipelago-map .sys-panel{max-height:calc(100% - 62px);max-width:min(430px,calc(100% - 16px))}
+}

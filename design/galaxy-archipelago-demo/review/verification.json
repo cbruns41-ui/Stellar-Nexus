@@ -1,0 +1,111 @@
+{
+  "passed": true,
+  "at": "2026-09-17T14:36:59.134Z",
+  "results": [
+    {
+      "w": 1440,
+      "h": 900,
+      "galaxies": 6,
+      "systems": 4800,
+      "planets": 19200,
+      "selected": null,
+      "planet": 1,
+      "camera": {
+        "x": -605.0653197972803,
+        "y": -315.037729222403,
+        "z": 0.16525946431274366
+      },
+      "drawn": 74,
+      "frame": 240,
+      "filters": [
+        "own",
+        "ally",
+        "other",
+        "free"
+      ],
+      "route": {
+        "a": 0,
+        "b": 3
+      }
+    },
+    {
+      "w": 390,
+      "h": 844,
+      "galaxies": 6,
+      "systems": 4800,
+      "planets": 19200,
+      "selected": null,
+      "planet": 1,
+      "camera": {
+        "x": -605.0853102332927,
+        "y": -315.04777860138495,
+        "z": 0.09798882796563138
+      },
+      "drawn": 32,
+      "frame": 155,
+      "filters": [
+        "own",
+        "ally",
+        "other",
+        "free"
+      ],
+      "route": {
+        "a": 0,
+        "b": 3
+      }
+    },
+    {
+      "w": 320,
+      "h": 568,
+      "galaxies": 6,
+      "systems": 4800,
+      "planets": 19200,
+      "selected": null,
+      "planet": 1,
+      "camera": {
+        "x": -605.0853102176859,
+        "y": -315.0449455149548,
+        "z": 0.07912720816462626
+      },
+      "drawn": 24,
+      "frame": 154,
+      "filters": [
+        "own",
+        "ally",
+        "other",
+        "free"
+      ],
+      "route": {
+        "a": 0,
+        "b": 3
+      }
+    },
+    {
+      "w": 844,
+      "h": 390,
+      "galaxies": 6,
+      "systems": 4800,
+      "planets": 19200,
+      "selected": null,
+      "planet": 1,
+      "camera": {
+        "x": -605.0853102397189,
+        "y": -315.04275919906297,
+        "z": 0.04151176080657604
+      },
+      "drawn": 11,
+      "frame": 232,
+      "filters": [
+        "own",
+        "ally",
+        "other",
+        "free"
+      ],
+      "route": {
+        "a": 0,
+        "b": 3
+      }
+    }
+  ],
+  "errors": []
+}

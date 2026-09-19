@@ -22,7 +22,8 @@ const {
   TIME_SPEED_CAP,
   TICK_MS,
 } = require("./catalog");
-const { remnantFleet, setRemnantFleet } = require("./galaxy");
+const { remnantFleet, setRemnantFleet, listJumpNetwork } = require("./galaxy");
+const { planIntergalacticTravel, JUMP_HOP_EQUIV } = require("./archipelagoTravel");
 const npcSites = require('./npc-sites');
 const progress = require("./progress");
 const nexus = require("./nexus");
@@ -756,7 +757,17 @@ function hopsAllowed(techs, buildings = {}) {
 
 function shortestHops(db, fromSys, toSys) {
   if (fromSys === toSys) return 0;
-  const links = db.prepare("SELECT a, b FROM links").all();
+  const fromG = db.prepare("SELECT IFNULL(galaxy_id,0) AS g FROM systems WHERE id=?").get(fromSys)?.g;
+  const toG = db.prepare("SELECT IFNULL(galaxy_id,0) AS g FROM systems WHERE id=?").get(toSys)?.g;
+  if (fromG == null || toG == null || fromG !== toG) return 99;
+  const links = db
+    .prepare(
+      `SELECT l.a, l.b FROM links l
+       JOIN systems sa ON sa.id = l.a
+       JOIN systems sb ON sb.id = l.b
+       WHERE IFNULL(sa.galaxy_id,0)=? AND IFNULL(sb.galaxy_id,0)=?`
+    )
+    .all(fromG, fromG);
   const adj = {};
   for (const l of links) {
     (adj[l.a] ||= []).push(l.b);
@@ -809,7 +820,7 @@ function slowestShip(ships) {
   return best;
 }
 
-function travelPlan(db, origin, target, ships, techs) {
+function localTravelPlan(db, origin, target, ships, techs) {
   const os = db.prepare("SELECT * FROM systems WHERE id = ?").get(origin.system_id);
   const ts = db.prepare("SELECT * FROM systems WHERE id = ?").get(target.system_id);
   const hops = shortestHops(db, origin.system_id, target.system_id);
@@ -848,6 +859,73 @@ function travelPlan(db, origin, target, ships, techs) {
   };
 }
 
+function travelPlan(db, origin, target, ships, techs) {
+  const os = db.prepare("SELECT * FROM systems WHERE id = ?").get(origin.system_id);
+  const ts = db.prepare("SELECT * FROM systems WHERE id = ?").get(target.system_id);
+  if (!os || !ts) throw new Error("System unbekannt.");
+  const originGalaxy = Number(os.galaxy_id || 0);
+  const targetGalaxy = Number(ts.galaxy_id || 0);
+  const fuelMul = worldEconomy(db).fuel;
+  if (originGalaxy === targetGalaxy) {
+    const plan = localTravelPlan(db, origin, target, ships, techs);
+    plan.fuelNeeded = fleetFuelCost(ships, plan.hops, fuelMul);
+    plan.jumps = 0;
+    plan.intergalactic = false;
+    plan.segments = [{ kind: "local", from: os.id, to: ts.id, ms: plan.ms, fuel: plan.fuelNeeded, hops: plan.hops, dist: plan.dist }];
+    return plan;
+  }
+  if ((techs.warp || 0) < 1) throw new Error("Warp-Forschung nötig, um Galaxien zu wechseln.");
+  const hopsCap = hopsAllowed(techs, buildingsMap(db, origin.id));
+  const localLeg = (from, to) => {
+    if (from.systemId === to.systemId) return { ms: 0, fuel: 0, allowed: true, hops: 0, dist: 0 };
+    const hops = shortestHops(db, from.systemId, to.systemId);
+    if (hops > hopsCap) {
+      return { allowed: false, reason: "Ziel außerhalb der Warp-Reichweite. Erforsche Warp/Hyperspace oder baue ein Sprungtor." };
+    }
+    const inner = localTravelPlan(db, { ...origin, system_id: from.systemId }, { system_id: to.systemId, id: to.systemId }, ships, techs);
+    return { ms: inner.ms, fuel: fleetFuelCost(ships, hops, fuelMul), allowed: true, hops: inner.hops, dist: inner.dist };
+  };
+  const network = listJumpNetwork(db);
+  const planned = planIntergalacticTravel({
+    origin: { systemId: os.id, galaxyId: originGalaxy },
+    target: { systemId: ts.id, galaxyId: targetGalaxy },
+    gates: network.gates,
+    connections: network.connections,
+    localLeg,
+    jumpFuel: () => fleetFuelCost(ships, JUMP_HOP_EQUIV, fuelMul),
+    warp: techs.warp || 0,
+    hyperspace: techs.hyperspace || 0,
+    now: now(),
+    tickMs: TICK_MS,
+  });
+  const slow = slowestShip(ships);
+  const race = origin.empire_id ? species.bonusesOf(db, origin.empire_id) : {};
+  const spd = (slow ? slow.speed : 1) * (1 + (race.travel || 0));
+  const kinds = Object.entries(ships || {}).filter(([, n]) => n > 0).length;
+  const hops = planned.segments.filter((s) => s.kind === "local").reduce((n, s) => n + (s.hops || 0), 0);
+  const dist = planned.segments.filter((s) => s.kind === "local").reduce((n, s) => n + (s.dist || 0), 0);
+  return {
+    ms: planned.ms,
+    rawMs: planned.rawMs,
+    rawSeconds: Math.ceil(planned.rawMs / 1000),
+    ticks: planned.ms / TICK_MS,
+    seconds: planned.ms / 1000,
+    tickMs: TICK_MS,
+    dist: Math.round(dist),
+    hops,
+    sameSystem: false,
+    fleetSpeed: spd,
+    slowest: slow,
+    mixed: kinds > 1,
+    driveBonus: 1 + 0.12 * (techs.warp || 0) + 0.08 * (techs.hyperspace || 0),
+    beacon: 1,
+    jumps: planned.jumps,
+    intergalactic: true,
+    segments: planned.segments,
+    fuelNeeded: planned.fuel,
+  };
+}
+
 function travelMs(db, origin, target, ships, techs) {
   return travelPlan(db, origin, target, ships, techs).ms;
 }
@@ -861,7 +939,6 @@ function previewTravel(db, empire, origin, target, shipsWanted) {
   }
   const techs = techsMap(db, empire.id);
   const plan = travelPlan(db, origin, target, ships, techs);
-  const hops = shortestHops(db, origin.system_id, target.system_id);
   const roster = Object.entries(ships).map(([id, n]) => ({
     id,
     name: SHIPS[id].name,
@@ -883,7 +960,7 @@ function previewTravel(db, empire, origin, target, shipsWanted) {
     tickMs: TICK_MS,
     arrivesAt,
     strikes,
-    fuelNeeded: fleetFuelCost(ships, hops, worldEconomy(db).fuel),
+    fuelNeeded: plan.fuelNeeded,
     fuelAvailable: origin.helium || 0,
   };
 }
@@ -1878,10 +1955,17 @@ function sendFleet(db, empire, origin, target, mission, shipsWanted, cargo, opts
   }
   if (!any) throw new Error("Keine Schiffe ausgewählt.");
   const techs = techsMap(db, empire.id);
+  const originSys = db.prepare("SELECT * FROM systems WHERE id=?").get(origin.system_id);
+  const targetSys = db.prepare("SELECT * FROM systems WHERE id=?").get(target.system_id);
   const hops = shortestHops(db, origin.system_id, target.system_id);
   const originBuild = buildingsMap(db, origin.id);
-  if (hops > hopsAllowed(techs, originBuild)) {
-    throw new Error("Ziel außerhalb der Warp-Reichweite. Erforsche Warp/Hyperspace oder baue ein Sprungtor.");
+  const sameGalaxy = Number(originSys?.galaxy_id || 0) === Number(targetSys?.galaxy_id || 0);
+  if (sameGalaxy) {
+    if (hops > hopsAllowed(techs, originBuild)) {
+      throw new Error("Ziel außerhalb der Warp-Reichweite. Erforsche Warp/Hyperspace oder baue ein Sprungtor.");
+    }
+  } else if ((techs.warp || 0) < 1) {
+    throw new Error("Warp-Forschung nötig, um Galaxien zu wechseln.");
   }
   if (mission === "attack" && target.empire_id === empire.id) throw new Error("Eigene Welten kann man nicht angreifen.");
   if (mission === "attack" && target.alliance_id) {
@@ -1948,13 +2032,11 @@ function sendFleet(db, empire, origin, target, mission, shipsWanted, cargo, opts
     const raid = opts.raidId && db.prepare('SELECT id FROM raids WHERE id=? AND target_planet_id=?').get(opts.raidId,target.id);
     if (!threats.length && !raid) throw new Error("Keine feindliche Flotte im Anflug.");
   }
-  const fuelNeeded = mission === "expedition" ? 0 : fleetFuelCost(ships, hops, worldEconomy(db).fuel);
+  const t = now();
+  const plan = mission === "expedition" ? null : travelPlan(db, origin, target, ships, techs);
+  const fuelNeeded = mission === "expedition" ? 0 : plan.fuelNeeded;
   if (fuelNeeded > 0 && (origin.helium || 0) < fuelNeeded) {
     throw new Error(`Nicht genug Helium-3. Benötigt: ${fuelNeeded}.`);
-  }
-  if (fuelNeeded > 0) {
-    db.prepare("UPDATE planets SET helium = helium - ? WHERE id = ?").run(fuelNeeded, origin.id);
-    origin.helium = (origin.helium || 0) - fuelNeeded;
   }
 
   let haul = emptyBag();
@@ -1969,13 +2051,15 @@ function sendFleet(db, empire, origin, target, mission, shipsWanted, cargo, opts
     haul = emptyBag();
   }
 
+  if (fuelNeeded > 0) {
+    db.prepare("UPDATE planets SET helium = helium - ? WHERE id = ?").run(fuelNeeded, origin.id);
+    origin.helium = (origin.helium || 0) - fuelNeeded;
+  }
   for (const [id, n] of Object.entries(ships)) {
     db.prepare("UPDATE ships SET count = count - ? WHERE planet_id = ? AND ship_id = ?").run(n, origin.id, id);
   }
   db.prepare("DELETE FROM ships WHERE planet_id = ? AND count <= 0").run(origin.id);
 
-  const t = now();
-  const plan = mission === "expedition" ? null : travelPlan(db, origin, target, ships, techs);
   const flight = mission === "expedition" ? TICK_MS : plan.ms;
   let hold = Math.max(0, Math.min(ACS_HOLD_MAX_MS, Number(opts.holdMs) || 0));
   hold = msToTicks(hold) * TICK_MS;
@@ -2157,7 +2241,7 @@ function assignHome(db, empireId, empireName) {
   const candidates = db
     .prepare(
       `SELECT s.id FROM systems s
-       WHERE s.remnant = 0 AND s.is_hub = 0 AND IFNULL(s.pirate,0) = 0
+       WHERE s.remnant = 0 AND s.is_hub = 0 AND IFNULL(s.pirate,0) = 0 AND IFNULL(s.galaxy_id,0) = 0
          AND NOT EXISTS (SELECT 1 FROM planets p WHERE p.system_id = s.id AND p.empire_id IS NOT NULL)
        ORDER BY (s.x-600)*(s.x-600)+(s.y-600)*(s.y-600) DESC`
     )
@@ -2167,7 +2251,8 @@ function assignHome(db, empireId, empireName) {
     const any = db
       .prepare(
         `SELECT s.id FROM systems s
-         WHERE NOT EXISTS (SELECT 1 FROM planets p WHERE p.system_id = s.id AND p.empire_id IS NOT NULL)
+         WHERE IFNULL(s.galaxy_id,0) = 0
+           AND NOT EXISTS (SELECT 1 FROM planets p WHERE p.system_id = s.id AND p.empire_id IS NOT NULL)
          ORDER BY s.remnant ASC, (s.x-600)*(s.x-600)+(s.y-600)*(s.y-600) DESC`
       )
       .get();

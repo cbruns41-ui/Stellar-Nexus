@@ -1,0 +1,13 @@
+# Jäger – Bildgenerierung für Demo 3
+
+Werkzeug: integrierte Bildgenerierung, keine separate API oder CLI. Finale Datei: `assets/fighter-v3-key.png`.
+
+## Ursprünglicher Generierungsprompt
+
+Use case: stylized-concept. Asset type: production-ready transparent spacecraft sprite for a playable top-down mobile space-defense game. Input image is STYLE REFERENCE ONLY, do not reproduce its UI or whole scene. Create ONE exceptionally polished small enemy interceptor spacecraft matching the sleek triangular dark titanium / silver and red-accent fighters in the reference. Actual orthographic TOP VIEW, spacecraft nose points exactly UP, symmetric left and right, flat X/Y flight plane; not a side view or dramatic perspective. Recognizable spearhead nose, layered sharply bevelled armor plates, narrow dark glass cockpit, intricate recessed mechanical panel seams, brushed silver edge highlights and worn charcoal metal, restrained red-orange accent strips, two separate rear engine nozzles at bottom. Strong readable lighting and silhouette even when rendered at 60 pixels tall, premium pre-rendered 3D game asset quality, realistic metal shading, not cartoon low-poly blocks. Entire ship centered with comfortable transparent margin, occupies 85 percent of square image height. Render NO exhaust flame, NO glow outside the silhouette, NO shadow on ground, NO scenery, NO stars, NO text, NO labels, NO user interface. The game adds moving exhaust itself. Background must be genuinely transparent RGBA alpha, not green chroma key and not a checkerboard image. Deliver only this isolated single ship.
+
+## Finaler Bearbeitungsprompt
+
+Use case: precise-object-edit. Edit target: this exact spacecraft sprite. Preserve the spacecraft design, position, size, top view and all material details. Replace ONLY every pixel of the checkerboard outside the ship with a perfectly flat solid chroma-key green background RGB(0,255,0), #00FF00. This is deliberately an opaque chroma-key production asset, NOT a transparency preview. No checkerboard anywhere. No texture, noise, pattern, gradients, vignette or shadows in the background. No green light spill onto the ship, no green outlines. Preserve hard clean ship edges and dark spaces between engines as background green. No additional objects, no words.
+
+Der erste Durchlauf lieferte trotz Transparenzvorgabe ein RGB-Bild mit Schachbrettmuster. Der zweite Durchlauf ersetzt dieses Muster durch einen gezielt ausblendbaren Farbhintergrund. Die Quelldatei bleibt unverändert erhalten; die Freistellung erfolgt nur bei der Spielausgabe. Der anschließende Versuch einer neuen Fregatte wurde vom Nutzungslimit des Bildwerkzeugs blockiert. Für die Fregatte werden daher vorhandene Projektgrafiken verwendet.
