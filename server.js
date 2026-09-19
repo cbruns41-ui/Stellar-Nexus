@@ -7,6 +7,7 @@ const { attachRoutes } = require("./src/routes");
 const { ensureAdmin, ensurePlayer } = require("./src/seed");
 const { ensureOpenGalaxies } = require("./src/galaxy");
 const { userFromRequest, trustProxySetting, applySecurityHeaders } = require("./src/auth");
+const { createHttpServer, requestLog, skipSafeMethods } = require("./src/httpServer");
 
 const PORT = Number(process.env.PORT) || 3000;
 const db = openDb();
@@ -21,13 +22,17 @@ const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", trustProxySetting());
 app.use(applySecurityHeaders);
-app.use(express.json({ limit: "700kb" }));
-app.use(express.urlencoded({ extended: false }));
+app.use(requestLog);
+app.use(skipSafeMethods(express.json({ limit: "700kb" })));
+app.use(skipSafeMethods(express.urlencoded({ extended: false })));
 app.use((req, res, next) => {
   if (req.path === "/" || /\.(?:html|m?js|css)$/.test(req.path)) {
     res.setHeader("Cache-Control", "no-cache, must-revalidate");
   }
   next();
+});
+app.get("/", (_req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 app.get(["/play", "/play.html"], (req, res) => {
   const user = userFromRequest(db, req);
@@ -54,7 +59,7 @@ app.use((err, _req, res, _next) => {
 module.exports = app;
 
 if (require.main === module) {
-  app.listen(PORT, "0.0.0.0", () => {
+  createHttpServer(app).listen(PORT, "0.0.0.0", () => {
     console.log(`Stellar Nexus läuft auf http://localhost:${PORT}`);
   });
 }

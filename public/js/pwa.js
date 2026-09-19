@@ -2,7 +2,7 @@
 
 (function () {
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js?v=2", { updateViaCache: "none" }).then(function (registration) {
+    navigator.serviceWorker.register("/sw.js?v=3", { updateViaCache: "none" }).then(function (registration) {
       registration.update().catch(function () {});
     }).catch(function () {});
   }

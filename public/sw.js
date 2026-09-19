@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE = "sn-shell-v86";
+const CACHE = "sn-shell-v87";
 const PRECACHE = [
   "/",
   "/manifest.json",
@@ -31,6 +31,7 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
+  if (req.mode === "navigate") return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api/")) return;
