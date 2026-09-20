@@ -101,6 +101,10 @@ try {
   await shot('spy-report');await click('.tutorial-card .primary');await pause(400);await click('.tutorial-card .primary');
   await until(`!document.querySelector('.guided-tutorial')`);
   assert.equal((await evaluate(`JSON.parse(localStorage.getItem(${JSON.stringify(key)}))`)).status,'done');
+  if (process.argv.includes('--notifications')) {
+    const { verifyNotifications } = await import('./verify-notifications.mjs');
+    await verifyNotifications({db,snap,send,evaluate,until,click,shot});
+  }
   assert.deepEqual(errors,[],'No browser exceptions');
   await writeFile(new URL('verification.json',folder),JSON.stringify({passed:true,checks:['opt-in and skip','pause and resume','mobile spotlight geometry','blocked unrelated clicks','real building and research jobs','additional probe construction','real scout launch','matching spy report','completion'],errors},null,2));
   console.log('Tutorial browser flow passed');

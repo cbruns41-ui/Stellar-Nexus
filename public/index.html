@@ -19,7 +19,7 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Sora:wght@400;500;600;700&family=Tektur:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/css/style.css?v=128" />
+    <link rel="stylesheet" href="/css/style.css?v=129" />
     <link rel="stylesheet" href="/css/tutorial.css?v=1" />
     <link rel="stylesheet" href="/css/playtest-navigation.css?v=17" />
     <link rel="stylesheet" href="/css/colony.css?v=9" />
@@ -353,15 +353,15 @@
       <nav class="tabbar" id="tabbar">
         <button type="button" data-view="command" data-tab="home" class="on">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/></svg>
-          Planet
+          Planet <i data-badge="command" hidden></i>
         </button>
         <button type="button" data-view="galaxy" data-tab="map">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 5v2M12 17v2M5 12h2M17 12h2"/></svg>
-          Karte
+          Karte <i data-badge="galaxy" hidden></i>
         </button>
         <button type="button" data-tab="cmd" data-open-nav="command">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18l4-12 4 8 4-6 4 10"/></svg>
-          Kommando
+          Kommando <i data-badge="more" hidden></i>
         </button>
       </nav>
     </div>
@@ -402,6 +402,6 @@
         });
     </script>
     <script src="/js/pwa.js?v=2"></script>
-    <script type="module" src="/js/app.js?v=206"></script>
+    <script type="module" src="/js/app.js?v=207"></script>
   </body>
 </html>

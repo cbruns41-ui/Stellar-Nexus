@@ -1687,7 +1687,13 @@ img.og-art-ship[src*="battleship"] {
 }
 .tabbar button svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; }
 .tabbar button.on, .tabbar button:hover { color: var(--cyan); border-color: rgba(62, 232, 196, 0.36); box-shadow: 0 0 14px rgba(62, 232, 196, 0.12); }
-.tabbar button i { display: none; }
+.tabbar button { position: relative; }
+.tabbar button i {
+  display: inline-block; position: absolute; right: 6px; top: 4px;
+  min-width: 16px; height: 16px; padding: 0 4px;
+  border-radius: 8px; background: var(--ember); color: white;
+  font-style: normal; font-size: 10px; text-align: center; line-height: 16px;
+}
 .build-rail {
   display: flex;
   gap: 6px;
@@ -1785,6 +1791,8 @@ img.og-art-ship[src*="battleship"] {
   box-shadow: 0 0 10px rgba(255, 90, 60, 0.45);
   animation: badge-pulse 1.8s ease-in-out infinite;
 }
+.page-badge[hidden], [data-badge][hidden] { display: none !important; }
+.nav i:not([hidden]), .tabbar i:not([hidden]), .page-badge { animation: none; }
 @keyframes badge-pulse {
   0%, 100% { transform: scale(1); box-shadow: 0 0 8px rgba(255, 90, 60, 0.35); }
   50% { transform: scale(1.08); box-shadow: 0 0 14px rgba(255, 90, 60, 0.7); }

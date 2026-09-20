@@ -2296,10 +2296,23 @@ function assignHome(db, empireId, empireName) {
 
 function countAffordable(kind, db, empire, planet, buildings, techs) {
   if (!planet) return 0;
-  if (queueBusy(db, kind, empire.id, planet.id)) return 0;
+  if (planet.isAlliance) {
+    const rawPlanet = db.prepare('SELECT * FROM planets WHERE id=?').get(planet.id);
+    if (!social.canManageAlliancePlanet(db, empire.id, rawPlanet)) return 0;
+    if (kind === 'research') {
+      if (queueBusy(db, 'ally_research', empire.id, planet.id)) return 0;
+      return social.researchRows(db, rawPlanet.alliance_id, empire.id)
+        .filter(row => row.level < row.max && canAfford(planet, row.remaining)).length;
+    }
+    if (['building', 'ship'].includes(kind)) return 0;
+  }
+  if (kind === 'research' && !planet.isHome) return 0;
+  // Ship orders may join the queue; only the remaining hangar capacity limits them.
+  if (kind !== 'ship' && queueBusy(db, kind, empire.id, planet.id)) return 0;
   let n = 0;
   if (kind === "building") {
     for (const spec of Object.values(BUILDINGS)) {
+      if (HOME_RESEARCH_BUILDINGS.has(spec.id) && !planet.isHome) continue;
       if (!meetsReq(spec.requires, buildings, techs)) continue;
       const level = buildings[spec.id] || 0;
       if (level >= spec.max) continue;
@@ -2314,14 +2327,17 @@ function countAffordable(kind, db, empire, planet, buildings, techs) {
       if (canAfford(planet, scaledCost(spec.baseCost, spec.factor, level))) n += 1;
     }
   } else if (kind === "ship") {
+    const queued = db.prepare("SELECT COALESCE(SUM(qty),0) AS n FROM queue WHERE planet_id=? AND kind='ship'").get(planet.id).n;
+    if (planet.shipCount + queued >= planet.shipCap) return 0;
     for (const spec of Object.values(SHIPS)) {
       if (!meetsReq(spec.requires, buildings, techs)) continue;
       if (spec.premium && !empire[spec.premium]) continue;
-      if (canAfford(planet, spec.cost)) n += 1;
+      const cost = spec.id === 'colony' ? colonyShipCost(personalPlanetCount(db, empire.id)) : spec.cost;
+      if (canAfford(planet, cost)) n += 1;
     }
   } else if (kind === "defense") {
     for (const spec of Object.values(DEFENSES)) {
-      if (!meetsReq(spec.requires, buildings, techs)) continue;
+      if (!planet.isAlliance && !meetsReq(spec.requires, buildings, techs)) continue;
       if (canAfford(planet, spec.cost)) n += 1;
     }
   }
@@ -2356,13 +2372,10 @@ function buildHints({
   allianceActivity,
 }) {
   const buildings = planet?.buildings || {};
-  const dailyOpen = (ops || []).filter((o) => !o.claimed).length;
   const dailyReady = (ops || []).filter((o) => o.complete && !o.claimed).length;
-  const weeklyOpen = (weekly || []).filter((o) => !o.claimed).length;
   const weeklyReady = (weekly || []).filter((o) => o.complete && !o.claimed).length;
   const campaignReady = (contracts || []).filter((c) => c.complete && !c.claimed).length;
-  const campaignOpen = (contracts || []).some((c) => !c.claimed && !c.locked) ? 1 : 0;
-  const actFree = (activities || []).filter((a) => !a.running).length;
+  const actFree = planet ? (activities || []).filter(a => !a.running && a.ready && (a.durations || []).some(d => d.energy <= planet.energy)).length : 0;
   const incomingN = (incoming || []).length;
   const infra = planet ? countAffordable("building", db, empire, planet, buildings, techs) : 0;
   const research = planet ? countAffordable("research", db, empire, planet, buildings, techs) : 0;
@@ -2370,15 +2383,15 @@ function buildHints({
   const defense = planet ? countAffordable("defense", db, empire, planet, buildings, techs) : 0;
   const economy = storageAlerts(planet);
   const nexus = empire.nexDailyReady ? 1 : 0;
-  const command = dailyOpen + weeklyOpen + campaignReady;
+  const command = dailyReady + weeklyReady + campaignReady;
   const allianceN = (allianceActivity?.attacks?.length || 0) + (allianceActivity?.defenses?.length || 0);
   return {
     command,
-    daily: dailyOpen,
+    daily: dailyReady,
     dailyReady,
-    weekly: weeklyOpen,
+    weekly: weeklyReady,
     weeklyReady,
-    campaign: campaignReady + (campaignReady ? 0 : campaignOpen),
+    campaign: campaignReady,
     economy,
     infra: infra ? 1 : 0,
     infraN: infra,
@@ -2552,8 +2565,9 @@ function snapshot(db, user, planetId) {
       };
     }),
   };
-  const unreadReports = db.prepare("SELECT COUNT(*) AS n FROM reports WHERE empire_id = ? AND seen = 0").get(empire.id).n;
-  const unreadMail = chat.unreadMail(db, empire.id);
+  const unreadCounts = require('./notifications').unreadCounts(db, empire.id);
+  const unreadReports = unreadCounts.messages + unreadCounts.combat + unreadCounts.spy;
+  const unreadMail = unreadCounts.mail;
   const unreadChat = chat.unreadChat(db, empire);
   const unread = unreadReports + unreadMail;
   const owned = personalPlanetCount(db, empire.id);
@@ -2603,6 +2617,7 @@ function snapshot(db, user, planetId) {
   });
   return {
     now: now(),
+    unreadCounts,
     user: {
       id: user.id,
       username: user.username,

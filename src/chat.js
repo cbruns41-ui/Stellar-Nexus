@@ -281,11 +281,13 @@ async function listChat(db, empire, channel) {
   const staff = db.prepare("SELECT is_admin, is_mod FROM users WHERE id = ?").get(empire.user_id);
   return {
     canMod: moderation.canMod(staff),
+    unreadChat: unreadChat(db, empire),
     channel: scope.channel,
-    channels: Object.values(CHANNELS).map((c) => ({
-      ...c,
-      locked: c.id === "alliance" && !mine,
-    })),
+    channels: Object.values(CHANNELS).map(c => {
+      const locked = c.id === 'alliance' && !mine;
+      const scope = locked ? null : resolveScope(db, empire, c.id);
+      return { ...c, locked, unread: scope ? unreadForKey(db, empire.id, c.id, scope.allianceId || scope.systemId) : 0 };
+    }),
     alliance: mine ? { id: mine.id, tag: mine.tag, name: mine.name } : null,
     lang: localeOf(empire),
     translate: wantsTranslate(empire),
@@ -329,15 +331,15 @@ function unreadForKey(db, empireId, channel, extraId) {
   const last = lastRead(db, empireId, key);
   if (channel === "alliance") {
     return db
-      .prepare("SELECT COUNT(*) AS n FROM chat_messages WHERE channel = 'alliance' AND alliance_id = ? AND id > ?")
-      .get(extraId, last).n;
+      .prepare("SELECT COUNT(*) AS n FROM chat_messages WHERE channel = 'alliance' AND alliance_id = ? AND id > ? AND empire_id != ?")
+      .get(extraId, last, empireId).n;
   }
   if (channel === "system") {
     return db
-      .prepare("SELECT COUNT(*) AS n FROM chat_messages WHERE channel = 'system' AND system_id = ? AND id > ?")
-      .get(extraId, last).n;
+      .prepare("SELECT COUNT(*) AS n FROM chat_messages WHERE channel = 'system' AND system_id = ? AND id > ? AND empire_id != ?")
+      .get(extraId, last, empireId).n;
   }
-  return db.prepare("SELECT COUNT(*) AS n FROM chat_messages WHERE channel = ? AND id > ?").get(channel, last).n;
+  return db.prepare("SELECT COUNT(*) AS n FROM chat_messages WHERE channel = ? AND id > ? AND empire_id != ?").get(channel, last, empireId).n;
 }
 
 function unreadChat(db, empire) {

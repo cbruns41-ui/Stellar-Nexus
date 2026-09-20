@@ -19,7 +19,7 @@ export function colonyHudHtml(questsOpen = false) {
       <span class="colony-level"><i></i><b>0</b></span>
     </button>`).join("")}</div>
     <div class="colony-tools" aria-label="Basisansicht">
-      <button type="button" class="colony-orders" data-city-sheet="quests" aria-expanded="${questsOpen}" aria-controls="colony-quests" title="Tägliche und wöchentliche Aufgaben öffnen"><span aria-hidden="true">▤</span> Aufgaben</button>
+      <button type="button" class="colony-orders" data-city-sheet="quests" aria-expanded="${questsOpen}" aria-controls="colony-quests" title="Tägliche und wöchentliche Aufgaben öffnen"><span aria-hidden="true">▤</span> Aufgaben <i class="page-badge" data-badge="command" hidden></i></button>
     <details class="colony-directory"><summary>Gebäude <span>22</span></summary><div>
       ${CITY_PLOTS.map(p => `<button type="button" data-colony-focus="${p.id}"><span>${escape(p.short)}</span><b data-colony-list-level="${p.id}">0</b></button>`).join("")}
     </div></details>

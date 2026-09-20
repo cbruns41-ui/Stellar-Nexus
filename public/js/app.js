@@ -6,8 +6,9 @@ import { battleReplayHtml, bindBattleReplays } from "./battle.js?v=2";
 import { startAllianceBossEncounter } from "./alliance-boss-game.js?v=16";
 import { CITY_PLOTS } from "./city.mjs?v=11";
 import { createTutorial } from "./tutorial.mjs?v=1";
+import { notificationBadges } from "./notifications.mjs?v=1";
 import { shipBudget } from "./ship-budget.mjs?v=1";
-import { colonyRows, colonyHudHtml, paintColonyMarkers, paintColonyFrame } from "./colony-hud.mjs?v=9";
+import { colonyRows, colonyHudHtml, paintColonyMarkers, paintColonyFrame } from "./colony-hud.mjs?v=10";
 import { createColonyUnity, setUnityColonyVisible } from "./colony-unity.js?v=15";
 import { startOrbitSiege } from "./orbit-siege.mjs?v=18";
 
@@ -693,12 +694,25 @@ function liveRerender() {
   return !skip.has(state.view);
 }
 
-function updateAllianceBadge(n) {
-  const count = Math.max(0, Number(n) || 0);
-  document.querySelectorAll("[data-badge='alliance']").forEach((el) => {
-    el.hidden = count <= 0;
-    el.textContent = count > 9 ? "9+" : String(count);
-  });
+function paintBadges() {
+  const badges = notificationBadges(state.snap);
+  for (const el of document.querySelectorAll('[data-badge]')) {
+    const badge = badges[el.dataset.badge];
+    el.hidden = !badge?.count;
+    el.textContent = badge?.text || '';
+    el.title = badge?.label || '';
+    el.setAttribute('aria-label', badge?.label || '');
+  }
+}
+
+function syncUnreadCounts(counts, empireId = state.snap?.empire?.id) {
+  if (!counts || state.snap?.empire?.id !== empireId) return;
+  snapshotRevision++;
+  state.snap.unreadCounts = counts;
+  state.snap.unreadMail = counts.mail;
+  state.snap.unread = Object.values(counts).reduce((sum,n) => sum + Number(n || 0), 0);
+  state.snap.hints = { ...state.snap.hints, reports: state.snap.unread };
+  paintBadges();
 }
 
 function allianceActivityRows() {
@@ -808,17 +822,7 @@ function paintChrome() {
     if(sel.dataset.options!==options){sel.innerHTML=options;sel.dataset.options=options;}
     if(!state.focusPending)sel.value=cur;
   }
-  const hints = s.hints || {};
-  const moreKeys = ["economy", "nexus", "activity", "reports", "chat", "infra", "yard", "defense", "research", "alliance"];
-  const moreN = moreKeys.reduce((n, k) => n + (Number(hints[k]) || 0), 0);
-  const badgeMap = { ...hints, more: moreN, reports: hints.reports || s.unread || 0, chat: hints.chat || s.unreadChat || 0 };
-  for (const el of document.querySelectorAll("[data-badge]")) {
-    if (el.dataset.badge === "alliance") continue;
-    const n = Number(badgeMap[el.dataset.badge] || 0);
-    el.hidden = n <= 0;
-    el.textContent = n > 9 ? "9+" : String(n);
-  }
-  updateAllianceBadge(hints.alliance || 0);
+  paintBadges();
   paintAllianceActivityFromSnap();
   renderResources();
   renderDock();
@@ -971,7 +975,7 @@ function renderView({preserveForm=true}={}) {
   }else panel?.remove();
   for(const el of $('tabbar').querySelectorAll('[data-tab]'))el.classList.toggle('on',el.dataset.tab===(hasCommandPanel()?'cmd':tabIdFor(base)));
   for(const el of $('nav').querySelectorAll('[data-view]'))el.classList.toggle('on',el.dataset.view===active);
-  applyResourceChrome();setUnityColonyVisible(base==='command'&&!state.snap.planet?.isAlliance&&!hasCommandPanel()&&!document.querySelector('.orbit-game'));syncColonyPointerEvents();syncCityLive();updateBuildActions();
+  applyResourceChrome();setUnityColonyVisible(base==='command'&&!state.snap.planet?.isAlliance&&!hasCommandPanel()&&!document.querySelector('.orbit-game'));syncColonyPointerEvents();syncCityLive();updateBuildActions();paintBadges();
  }catch(err){state.view=active;console.error(err);toast('Ansicht fehlgeschlagen: '+err.message,true);}
 }
 
@@ -980,7 +984,7 @@ function opCard(o, kind) {
   const claimAttr = kind === "weekly" ? `data-weekly="${o.id}"` : `data-op="${o.id}"`;
   return `<article class="contract ${status}">
     <div>
-      <h3>${esc(o.title)}${o.complete && !o.claimed ? `<i class="page-badge">${kind === "weekly" ? "!" : "1"}</i>` : !o.claimed ? `<i class="page-badge">${kind === "weekly" ? "W" : "!"}</i>` : ""}</h3>
+      <h3>${esc(o.title)}${o.complete && !o.claimed ? `<i class="page-badge" title="Belohnung abholbereit">1</i>` : ""}</h3>
       <p>${esc(o.blurb)}</p>
       <div class="cost">${costHtml(o.reward, null, state.catalog)}
         ${o.ships ? Object.entries(o.ships).map(([id, n]) => `${n}× ${esc(state.catalog.ships[id]?.name || id)}`).join(" · ") : ""}
@@ -1005,27 +1009,20 @@ function actionBoard() {
       <span>${esc(text)}</span>
     </button>`);
   };
-  const dailyOpen = (state.snap.ops || []).filter((o) => !o.claimed).length;
   const dailyReady = (state.snap.ops || []).filter((o) => o.complete && !o.claimed).length;
-  const weeklyOpen = (state.snap.weekly || []).filter((o) => !o.claimed).length;
   const weeklyReady = (state.snap.weekly || []).filter((o) => o.complete && !o.claimed).length;
   const campaignReady = (state.snap.contracts || []).filter((c) => c.complete && !c.claimed).length;
   if (dailyReady) push("command", "Tagesorder", "Belohnung abholen", dailyReady);
-  else if (dailyOpen) push("command", "Tagesorder", "Heute noch offen — hier auf der Übersicht", dailyOpen);
   if (weeklyReady) push("command", "Wochenorder", "Wochenbelohnung abholen", weeklyReady);
-  else if (weeklyOpen) push("command", "Wochenorder", "Diese Woche noch offen", weeklyOpen);
   if (campaignReady) push("command", "Kampagne", "Auftrag abholen", campaignReady);
-  else if ((state.snap.contracts || []).some((c) => !c.claimed && !c.locked) && state.snap.nextAction?.view) {
-    push(state.snap.nextAction.view, "Kampagne", state.snap.nextAction.text || "Nächster Auftrag", 1);
-  }
   if (h.nexus) push("nexus", "Nex-Tagesbonus", "Premium-Nex abholen", 1);
   if (h.activity) push("activity", "Einsatz bereit", "Patrouille, Scan oder Funknetz", h.activity);
   if (h.infra) push("infra", "Bauschleife frei", "Ein Ausbau ist bezahlbar", 1);
   if (h.research) push("research", "Labor frei", "Forschung kann starten", 1);
-  if (h.yard) push("yard", "Werft frei", "Ein Schiff ist finanzierbar", 1);
+  if (h.yard) push("yard", "Schiff bauen", "Ressourcen und Hangarplatz verfügbar", 1);
   if (h.defense) push("defense", "Stellung frei", "Batterien können gebaut werden", 1);
   if (h.economy) push("economy", "Lager fast voll", "Rohstoffe ausgeben oder handeln", h.economy);
-  if (h.reports) push("reports", "Nachrichten", "Ungelesene Berichte", h.reports);
+  if (h.reports) push("reports", "Nachrichten", "Ungelesene Berichte und Privatnachrichten", h.reports);
   if (h.chat) push("chat", "Funk", "Ungelesene Nachrichten", h.chat);
   if (h.fleets) push("fleets", "Eingehend", "Feindliche Flotte im Anflug — Klick öffnet die Flotte", h.fleets);
   else if (h.galaxy) push("galaxy", "Trümmer", "Debris kann geborgen werden", h.galaxy);
@@ -1040,8 +1037,8 @@ function contractsPanel() {
   const list = state.snap.contracts || [];
   const next = state.snap.nextAction;
   const readyContracts = list.filter((c) => c.complete && !c.claimed).length;
-  const dailyOpen = (state.snap.ops || []).filter((o) => !o.claimed).length;
-  const weeklyOpen = (state.snap.weekly || []).filter((o) => !o.claimed).length;
+  const dailyOpen = (state.snap.ops || []).filter((o) => o.complete && !o.claimed).length;
+  const weeklyOpen = (state.snap.weekly || []).filter((o) => o.complete && !o.claimed).length;
   let lastChapter = "";
   const rows = list
     .map((c) => {
@@ -1055,7 +1052,7 @@ function contractsPanel() {
           : "";
       return `${head}<article class="contract ${status}">
         <div>
-          <h3>${esc(c.title)}${c.complete ? `<i class="page-badge">1</i>` : ""}</h3>
+          <h3>${esc(c.title)}${c.complete && !c.claimed ? `<i class="page-badge" title="Belohnung abholbereit">1</i>` : ""}</h3>
           <p>${esc(c.blurb)}</p>
           <div class="muted">${esc(c.hint || "")}</div>
           <div class="cost">${c.reward ? costHtml(c.reward, null, state.catalog) : ""}
@@ -1063,7 +1060,7 @@ function contractsPanel() {
         </div>
         <div class="og-act">
           ${c.claimed ? `<span class="ok">Erledigt</span>` : ""}
-          ${c.complete ? `<button class="btn primary" data-claim="${c.id}">Abholen</button>` : ""}
+          ${c.complete && !c.claimed ? `<button class="btn primary" data-claim="${c.id}">Abholen</button>` : ""}
           ${status === "open" ? `<button class="btn ghost small" data-view-jump="${c.view}">Los</button>` : ""}
           ${c.locked ? `<span class="lock">Gesperrt</span>` : ""}
         </div>
@@ -2256,7 +2253,6 @@ const views = {
   },
 
   reports() {
-    const mailN = state.snap.unreadMail || 0;
     const news = state.newsTab || "messages";
     const hints = {
       messages: "Bauten, Forschung, Flotten und Ereignisse.",
@@ -2266,15 +2262,15 @@ const views = {
     return `<div class="section-title">
         <h2>Funk</h2>
         <div class="filters" id="news-tabs">
-          <button class="tab ${news === "messages" ? "on" : ""}" data-news="messages" type="button">Nachrichten</button>
-          <button class="tab ${news === "combat" ? "on" : ""}" data-news="combat" type="button">Kampfberichte</button>
-          <button class="tab ${news === "spy" ? "on" : ""}" data-news="spy" type="button">Spionageberichte</button>
-          <button class="tab ${news === "mail" ? "on" : ""}" data-news="mail" type="button">Postfach${mailN ? ` (${mailN})` : ""}</button>
+          <button class="tab ${news === "messages" ? "on" : ""}" data-news="messages" type="button">Nachrichten <i class="page-badge" data-badge="news-messages" hidden></i></button>
+          <button class="tab ${news === "combat" ? "on" : ""}" data-news="combat" type="button">Kampfberichte <i class="page-badge" data-badge="news-combat" hidden></i></button>
+          <button class="tab ${news === "spy" ? "on" : ""}" data-news="spy" type="button">Spionageberichte <i class="page-badge" data-badge="news-spy" hidden></i></button>
+          <button class="tab ${news === "mail" ? "on" : ""}" data-news="mail" type="button">Postfach <i class="page-badge" data-badge="news-mail" hidden></i></button>
         </div>
       </div>
       <div id="news-reports" ${news === "mail" ? "hidden" : ""}>
         <div class="row" style="gap:8px;margin-bottom:10px">
-          <button class="btn small" id="mark-read">Alle gelesen</button>
+          <button class="btn small" id="mark-read">Diesen Kanal als gelesen markieren</button>
         </div>
         <p class="hint">${hints[news] || hints.messages}</p>
         <div id="report-list" class="report-list muted">Lade Kanal…</div>
@@ -3047,9 +3043,15 @@ function bindNews(root) {
   const mark = root.querySelector("#mark-read");
   if (mark) {
     mark.onclick = async () => {
-      await api("/reports/read", { method: "POST", body: {} });
-      await refresh();
-      if (state.newsTab !== "mail") loadReports(state.newsTab);
+      mark.disabled = true;
+      const empireId = state.snap.empire.id;
+      try {
+        const data = await api("/reports/read", { method: "POST", body: { kind: state.newsTab } });
+        reportReadVersion++;
+        syncUnreadCounts(data.unreadCounts, empireId);
+        if (state.newsTab !== "mail") await loadReports(state.newsTab);
+      } catch(err) { toast(err.message, true); }
+      finally { mark.disabled = false; }
     };
   }
   if (state.newsTab === "mail") bootMail();
@@ -3157,7 +3159,9 @@ function stopChatPoll() {
 async function loadChatLog() {
   const log = $("chat-log");
   if (!log) return;
-  const data = await api("/chat?channel=" + encodeURIComponent(state.chatChannel || "global"));
+  const empireId = state.snap.empire.id, channel = state.chatChannel || 'global';
+  const data = await api("/chat?channel=" + encodeURIComponent(channel));
+  if (!log.isConnected || state.snap.empire.id !== empireId || state.chatChannel !== channel) return;
   const selfId = state.snap.empire.id;
   const canMod = !!(data.canMod || state.snap.user.canMod);
   const near = log.scrollHeight - log.scrollTop - log.clientHeight < 48;
@@ -3182,7 +3186,14 @@ async function loadChatLog() {
     log.dataset.boot = "0";
   }
   if (data.unreadChat != null) {
-    /* keep */
+    snapshotRevision++;
+    state.snap.unreadChat = data.unreadChat;
+    state.snap.hints = { ...state.snap.hints, chat: data.unreadChat };
+    paintBadges();
+    for (const ch of data.channels || []) {
+      const badge = document.querySelector(`[data-chat-unread="${ch.id}"]`);
+      if (badge) { badge.hidden = !ch.unread; badge.textContent = ch.unread > 99 ? '99+' : String(ch.unread); badge.setAttribute('aria-label', `${ch.unread} ungelesene Nachrichten`); }
+    }
   }
   return data;
 }
@@ -3198,7 +3209,7 @@ async function bootChat() {
     const tabs = (data.channels || [])
       .map(
         (c) =>
-          `<button class="tab ${c.id === ch ? "on" : ""}" data-chat-ch="${c.id}" ${c.locked ? "disabled" : ""} type="button">${esc(c.name)}</button>`
+          `<button class="tab ${c.id === ch ? "on" : ""}" data-chat-ch="${c.id}" ${c.locked ? "disabled" : ""} type="button">${esc(c.name)} <i class="page-badge" data-chat-unread="${c.id}" hidden></i></button>`
       )
       .join("");
     const hint = (data.channels || []).find((c) => c.id === ch)?.blurb || "";
@@ -3551,7 +3562,10 @@ async function bootMail() {
   const host = $("mail-root");
   if (!host) return;
   try {
-    const { threads } = await api("/mail");
+    const empireId = state.snap.empire.id;
+    const { threads, unreadCounts } = await api("/mail");
+    if (!host.isConnected || state.snap.empire.id !== empireId) return;
+    syncUnreadCounts(unreadCounts, empireId);
     const list = (threads || [])
       .map(
         (t) => `<button type="button" class="mail-row ${state.mailPeer === t.peerId ? "on" : ""}" data-mail-peer="${t.peerId}">
@@ -3583,7 +3597,11 @@ async function openMailThread(peerId) {
   const box = $("mail-thread");
   if (!box) return;
   try {
+    const empireId = state.snap.empire.id;
     const data = await api("/mail/" + peerId);
+    if (!box.isConnected || state.mailPeer !== peerId || state.snap.empire.id !== empireId) return;
+    syncUnreadCounts(data.unreadCounts, empireId);
+    document.querySelector(`[data-mail-peer="${peerId}"] .mail-unread`)?.remove();
     const selfId = state.snap.empire.id;
     box.innerHTML = `<div class="section-title"><h3 style="margin:0;font-size:13px">${esc(data.peer.username)} · ${esc(data.peer.name)}</h3></div>
       <div id="mail-log" class="chat-log">${data.messages.map((m) => bubbleHtml(m, selfId)).join("") || `<p class="muted">Noch keine Nachrichten.</p>`}</div>
@@ -4372,14 +4390,32 @@ function reportChannel(kind) {
 }
 
 let reportRequest = 0;
+let reportReadVersion = 0;
+const readingReports = new Set();
+async function markReportRead(el) {
+  if (!el?.classList.contains('unread')) return;
+  const id = Number(el.dataset.rid), empireId = state.snap.empire.id, key = `${empireId}:${id}`;
+  if (readingReports.has(key)) return;
+  readingReports.add(key);
+  try {
+    const data = await api('/reports/read', { method:'POST', body:{ids:[id]} });
+    reportReadVersion++;
+    syncUnreadCounts(data.unreadCounts, empireId);
+    if (el.isConnected) el.classList.remove('unread');
+  } catch(err) { toast(err.message || 'Lesestatus konnte nicht gespeichert werden. Bitte erneut öffnen.', true); }
+  finally { readingReports.delete(key); }
+}
 async function loadReports(filter = "messages") {
   const request = ++reportRequest;
+  const readVersion = reportReadVersion;
   try {
   const host = $("report-list");
   if (!host) return;
   const channel = filter === "all" ? "messages" : filter;
-  const { reports } = await getReports(channel);
-  if (request !== reportRequest || !host.isConnected || state.newsTab !== channel) return;
+  const empireId = state.snap.empire.id;
+  const { reports, unreadCounts } = await getReports(channel);
+  if (request !== reportRequest || readVersion !== reportReadVersion || !host.isConnected || state.newsTab !== channel || state.snap.empire.id !== empireId) return;
+  syncUnreadCounts(unreadCounts, empireId);
   host.classList.remove("muted");
   const signature = JSON.stringify(reports);
   if (host.dataset.signature === signature && host.dataset.channel === channel) return;
@@ -4432,22 +4468,15 @@ async function loadReports(filter = "messages") {
   host.querySelectorAll("details[data-rid]").forEach((el) => {
     if (state.openReports.has(el.dataset.rid)) el.open = true;
     el.addEventListener("toggle", () => {
-      if (el.open) state.openReports.add(el.dataset.rid);
+      if (el.open) { state.openReports.add(el.dataset.rid); markReportRead(el); }
       else state.openReports.delete(el.dataset.rid);
     });
   });
   if (!host.dataset.readBound) {
     host.dataset.readBound = "1";
-    const readReports = new Set();
     host.addEventListener("click", (ev) => {
       const el = ev.target.closest("details[data-rid], article[data-rid]");
-      if (!el || !el.classList.contains("unread")) return;
-      el.classList.remove("unread");
-      const id = Number(el.dataset.rid);
-      if (!readReports.has(id)) {
-        readReports.add(id);
-        api("/reports/read", { method: "POST", body: { ids: [id] } }).catch(() => {});
-      }
+      markReportRead(el);
     });
   }
   bindBattleReplays(host);

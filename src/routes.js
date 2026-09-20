@@ -1,4 +1,5 @@
 "use strict";
+const { unreadCounts } = require('./notifications');
 
 const {
   BUILDINGS,
@@ -1144,7 +1145,7 @@ function attachRoutes(app, db) {
         let body; try { body=JSON.parse(r.body); } catch { body={text:"Berichtsdaten konnten nicht vollständig gelesen werden."}; }
         return {id:r.id,kind:r.kind,title:r.title,body,createdAt:r.created_at,seen:!!r.seen};
       });
-    res.json({ reports: rows });
+    res.json({ reports: rows, unreadCounts: unreadCounts(db, empire.id) });
   });
 
   app.post("/api/reports/read", auth, (req, res) => {
@@ -1153,10 +1154,14 @@ function attachRoutes(app, db) {
     if (ids.length) {
       const placeholders = ids.map(() => "?").join(",");
       db.prepare(`UPDATE reports SET seen = 1 WHERE empire_id = ? AND id IN (${placeholders})`).run(empire.id, ...ids);
-    } else {
+    } else if (!Array.isArray(req.body?.ids) && ['messages','combat','spy'].includes(req.body?.kind)) {
+      const kind = req.body.kind;
+      if (kind === 'messages') db.prepare("UPDATE reports SET seen=1 WHERE empire_id=? AND kind NOT IN ('combat','spy')").run(empire.id);
+      else db.prepare("UPDATE reports SET seen=1 WHERE empire_id=? AND kind=?").run(empire.id,kind);
+    } else if (!Array.isArray(req.body?.ids)) {
       db.prepare("UPDATE reports SET seen = 1 WHERE empire_id = ?").run(empire.id);
     }
-    res.json({ ok: true });
+    res.json({ ok: true, unreadCounts: unreadCounts(db, empire.id) });
   });
 
   app.get("/api/preview", auth, (req, res) => {
@@ -1241,7 +1246,7 @@ function attachRoutes(app, db) {
   app.get("/api/mail", auth, (req, res) => {
     try {
       const empire = db.prepare("SELECT * FROM empires WHERE user_id = ?").get(req.user.id);
-      res.json({ threads: chat.listThreads(db, empire), unread: chat.unreadMail(db, empire.id), langs: chat.LANGS });
+      res.json({ threads: chat.listThreads(db, empire), unread: chat.unreadMail(db, empire.id), unreadCounts: unreadCounts(db, empire.id), langs: chat.LANGS });
     } catch (err) {
       fail(res, 400, err.message);
     }
@@ -1251,7 +1256,7 @@ function attachRoutes(app, db) {
     try {
       const empire = db.prepare("SELECT * FROM empires WHERE user_id = ?").get(req.user.id);
       const data = await chat.listThread(db, empire, Number(req.params.peerId));
-      res.json(data);
+      res.json({ ...data, unreadCounts: unreadCounts(db, empire.id) });
     } catch (err) {
       fail(res, 400, err.message);
     }
