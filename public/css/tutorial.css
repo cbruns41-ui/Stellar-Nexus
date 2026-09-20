@@ -1,0 +1,20 @@
+.guided-tutorial { position: fixed; inset: 0; z-index: 100000; pointer-events: none; }
+.tutorial-running .toasts { z-index: 100001; pointer-events: none; }
+.tutorial-shade { position: fixed; background: rgba(2, 6, 17, .91); pointer-events: auto; touch-action: none; }
+.tutorial-ring { position: fixed; border: 2px solid #73eeff; border-radius: 9px; box-shadow: 0 0 0 4px #60eaff25, 0 0 28px #45dfff60; }
+.tutorial-ring[hidden] { display: none; }
+.tutorial-ring span { position: absolute; bottom: calc(100% + 8px); right: 0; white-space: nowrap; color: #b8f7ff; background: #081825; padding: 5px 10px; border-radius: 5px; font: 700 12px/1.3 system-ui; animation: tutorial-point 1.3s ease-in-out infinite; }
+.tutorial-ring.below span { bottom: auto; top: calc(100% + 8px); }
+.tutorial-ring span::before { content: '↓ '; }
+.tutorial-ring.below span::before { content: '↑ '; }
+.tutorial-ring.is-waiting span::before { content: ''; }
+.tutorial-card { position: fixed; pointer-events: auto; width: min(370px, calc(100vw - 16px)); max-height: calc(100dvh - 16px); overflow-y: auto; box-sizing: border-box; padding: 23px; border: 1px solid #59dceb80; border-radius: 18px; background: linear-gradient(145deg, #13283b, #080f1e 75%); box-shadow: 0 20px 65px #0009; color: #ecf6ff; font: 14px/1.55 system-ui, sans-serif; }
+.tutorial-card .tutorial-kicker { margin: 0 0 10px; font-size: 10px; letter-spacing: 2px; font-weight: 800; color: #7ce9f4; }
+.tutorial-card h2 { margin: 0 0 10px; font-size: 23px; line-height: 1.2; color: #fff; }
+.tutorial-card p { margin: 0 0 17px; }
+.tutorial-card .btn { min-height: 42px; margin: 3px 6px 3px 0; }
+.tutorial-card small { display: block; color: #9caec4; font-size: 11px; margin-top: 13px; }
+.tutorial-card :focus-visible { outline: 2px solid #b2f7ff; outline-offset: 3px; }
+@keyframes tutorial-point { 50% { transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .tutorial-ring span { animation: none; } }
+@media (max-width: 600px) { .tutorial-card { padding: 15px; font-size: 13px; } .tutorial-card h2 { font-size: 19px; } .tutorial-card small { margin-top: 7px; } }

@@ -11,6 +11,7 @@
     "test": "node --test",
     "colony:prepare": "node scripts/prepare-colony.mjs",
     "colony:verify": "node scripts/verify-colony.mjs",
+    "tutorial:verify": "node scripts/verify-tutorial.mjs",
     "check": "node --check public/js/app.js && node --check public/js/city-3d.js && node --check public/js/colony-unity.js && node --check public/js/map.js && node --check public/js/battle.js && node --check public/js/ui.js && node --check public/js/alliance-boss-game.js && node --check public/js/alliance-boss-3d.js"
   },
   "engines": {

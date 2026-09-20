@@ -5,6 +5,8 @@ const { withTx } = require("./tx");
 const settings = require("./settings");
 const { hashPassword } = require("./auth");
 const digest = value => crypto.createHash("sha256").update(String(value)).digest("hex");
+const SUPPORT_EMAIL = "mail.nexus@gmx.net";
+const SUPPORT_SIGNATURE = `Mit interstellaren Grüßen\nDein Stellar Nexus Support-Team\n\nStellar Nexus · Dein Imperium. Deine Geschichte.\nSupport: ${SUPPORT_EMAIL}\n\nBei Rückfragen antworte einfach auf diese E-Mail und nenne deine Commander-ID.\nWir fragen dich niemals nach deinem Passwort.`;
 
 function secret(db) {
   db.prepare("INSERT OR IGNORE INTO world_meta(key,value) VALUES('registration_ip_secret',?)").run(crypto.randomBytes(32).toString("hex"));
@@ -55,16 +57,25 @@ function request(db,ip,body) {
   });
 }
 function mailConfig() {
-  if(!process.env.SMTP_HOST || !process.env.SMTP_FROM || !process.env.PUBLIC_URL) throw new Error("Mailversand noch nicht eingerichtet: SMTP_HOST, SMTP_FROM und PUBLIC_URL fehlen.");
+  const missing=["SMTP_HOST","SMTP_FROM","PUBLIC_URL"].filter(key=>!process.env[key]?.trim());
+  if(missing.length) throw new Error(`Mailversand nicht eingerichtet. Fehlende Server-Einstellungen: ${missing.join(", ")}.`);
+  if(process.env.SMTP_USER && !process.env.SMTP_PASSWORD) throw new Error("Mailversand nicht eingerichtet: SMTP_PASSWORD fehlt.");
+  const port=Number(process.env.SMTP_PORT || 587);
+  if(!Number.isInteger(port) || port<1 || port>65535) throw new Error("SMTP_PORT muss eine gültige Portnummer sein.");
+  const secure=process.env.SMTP_SECURE ? process.env.SMTP_SECURE === "true" : port === 465;
+  if(port===465 && !secure) throw new Error("Port 465 benötigt SMTP_SECURE=true. Für STARTTLS Port 587 verwenden.");
   const base=new URL(process.env.PUBLIC_URL);
   if(!["https:","http:"].includes(base.protocol)) throw new Error("Ungültige PUBLIC_URL.");
-  return {base,from:process.env.SMTP_FROM};
+  return {base,from:process.env.SMTP_FROM,port,secure};
+}
+function mailTransport(mail) {
+  return nodemailer.createTransport({host:process.env.SMTP_HOST,port:mail.port,secure:mail.secure,requireTLS:!mail.secure,auth:process.env.SMTP_USER ? {user:process.env.SMTP_USER,pass:process.env.SMTP_PASSWORD}:undefined,connectionTimeout:10000,greetingTimeout:10000,socketTimeout:15000,disableFileAccess:true,disableUrlAccess:true});
 }
 async function notifyAdmin(db, entry, transport) {
   try {
     const cfg=settings.get(db),mail=mailConfig();
     if(!cfg.betaEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cfg.betaEmail)) throw new Error("Admin-Empfänger unter Open Beta fehlt.");
-    const sender=transport || nodemailer.createTransport({host:process.env.SMTP_HOST,port:Number(process.env.SMTP_PORT)||587,secure:process.env.SMTP_SECURE==="true",requireTLS:process.env.SMTP_SECURE!=="true",auth:process.env.SMTP_USER ? {user:process.env.SMTP_USER,pass:process.env.SMTP_PASSWORD}:undefined,connectionTimeout:10000,socketTimeout:15000,disableFileAccess:true,disableUrlAccess:true});
+    const sender=transport || mailTransport(mail);
     const link=new URL("/approve.html",mail.base);link.hash=entry.token;
     await sender.sendMail({from:mail.from,to:cfg.betaEmail,subject:`Stellar Nexus: Registrierung ${entry.username} freigeben`,text:`Neue Registrierung\nCommander: ${entry.username}\nE-Mail: ${entry.email}\n\nAls Admin anmelden und bewusst freigeben:\n${link.href}\n\nDer Link ist 7 Tage gültig. Das Öffnen allein aktiviert keinen Account.`});
     db.prepare("UPDATE registration_requests SET mail_status='sent',mail_error='' WHERE id=?").run(entry.id);
@@ -87,11 +98,31 @@ function approve(db,token) {
     const inserted=db.prepare("INSERT INTO empires(user_id,name,color,created_at,species,nex) VALUES(?,?,?,?,?,?)").run(row.user_id,row.empire,game.pickColor(db),Date.now(),row.species,settings.get(db).starterNex);
     game.assignHome(db,Number(inserted.lastInsertRowid),row.empire);
     db.prepare("UPDATE registration_requests SET status='approved',approved_at=?,token_hash='' WHERE id=?").run(Date.now(),row.id);
-    return {username:row.username};
+    return {id:row.id,username:row.username};
   });
 }
+async function notifyPlayer(db,id,transport) {
+  const row=db.prepare("SELECT r.*,u.username FROM registration_requests r JOIN users u ON u.id=r.user_id WHERE r.id=? AND r.status='approved'").get(id);
+  if(!row) throw new Error("Der Account ist noch nicht freigegeben.");
+  if(row.player_mail_status==='sent') return true;
+  // Claim the delivery before awaiting SMTP, so double clicks cannot send twice.
+  const claimed=db.prepare("UPDATE registration_requests SET player_mail_status='sending',player_mail_attempted_at=? WHERE id=? AND player_mail_status!='sent' AND (player_mail_status!='sending' OR player_mail_attempted_at<?)").run(Date.now(),id,Date.now()-120000);
+  if(!claimed.changes) throw new Error("Bestätigungsmail wird bereits versendet. Bitte kurz warten.");
+  try {
+    const mail=mailConfig(),sender=transport || mailTransport(mail);
+    const link=new URL('/',mail.base);
+    await sender.sendMail({from:mail.from,to:row.email,replyTo:SUPPORT_EMAIL,
+      subject:"Stellar Nexus: Dein Account ist freigeschaltet",
+      text:`Hallo ${row.username},\n\ndein Account wurde vom Admin freigeschaltet. Willkommen bei Stellar Nexus!\n\nDu kannst dich jetzt mit deiner Commander-ID ${row.username} und deinem bei der Registrierung gewählten Passwort anmelden:\n${link.href}\n\nDein Imperium „${row.empire}“ wartet auf dich.\n\n${SUPPORT_SIGNATURE}`});
+    db.prepare("UPDATE registration_requests SET player_mail_status='sent',player_mail_error='' WHERE id=?").run(id);
+    return true;
+  } catch(err) {
+    db.prepare("UPDATE registration_requests SET player_mail_status='failed',player_mail_error=? WHERE id=?").run(String(err.message).slice(0,240),id);
+    return false;
+  }
+}
 function pending(db,userId) { return !!db.prepare("SELECT id FROM registration_requests WHERE user_id=? AND status!='approved'").get(userId); }
-function list(db) { return db.prepare("SELECT r.id,u.username,r.email,r.status,r.mail_status,r.mail_error,r.created_at FROM registration_requests r JOIN users u ON u.id=r.user_id ORDER BY r.id DESC LIMIT 100").all(); }
+function list(db) { return db.prepare("SELECT r.id,u.username,r.email,r.status,r.mail_status,r.mail_error,r.player_mail_status,r.player_mail_error,r.created_at FROM registration_requests r JOIN users u ON u.id=r.user_id ORDER BY r.id DESC LIMIT 100").all(); }
 async function resend(db,id,transport) {
   const row=db.prepare("SELECT r.id,u.username,r.email FROM registration_requests r JOIN users u ON u.id=r.user_id WHERE r.id=? AND r.status='pending'").get(id);
   if(!row) throw new Error("Keine offene Registrierung.");
@@ -99,4 +130,4 @@ async function resend(db,id,transport) {
   db.prepare("UPDATE registration_requests SET token_hash=?,expires_at=? WHERE id=?").run(digest(token),Date.now()+7*86400000,id);
   if(!await notifyAdmin(db,{...row,token},transport)) throw new Error("Mailversand fehlgeschlagen. SMTP-Konfiguration und Empfänger prüfen.");
 }
-module.exports={challenge,request,notifyAdmin,review,approve,pending,list,resend,ipKey};
+module.exports={challenge,request,notifyAdmin,notifyPlayer,review,approve,pending,list,resend,ipKey,SUPPORT_SIGNATURE};

@@ -417,6 +417,9 @@ function hasCol(db, table, name) {
 }
 
 function migrate(db) {
+  if (!hasCol(db, "registration_requests", "player_mail_status")) db.exec("ALTER TABLE registration_requests ADD COLUMN player_mail_status TEXT NOT NULL DEFAULT 'pending'");
+  if (!hasCol(db, "registration_requests", "player_mail_error")) db.exec("ALTER TABLE registration_requests ADD COLUMN player_mail_error TEXT NOT NULL DEFAULT ''");
+  if (!hasCol(db, "registration_requests", "player_mail_attempted_at")) db.exec("ALTER TABLE registration_requests ADD COLUMN player_mail_attempted_at INTEGER NOT NULL DEFAULT 0");
   const planetAdds = [
     ["metal", "REAL NOT NULL DEFAULT 0"],
     ["helium", "REAL NOT NULL DEFAULT 0"],

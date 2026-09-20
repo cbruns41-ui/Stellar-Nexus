@@ -66,6 +66,9 @@ try {
   };
   await send("Network.enable"); await send("Page.enable"); await send("Runtime.enable");
   await send("Network.setCookie", { name: "sn_session", value: token, url: base + "/" });
+  // This suite covers the colony; the opt-in walkthrough has its own full flow test.
+  const tutorialEmpire = await fetch(base + '/api/state', { headers: { cookie: `sn_session=${token}` } }).then(r => r.json());
+  await send('Page.addScriptToEvaluateOnNewDocument', { source: `localStorage.setItem('sn-guided-tutorial-v2:${tutorialEmpire.empire.id}', JSON.stringify({status:'skipped',index:0}));` });
   await send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false });
   await send("Page.navigate", { url: base + "/" });
   async function until(expression, timeout = 90000) {

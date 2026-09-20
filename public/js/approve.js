@@ -10,5 +10,5 @@ async function review() {
   } catch(err) { status.textContent=err.message;login.hidden=false;button.hidden=true; }
 }
 login.onsubmit=async event=>{event.preventDefault();const submit=login.querySelector("button");submit.disabled=true;try{await api("/auth/login",{method:"POST",body:Object.fromEntries(new FormData(login))});await review();}catch(err){status.textContent=err.message;}finally{submit.disabled=false;}};
-button.onclick=async()=>{button.disabled=true;try{const row=await api("/registration/approve",{method:"POST",body:{token}});status.textContent=`${row.username} ist freigegeben und kann sich jetzt anmelden.`;button.hidden=true;}catch(err){status.textContent=err.message;button.disabled=false;}};
+button.onclick=async()=>{button.disabled=true;try{const row=await api("/registration/approve",{method:"POST",body:{token},timeoutMs:45000});status.textContent=`${row.username} ist freigegeben und kann sich jetzt anmelden. ${row.playerMailSent ? "Die Bestätigungsmail wurde an den Spieler versandt." : "Die Bestätigungsmail konnte nicht versendet werden. Du kannst sie im Adminbereich erneut senden; der Account bleibt freigeschaltet."}`;button.hidden=true;}catch(err){status.textContent=err.timeout ? "Die Serverantwort fehlt. Bitte den Freigabe- und Mailstatus im Adminbereich prüfen, bevor du erneut bestätigst." : err.message;button.disabled=false;}};
 review();

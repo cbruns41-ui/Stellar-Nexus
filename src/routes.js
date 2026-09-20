@@ -109,19 +109,31 @@ function attachRoutes(app, db) {
     if(!rateLimit(`register:${clientIp(req)}`,8,600000)) return fail(res,429,"Zu viele Versuche.");
     try {
       const entry=registration.request(db,clientIp(req),req.body||{});
-      await registration.notifyAdmin(db,entry);
-      res.status(202).json({ok:true,pending:true,message:"Registrierung eingegangen. Der Admin muss deinen Zugang erst per E-Mail freigeben. Danach kannst du dich anmelden."});
+      const mailSent=await registration.notifyAdmin(db,entry);
+      res.status(202).json({ok:true,pending:true,mailSent,message:mailSent
+        ? "Registrierung gespeichert. Der Admin wurde um Freigabe gebeten. Sobald dein Account freigeschaltet ist, erhältst du eine Bestätigung per E-Mail und kannst dich anmelden."
+        : "Registrierung gespeichert, aber die Freigabemail an den Admin konnte nicht versendet werden. Dein Zugang wartet auf Freigabe. Bitte den Betreiber informieren; er kann den Versand im Adminbereich erneut starten. Du musst dich nicht erneut registrieren."});
     } catch(err) { fail(res,400,err.message); }
   });
   app.post("/api/registration/review",auth,adminOnly,(req,res)=>{
     try { const row=registration.review(db,String(req.body?.token||""));res.json({username:row.username,email:row.email,status:row.status}); }
     catch(err) { fail(res,400,err.message); }
   });
-  app.post("/api/registration/approve",auth,adminOnly,(req,res)=>{
-    try { res.json(registration.approve(db,String(req.body?.token||""))); }
+  app.post("/api/registration/approve",auth,adminOnly,async(req,res)=>{
+    try {
+      const entry=registration.approve(db,String(req.body?.token||""));
+      const playerMailSent=await registration.notifyPlayer(db,entry.id);
+      res.json({...entry,playerMailSent});
+    }
     catch(err) { fail(res,400,err.message); }
   });
   app.get("/api/admin/registrations",auth,adminOnly,(_req,res)=>res.json({registrations:registration.list(db)}));
+  app.post("/api/admin/registrations/:id/confirmation",auth,adminOnly,async(req,res)=>{
+    try {
+      if(!await registration.notifyPlayer(db,Number(req.params.id))) return fail(res,502,"Account ist freigegeben, aber die Bestätigungsmail konnte nicht versendet werden. Versandstatus im Adminbereich prüfen.");
+      res.json({ok:true});
+    } catch(err) { fail(res,400,err.message); }
+  });
   app.post("/api/admin/registrations/:id/resend",auth,adminOnly,async(req,res)=>{
     try { await registration.resend(db,Number(req.params.id));res.json({ok:true}); }
     catch(err) { fail(res,400,err.message); }

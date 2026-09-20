@@ -5,6 +5,7 @@ import { systemHtml } from "./map.js?v=71";
 import { battleReplayHtml, bindBattleReplays } from "./battle.js?v=2";
 import { startAllianceBossEncounter } from "./alliance-boss-game.js?v=16";
 import { CITY_PLOTS } from "./city.mjs?v=11";
+import { createTutorial } from "./tutorial.mjs?v=1";
 import { shipBudget } from "./ship-budget.mjs?v=1";
 import { colonyRows, colonyHudHtml, paintColonyMarkers, paintColonyFrame } from "./colony-hud.mjs?v=9";
 import { createColonyUnity, setUnityColonyVisible } from "./colony-unity.js?v=15";
@@ -42,46 +43,45 @@ const state = {
   allianceQuickMessage: "",
 };
 
-const TUTORIAL = [
-  {
-    id: "move",
-    title: "Schau dir deine Kolonie an",
-    text: "Ziehe mit einem Finger oder gedrückter Maustaste, um die Basis zu verschieben. Zoome mit zwei Fingern oder dem Mausrad. Über Gebäude erreichst du auch entfernte Bauplätze.",
+const guidedTutorial = createTutorial({
+  snapshot: () => state.snap,
+  view: () => state.view === 'reports' && state.newsTab !== 'spy' ? 'messages' : state.view,
+  name: step => (step.kind === 'building' ? state.catalog.buildings : step.kind === 'research' ? state.catalog.techs : state.catalog.ships)[step.item]?.name || step.item,
+  missingResources: step => {
+    const group = step.kind === 'building' ? 'buildings' : step.kind === 'research' ? 'techs' : 'ships';
+    const info = state.preview?.[group]?.find(p => p.id === step.item);
+    if (!info) return 'Die Baukosten werden noch geladen.';
+    const missing = Object.entries(info.nextCost || info.cost || {}).filter(([id,n]) => n > (state.snap.planet[id] || 0))
+      .map(([id,n]) => `${Math.ceil(n-(state.snap.planet[id] || 0))} ${state.catalog.resources[id]?.name || id}`);
+    return missing.length ? `Es fehlen noch: ${missing.join(', ')}. Deine Produktion füllt das Lager automatisch.` : '';
   },
-  {
-    id: "mine",
-    title: "Baue die Metall-Mine",
-    text: "Öffne die Metall-Mine in der Basis oder der Gebäudeliste und wähle Aufleveln. Metall ist der Grundstoff für alles.",
-    plot: "matter_mine",
-    done: (s) => (s.planet?.buildings?.matter_mine || 0) >= 1,
+  home: async () => {
+    const home = state.snap.planets.find(p => p.isHome);
+    if (home && state.snap.planet.id !== home.id) await switchPlanet(home.id);
   },
-  {
-    id: "upgrade",
-    title: "Baue die Mine aus",
-    text: "Eine Stufe reicht nicht. Baue die Metall-Mine auf Stufe 2 — sonst bleibt die Werft leer.",
-    plot: "matter_mine",
-    done: (s) => (s.planet?.buildings?.matter_mine || 0) >= 2,
+  navigate: view => { if (view === 'reports') state.newsTab = 'spy'; setView(view); },
+  async pickTarget() {
+    const galaxy = await getGalaxy(), origin = galaxy.systems.find(s => s.id === state.snap.planet.systemId);
+    const candidates = galaxy.systems.filter(s => !s.pirate && !s.remnant && !s.isGate && s.planetCount > 0 && (!origin || s.galaxyId === origin.galaxyId))
+      .sort((a,b) => Math.hypot(a.x-(origin?.x || 0),a.y-(origin?.y || 0))-Math.hypot(b.x-(origin?.x || 0),b.y-(origin?.y || 0)));
+    for (const system of candidates.slice(0, 16)) {
+      const detail = await getSystem(system.id);
+      const planet = detail.planets.find(p => !p.owner && !p.own && !p.canManage && !p.canStation);
+      if (!planet) continue;
+      if (state.view !== 'galaxy' || !state.tutorialSelectSystem) throw new Error('Die Sternenkarte lädt noch. Bitte erneut versuchen.');
+      state.mapFocus = { systemId: system.id, planetId: planet.id };
+      applyMapFocus();
+      await state.tutorialSelectSystem(system, { planetId: planet.id });
+      return planet.id;
+    }
+    throw new Error('In der Nähe ist kein freies Übungsziel verfügbar. Pausiere das Tutorial und erkunde die Karte; du kannst später fortsetzen.');
   },
-  {
-    id: "energy",
-    title: "Energie einschalten",
-    text: "Als Nächstes das Energie-Array. Ohne Strom stehen Schilde und Labor still.",
-    plot: "energy_array",
-    done: (s) => (s.planet?.buildings?.energy_array || 0) >= 1,
-  },
-  {
-    id: "yard", title: "Deine ersten Schiffe", text: "Öffne die Werft und wähle Schiffe produzieren. Prüfe Voraussetzungen und Kosten, wähle die Anzahl und starte den Auftrag. Fertige Schiffe stehen auf diesem Planeten bereit.", plot: "shipyard",
-  },
-  { id: "defense", title: "Schütze deine Basis", text: "Im Verteidigungszentrum führt Verteidigung bauen zur Produktion. Voraussetzungen zeigt der Tech-Tree. Baue zuerst die nötigen Gebäude und Forschung aus.", plot: "defense_hub" },
-  { id: "daily", title: "Tägliche Aufgaben und Nex", text: "Unter Aufgaben findest du Ziele und abholbare Belohnungen. Kommando → Nexus bietet täglich kostenlose Nex. Dort löst du auch Schiffe und den Pass ausschließlich mit Nex ein." },
-  { id: "mail", title: "Kontakt und Hilfe", text: "Kommando → Funk → Postfach öffnet private Nachrichten. Unter Orden findest du die Kampagne; Hilfe erklärt die Grundlagen. Diese Einführung kannst du mit Erste Schritte jederzeit erneut öffnen." },
-  {
-    id: "galaxy",
-    title: "Raus in die Galaxie",
-    text: "Unten in der Leiste: Karte. Dort fliegst du, spionierst und holst Trümmer. Die Kolonie bleibt dein Zuhause.",
-    tab: "map",
-  },
-];
+  spySent: saved => !!saved.targetId && (state.snap.fleets || []).some(f => f.mission === 'spy' && f.targetPlanetId === saved.targetId),
+  report: saved => [...document.querySelectorAll('details.report.spy')].find(el => Number(el.dataset.tutorialTarget) === saved.targetId && Number(el.dataset.tutorialTime) >= (saved.sentAt || 0)),
+  reportSummary: report => `${report.querySelector('.report-body > .hint')?.textContent || ''} ${[...report.querySelectorAll('.intel-block')].map(el => `${el.querySelector('h4')?.textContent || ''}: ${[...el.children].filter(child => child.tagName !== 'H4').map(child => child.textContent.trim()).join(' ')}`).join(' · ')}`,
+  refreshReports: () => loadReports('spy'),
+  finish: () => { setView('command'); state.citySheet = 'quests'; renderView(); },
+});
 
 try {
   starfield($("stars"));
@@ -1520,43 +1520,6 @@ function buildRailHtml() {
   return "";
 }
 
-function tutorialSaved() {
-  try {
-    const t = localStorage.getItem("sn-tut-v1");
-    if (t != null && t !== "") return t;
-    if (localStorage.getItem("sn-nux-city") === "1") return "done";
-    return "0";
-  } catch {
-    return "done";
-  }
-}
-function tutorialIndex() {
-  const v = tutorialSaved();
-  if (v === "done") return TUTORIAL.length;
-  const n = Number(v);
-  return Number.isFinite(n) ? Math.max(0, n) : TUTORIAL.length;
-}
-function setTutorialIndex(n) {
-  try {
-    if (n >= TUTORIAL.length) localStorage.setItem("sn-tut-v1", "done");
-    else localStorage.setItem("sn-tut-v1", String(n));
-  } catch {
-    /* ignore */
-  }
-}
-function tutorialActive() {
-  const e = state.snap?.empire;
-  if (!e) return false;
-  if (tutorialIndex() >= TUTORIAL.length) return false;
-  return true;
-}
-function advanceTutorial() {
-  let i = tutorialIndex();
-  while (i < TUTORIAL.length && TUTORIAL[i].done?.(state.snap)) i += 1;
-  if (i !== tutorialIndex()) setTutorialIndex(i);
-  return i;
-}
-
 function plotNeedText(buildingId, buildings) {
   const spec = state.catalog?.buildings?.[buildingId];
   const req = spec?.requires?.buildings || {};
@@ -2713,7 +2676,7 @@ function bindCity(root) {
       select(button.dataset.cityBuilding);
     });
   });
-  view.querySelector("[data-guide]").addEventListener("click", () => { if (tutorialIndex() >= TUTORIAL.length) setTutorialIndex(0); openGuide(); });
+  view.querySelector("[data-guide]").addEventListener("click", () => openGuide());
   view.querySelectorAll("[data-colony-focus]").forEach(button => button.addEventListener("click", () => {
     view.querySelector(".colony-directory").open = false;
     state.cityScene?.focus(button.dataset.colonyFocus);
@@ -3515,7 +3478,8 @@ async function bootModeration() {
     const registrations=host.querySelector("#registration-admin");
     if(registrations) api("/admin/registrations").then(data=>{
       if(!registrations.isConnected) return;
-      registrations.innerHTML=`<h3>Registrierungen zur Freigabe</h3><p>Freigabe erfolgt über den Link in der Admin-E-Mail. Empfänger unter Closed Beta eintragen.</p>${data.registrations.map(r=>`<div class="panel"><b>${esc(r.username)}</b> · ${esc(r.email)}<p>${r.status==="approved"?"Freigegeben":"Wartet auf Freigabe"} · Mail: ${esc(r.mail_status)}</p>${r.mail_status==="failed"?`<p class="error">${esc(r.mail_error)}</p>`:""}${r.status==="pending"?`<button class="btn" data-resend-registration="${r.id}">Freigabe-Mail erneut senden</button>`:""}</div>`).join("")||"Keine Registrierungen."}`;
+      registrations.innerHTML=`<h3>Registrierungen zur Freigabe</h3><p>Freigabe erfolgt über den Link in der Admin-E-Mail. Empfänger unter Open Beta eintragen. Nach Freigabe erhält der Spieler eine Bestätigungsmail.</p>${data.registrations.map(r=>`<div class="panel"><b>${esc(r.username)}</b> · ${esc(r.email)}<p>${r.status==="approved"?"Freigegeben":"Wartet auf Freigabe"} · Admin-Mail: ${esc(r.mail_status)}</p>${r.mail_status==="failed"?`<p class="error">${esc(r.mail_error)}</p>`:""}${r.status==="pending"?`<button class="btn" data-resend-registration="${r.id}">Freigabe-Mail erneut senden</button>`:`<p>Spieler-Bestätigung: ${esc(r.player_mail_status === 'sent' ? 'Versandt' : r.player_mail_status === 'failed' ? 'Versand fehlgeschlagen' : r.player_mail_status === 'sending' ? 'Versand läuft' : 'Noch nicht versandt')}</p>${r.player_mail_error ? `<p class="error">${esc(r.player_mail_error)}</p>` : ''}${r.player_mail_status !== 'sent' ? `<button class="btn" data-confirm-registration="${r.id}">Bestätigung an Spieler senden</button>` : ''}`}</div>`).join("")||"Keine Registrierungen."}`;
+      registrations.querySelectorAll('[data-confirm-registration]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await api(`/admin/registrations/${b.dataset.confirmRegistration}/confirmation`,{method:'POST',body:{},timeoutMs:45000});toast('Bestätigungsmail an Spieler versandt');bootModeration();}catch(err){toast(err.message,true);b.disabled=false;}});
       registrations.querySelectorAll("[data-resend-registration]").forEach(b=>b.onclick=async()=>{b.disabled=true;try{await api(`/admin/registrations/${b.dataset.resendRegistration}/resend`,{method:"POST",body:{}});toast("Freigabe-Mail gesendet");bootModeration();}catch(err){toast(err.message,true);b.disabled=false;}});
     }).catch(err=>{registrations.textContent=err.message;});
     const setForm = host.querySelector("#admin-settings");
@@ -4350,7 +4314,7 @@ function renderSpyReport(r) {
     : `<span class="muted">keine Gebäude erkannt</span>`;
   const shipN = forceCount(b.ships);
   const defN = forceCount(b.defenses);
-  return `<details class="report panel spy ${r.seen ? "" : "unread"}" data-rid="${r.id}">
+  return `<details class="report panel spy ${r.seen ? "" : "unread"}" data-rid="${r.id}" data-tutorial-target="${Number(b.planetId) || 0}" data-tutorial-time="${Number(r.createdAt) || 0}">
     <summary class="report-head">
       <span class="tag-pill spy-tag">SPIONAGE</span>
       <h3>${esc(r.title)}</h3>
@@ -4778,6 +4742,7 @@ async function bootMap() {
       })
     );
   };
+  state.tutorialSelectSystem=selectSystem;
   state.refreshSystemSheet=()=>{if(stillHere() && selectedSystem)selectSystem(selectedSystem,selectedOpts,true);};
   state.map = createMap(canvas, selectSystem, ({ mode }) => {
     if (!stillHere()) return;
@@ -5423,6 +5388,7 @@ async function openMission(targetId, sys, initialMission = "", dialogOpts = {}) 
       acceptMissionSnapshot(snap,epoch);
       state.colonizeMode=null;
       hideModal();
+      if (missionSel.value === "spy") guidedTutorial.sent(targetId);
       const colonySent = (missionSel.value === "colonize" || missionSel.value === "ally_colonize") && (picked.colony || 0) > 0;
       toast(colonySent
         ? `Kolonieschiff unterwegs nach ${planet.name}. Es bleibt im Flug und wird erst bei der Gründung verbraucht.`
@@ -5725,6 +5691,7 @@ async function enterGame() {
       })
       .catch(() => {});
   }
+  guidedTutorial.enter();
 }
 
 const handledCompletions = new Set();
@@ -5783,13 +5750,7 @@ async function boot() {
 
 boot().catch(() => showLanding());
 
-function openGuide() {
-  const i = Math.min(tutorialIndex(), TUTORIAL.length - 1), step = TUTORIAL[i];
-  showModal(`<div class="sheet panel" style="max-width:400px"><p class="muted">Erste Schritte ${i+1}/${TUTORIAL.length}</p><h2>${esc(step.title)}</h2><p>${esc(step.text)}</p><div class="row" style="flex-wrap:wrap;gap:8px">${step.plot ? `<button class="btn" data-guide-building>Gebäude öffnen</button>` : ""}<button class="btn primary" data-guide-next>${i === TUTORIAL.length-1 ? "Abschließen" : "Weiter"}</button><button class="btn ghost" data-guide-close>Später</button></div></div>`);
-  document.querySelector("[data-guide-next]").onclick = () => { setTutorialIndex(i+1); if (i+1 < TUTORIAL.length) openGuide(); else { hideModal(); syncCityLive(); } };
-  document.querySelector("[data-guide-close]").onclick = () => { hideModal(); syncCityLive(); };
-  document.querySelector("[data-guide-building]")?.addEventListener("click", () => { hideModal(); state.cityBuilding = step.plot; state.cityScene?.focus(step.plot); state.cityScene?.setSelected(step.plot); syncCityLive(); });
-}
+function openGuide() { guidedTutorial.enter(true); }
 
 async function loadHumanChallenge() {
   const form=$("register-form"); if(!form) return;

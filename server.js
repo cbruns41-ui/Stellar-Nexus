@@ -1,6 +1,10 @@
 "use strict";
 
 const path = require("path");
+// Local installations keep SMTP settings in .env. Hosted environment variables
+// retain precedence; load before modules inspect their configuration.
+const envFile = path.join(__dirname, ".env");
+if (require("node:fs").existsSync(envFile)) process.loadEnvFile(envFile);
 const express = require("express");
 const { openDb } = require("./src/db");
 const { attachRoutes } = require("./src/routes");

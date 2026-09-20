@@ -89,11 +89,37 @@ und verlängert sich nicht automatisch.
 ## Registrierung und Adminfreigabe
 
 Unter **Kommando → Leitung → Zentrale → Open Beta** die Admin-Empfängeradresse eintragen.
+Für lokale Starts `.env.example` als `.env` kopieren und die tatsächlichen Serverwerte eintragen;
+`server.js` lädt diese Datei automatisch. Bereits gesetzte Umgebungsvariablen haben Vorrang.
 Den Mailtransport über `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`,
 `SMTP_FROM` und `PUBLIC_URL` konfigurieren (siehe `.env.example`). Bei Port 587 wird STARTTLS
 verlangt; bei Port 465 `SMTP_SECURE=true` setzen. Ohne Mailkonfiguration bleiben Anmeldungen
-gesperrt; im Adminbereich ist der Fehler sichtbar und die Freigabemail kann erneut gesendet werden.
-Es wurde kein echter Mailversand mit Produktivzugangsdaten getestet.
+gesperrt; die Registrierung meldet den Versandfehler ausdrücklich. Im Adminbereich ist der
+konkrete Fehler sichtbar und die Freigabemail kann erneut gesendet werden. Eine erneute
+Registrierung ist dafür nicht nötig. Die Freigabemail geht ausschließlich an den konfigurierten
+Admin-Empfänger, nicht an die E-Mail-Adresse des neuen Spielerkontos.
+Die automatisierten Mailtests verwenden einen Testtransport und senden keine echten E-Mails.
+
+Nach der Adminfreigabe wird eine Bestätigung an die registrierte Spieleradresse verschickt.
+Sie enthält Anmeldelink, Commander-ID und Supportsignatur; Antworten gehen an
+`mail.nexus@gmx.net`. Versandfehler heben die Freigabe nicht auf. Im Adminbereich sind
+Admin- und Spieler-Mailstatus getrennt sichtbar; fehlende Spielerbestätigungen können dort
+auch für ältere freigegebene Accounts nachgesendet werden. Bereits bestätigte Zustellungen
+werden bei wiederholten Klicks nicht erneut verschickt. Die Supportsignatur zum Einfügen
+in GMX liegt in `design/support-signatur.txt`.
+
+## Geführtes Tutorial
+
+Neue Imperien im Anfängerschutz erhalten beim Einstieg die Wahl „Tutorial spielen“ oder
+„Weiter ohne Tutorial.“ Die Flugschule führt durch 17 Schritte bis zum Spionagebericht.
+Sie markiert echte Aktionen, blendet den Rest ab und wartet auf bestätigte Bau- und
+Forschungsergebnisse. Vorhandene Ausbaustufen werden übersprungen; eine zusätzliche Sonde
+wird tatsächlich gebaut. Pausieren ist jederzeit möglich, Fortsetzen über „Erste Schritte“
+in der Kolonie. Auswahl und Fortschritt werden pro Imperium in diesem Browser gespeichert.
+
+`npm run tutorial:verify` prüft den gesamten Ablauf in Chrome mit einer isolierten
+Testdatenbank, einschließlich mobiler Markierungen, Pause und Spionageflug. Nur im Test
+werden Bau- und Flugzeiten verkürzt. Screenshots liegen in `tmp/tutorial-review/`.
 
 Neue Accounts erfordern E-Mail, AGB/Datenschutz, Mindestalter 16, Mensch-Bestätigung und eine
 einmalige Rechenaufgabe. Passwort mindestens 8 Zeichen, gespeichert nur als scrypt-Hash. Erst die

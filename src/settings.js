@@ -26,7 +26,7 @@ const SCHEMA = [
   { key: "spyCenterBonusPct", type: "int", group: "Spionage", label: "+% je Spionagezentrum-Stufe", default: 6, min: 1, max: 12 },
   { key: "spyFloorPct", type: "int", group: "Spionage", label: "Mindest-Erfolg %", default: 8, min: 3, max: 40 },
   { key: "spyCapPct", type: "int", group: "Spionage", label: "Maximal-Erfolg %", default: 92, min: 50, max: 99 },
-  { key: "betaEmail", type: "text", group: "Open Beta", label: "Beta-Empfänger E-Mail", hint: "Registrierungen werden an diese Adresse gesendet.", default: "" },
+  { key: "betaEmail", type: "text", group: "Open Beta", label: "Admin-Empfänger für Registrierungen", hint: "Freigabemails gehen an diese Adresse. Leer verwendet mail.nexus@gmx.net. Support: mail.nexus@gmx.net.", default: "mail.nexus@gmx.net" },
   { key: "betaOpen", type: "bool", group: "Open Beta", label: "Beta-Registrierung offen", default: true },
 ];
 
@@ -44,6 +44,11 @@ function readRaw(db) {
 }
 
 function coerce(spec, raw) {
+  if (spec.key === "betaEmail") {
+    const email = String(raw ?? "").trim().toLowerCase() || spec.default;
+    if (email.length > 180 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Bitte eine gültige Admin-E-Mail-Adresse eintragen.");
+    return email;
+  }
   if (spec.key === "donationUrl") {
     const value = String(raw ?? "").trim();
     if (!value) return "";
