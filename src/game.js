@@ -26,6 +26,7 @@ const { remnantFleet, setRemnantFleet, listJumpNetwork, isJumpGateSystem } = req
 const { planIntergalacticTravel, JUMP_HOP_EQUIV } = require("./archipelagoTravel");
 const npcSites = require('./npc-sites');
 const progress = require("./progress");
+const { colonySlots } = require('./colonization');
 const nexus = require("./nexus");
 const combat = require("./combat");
 const economy = require("./economy");
@@ -692,6 +693,7 @@ function enqueueResearch(db, empire, planet, techId) {
   }
   const spec = TECHS[techId];
   if (!spec) throw new Error("Unbekannte Forschung.");
+  if (spec.retired) throw new Error('Astrophysik schaltet keine Planetplätze mehr frei. Bitte Kolonisation erforschen.');
   const buildings = buildingsMap(db, planet.id);
   if ((buildings.archive || 0) < 1) throw new Error("Kein Forschungsarchiv auf diesem Planeten.");
   const techs = techsMap(db, empire.id);
@@ -1907,7 +1909,7 @@ function resolveColonize(db, fleet, ships, target, sys, techs, empire) {
     const owned = personalPlanetCount(db, empire.id);
     if (owned >= maxPlanets(techs.colonization, techs.astrophysics)) {
       addReport(db, fleet.empire_id, "fleet", `Kolonisation abgebrochen`, {
-        ...context, text: "Planet-Limit erreicht. Erforsche Kolonisation weiter. Die Flotte kehrt mit dem Kolonieschiff zurück.",
+        ...context, text: colonySlots(techs.colonization, owned).blocker + " Die Flotte kehrt mit dem Kolonieschiff zurück.",
       });
       launchReturn(db, fleet, ships, {});
       return;
@@ -2005,8 +2007,8 @@ function sendFleet(db, empire, origin, target, mission, shipsWanted, cargo, opts
     if (db.prepare("SELECT id FROM fleets WHERE empire_id=? AND target_planet_id=? AND mission IN ('colonize','ally_colonize') AND is_return=0").get(empire.id,target.id)) throw new Error('Zu diesem Planeten ist bereits ein Kolonieschiff unterwegs.');
     if (mission === 'colonize') {
       const pending = db.prepare("SELECT COUNT(*) AS n FROM fleets WHERE empire_id=? AND mission='colonize' AND is_return=0").get(empire.id).n;
-      const owned = personalPlanetCount(db,empire.id), cap = maxPlanets(techs.colonization,techs.astrophysics);
-      if (owned + pending >= cap) throw new Error(`Planet-Limit ${owned}/${cap} · ${pending} Kolonisationen unterwegs. Kolonisation oder Astrophysik erforschen, bevor weitere Schiffe starten.`);
+      const slots = colonySlots(techs.colonization, personalPlanetCount(db,empire.id), pending);
+      if (!slots.free) throw new Error(slots.blocker);
     }
   }
   if (mission === "ally_colonize") {
@@ -2321,6 +2323,7 @@ function countAffordable(kind, db, empire, planet, buildings, techs) {
   } else if (kind === "research") {
     if ((buildings.archive || 0) < 1) return 0;
     for (const spec of Object.values(TECHS)) {
+      if (spec.retired) continue;
       if (!meetsReq(spec.requires, buildings, techs)) continue;
       const level = techs[spec.id] || 0;
       if (level >= spec.max) continue;
@@ -2631,6 +2634,7 @@ function snapshot(db, user, planetId) {
       color: empire.color,
       planetCount: owned,
       planetCap: maxPlanets(techs.colonization, techs.astrophysics),
+      colonySlots: colonySlots(techs.colonization, owned, db.prepare("SELECT COUNT(*) AS n FROM fleets WHERE empire_id=? AND mission='colonize' AND is_return=0").get(empire.id).n),
       createdAt: empire.created_at,
       xp: empireFresh.xp || 0,
       level: progress.commanderLevel(empireFresh.xp || 0),

@@ -1,5 +1,6 @@
 import { START_SALVAGE, WORK_PER_WAVE, TOWER_BASE, WEAPON_DEFS, weaponCost as passiveCost, weaponLimit as passiveLimit, applyWeaponStats, killPayout, waveClearBonus, waveSpawnCount, waveHp as enemyHp, waveSpawnGap } from "./orbit-economy.mjs?v=2";
 import { createGpuScene } from "./orbit-gpu.mjs?v=3";
+import { containDialog } from './modal-dialog.mjs?v=1';
 export function startOrbitSiege(opts = {}) {
 const TAU = Math.PI * 2;
 let session = opts.session || {};
@@ -79,6 +80,7 @@ document.body.classList.add("orbit-siege-open");
 const backdrop = document.createElement("div");
 backdrop.className = "orbit-backdrop";
 document.body.append(backdrop, root);
+const releaseDialog = containDialog(root, { backdrop, onClose: exitRun, initialFocus: () => root.querySelector('.orbit-exit') });
 function escText(s) {
   return String(s || "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
@@ -573,10 +575,7 @@ root.querySelector("#pause-resume").onclick = togglePause;
 const onKeyDown = (e) => {
   keys.add(e.code);
   if (e.code === "Space") e.preventDefault();
-  if (e.code === "Escape" && !buildDock.hidden) { e.preventDefault(); closeShop(); return; }
-  if (e.code === "KeyP" || e.code === "Escape") {
-    if (e.code === "KeyP") { e.preventDefault(); togglePause(); }
-  }
+  if (e.code === "KeyP") { e.preventDefault(); togglePause(); }
   if (e.code === "KeyE" || e.code === "KeyQ") { e.preventDefault(); aaBurst(); }
   if (e.code === "Equal" || e.code === "NumpadAdd") { e.preventDefault(); setZoom(zoom * 1.1); }
   if (e.code === "Minus" || e.code === "NumpadSubtract") { e.preventDefault(); setZoom(zoom / 1.1); }
@@ -639,9 +638,13 @@ async function finishRun() {
   } catch (err) {
     finishing = false;
     paintResult({ error: err.message || "Belohnung fehlgeschlagen" });
+    if (exited) opts.onError?.(err);
   }
 }
+let exited = false;
 function teardown() {
+  if (exited) return;
+  exited = true;
   stopped = true;
   try { gpu?.dispose(); } catch {}
   gpu = null;
@@ -662,20 +665,20 @@ function teardown() {
   document.body.classList.remove("orbit-siege-open");
   backdrop.remove();
   root.remove();
+  releaseDialog();
   onExit();
+}
+function exitRun() {
+  if (exited) return;
+  // Closing must work even while the session or reward request is pending.
+  void finishRun();
+  teardown();
 }
 root.querySelector("#again").onclick = async () => {
   await finishRun();
   teardown();
 };
-root.querySelector(".orbit-exit").onclick = async () => {
-  if (game.mode === "dead") {
-    await finishRun();
-    teardown();
-    return;
-  }
-  await finishRun();
-};
+root.querySelector(".orbit-exit").onclick = exitRun;
 
 function nextWave() {
   game.wave += 1;

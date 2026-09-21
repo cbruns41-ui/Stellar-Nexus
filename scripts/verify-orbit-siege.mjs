@@ -57,7 +57,7 @@ try{
    const fire=await ev(`(()=>{const r=document.querySelector('#fire').getBoundingClientRect();return {id:1,x:r.x+r.width/2,y:r.y+r.height/2};})()`);await send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[fire]});await sleep(1400);await send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
    assert.ok(await ev(`document.querySelector('.orbit-game').orbitGame.enemies.some(e=>e.hp<100)`),'Touch aim and fire hit an enemy at a negative world coordinate');
   }
-  await tap('[data-zoom="in"]');await tap('[data-zoom="in"]');await tap('[data-zoom="in"]');await tap('[data-zoom="in"]');await shot(`detail-${w}-${h}`);await tap('.orbit-exit');await tap('#again');assert.equal(await ev(`!!document.querySelector('.orbit-game')`),false);
+  await tap('[data-zoom="in"]');await tap('[data-zoom="in"]');await tap('[data-zoom="in"]');await tap('[data-zoom="in"]');await shot(`detail-${w}-${h}`);await tap('.orbit-exit');assert.equal(await ev(`!!document.querySelector('.orbit-game')`),false);
  }
  // Run the real combat loop with seeded randomness and virtual frame time, no rendering cost.
  await fresh(1280,800);

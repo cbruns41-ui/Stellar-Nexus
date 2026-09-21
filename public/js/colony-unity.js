@@ -1,6 +1,10 @@
 const BUILD_URL = "/unity-colony/Build", PRODUCT = "unity-colony", VERSION = "living-5";
 let instance = null, bootPromise = null, pendingState = null, selected = "", visible = false;
 let listeners = {}, resizeObserver = null;
+let canvasGesture = false;
+document.addEventListener('pointerdown', event => {
+  canvasGesture = event.target?.id === 'colony-unity-canvas';
+}, true);
 const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
 function send(method, value) { if (instance) instance.SendMessage("ColonyRoot", method, value); }
 function loadScript(src) {
@@ -36,7 +40,7 @@ window.stellarNexusColony = {
       document.getElementById("orders")?.open ||
       (modal && !modal.hidden && !modal.classList.contains("hidden"))
     );
-    if (visible && !blocked) { selected = id || ""; listeners.onSelect?.(selected); }
+    if (visible && canvasGesture && !blocked && !listeners.isInputBlocked?.()) { selected = id || ""; listeners.onSelect?.(selected); }
   },
   onFrame(frame) { if (visible) listeners.onFrame?.(frame); },
 };

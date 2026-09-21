@@ -1,3 +1,5 @@
+import { containDialog } from './modal-dialog.mjs?v=1';
+
 export function esc(s) {
   return String(s ?? "").replace(/[&<>"'`]/g, (c) => ({
     "&": "&amp;",
@@ -199,14 +201,15 @@ export function notify(title, body) {
   }
 }
 
-export function showModal(html) {
+let releaseModal;
+export function showModal(html, onClose = hideModal) {
+  releaseModal?.();
   const m = document.getElementById("modal");
   m.innerHTML = html;
   m.hidden = false;
   m.classList.remove("hidden");
-  m.onclick = (e) => {
-    if (e.target === m) hideModal();
-  };
+  m.onclick = null;
+  releaseModal = containDialog(m, { onClose });
 }
 
 export function hideModal() {
@@ -214,6 +217,8 @@ export function hideModal() {
   m.hidden = true;
   m.classList.add("hidden");
   m.innerHTML = "";
+  releaseModal?.();
+  releaseModal = null;
 }
 
 const ICONS = {

@@ -1,5 +1,5 @@
 import { api, getState, getCatalog, getPreview as fetchBuildingPreview, getGalaxy, getSystem, getReports, getRanks, getEmpire, combatPreview, combatSim, getAlliances, getAlliance, getAllianceActivity } from "./api.js?v=5";
-import { esc, fmt, eta, when, costHtml, planetCss, planetGlobeUrl, planetColonyUrl, mediaTag, bindMediaFallbacks, toast, showModal as showModalEl, hideModal as hideModalEl, shipList, starfield, resourceIcon, icon, beep, notify, tickEta, ticksOf, tickMsFrom } from "./ui.js?v=2";
+import { esc, fmt, eta, when, costHtml, planetCss, planetGlobeUrl, planetColonyUrl, mediaTag, bindMediaFallbacks, toast, showModal as showModalEl, hideModal as hideModalEl, shipList, starfield, resourceIcon, icon, beep, notify, tickEta, ticksOf, tickMsFrom } from "./ui.js?v=3";
 import { createMap } from "./archipelago-integration.mjs?v=7";
 import { systemHtml } from "./map.js?v=71";
 import { battleReplayHtml, bindBattleReplays } from "./battle.js?v=2";
@@ -9,8 +9,8 @@ import { createTutorial } from "./tutorial.mjs?v=1";
 import { notificationBadges } from "./notifications.mjs?v=1";
 import { shipBudget } from "./ship-budget.mjs?v=1";
 import { colonyRows, colonyHudHtml, paintColonyMarkers, paintColonyFrame } from "./colony-hud.mjs?v=10";
-import { createColonyUnity, setUnityColonyVisible } from "./colony-unity.js?v=15";
-import { startOrbitSiege } from "./orbit-siege.mjs?v=18";
+import { createColonyUnity, setUnityColonyVisible } from "./colony-unity.js?v=16";
+import { startOrbitSiege } from "./orbit-siege.mjs?v=19";
 
 
 const $ = (id) => document.getElementById(id);
@@ -278,9 +278,7 @@ function renderResources() {
 }
 
 function showModal(html) {
-  showModalEl(html);
-  const modal = $("modal");
-  if (modal) modal.onclick = (e) => { if (e.target === modal) hideModal(); };
+  showModalEl(html, hideModal);
   syncColonyPointerEvents();
 }
 function hideModal() {
@@ -713,6 +711,7 @@ function syncUnreadCounts(counts, empireId = state.snap?.empire?.id) {
   state.snap.unread = Object.values(counts).reduce((sum,n) => sum + Number(n || 0), 0);
   state.snap.hints = { ...state.snap.hints, reports: state.snap.unread };
   paintBadges();
+  updateColonySlotHints();
 }
 
 function allianceActivityRows() {
@@ -1201,6 +1200,26 @@ function reqHtml(req) {
   return `<div class="reqs">${bits.join("")}</div>`;
 }
 
+function colonySlotsHtml() {
+  const s = state.snap?.empire?.colonySlots;
+  if (!s) return '';
+  const next = s.nextLevel == null ? 'Alle Planetplätze freigeschaltet.' : `Nächster Planetplatz: Planet ${s.nextSlot} ab Kolonisation Stufe ${s.nextLevel}.`;
+  return `<section class="panel" style="padding:14px;margin-bottom:12px" data-colony-slots><h3>Planetplätze · Kolonisation Stufe ${s.level}</h3><p>${s.owned}/${s.cap} persönliche Planeten · ${s.pending} unterwegs · ${s.free} frei</p><p>${esc(s.blocker || next)}</p><details><summary>Freischaltstufen ansehen</summary><p>${s.milestones.map(m => `Planet ${m.slot}: Stufe ${m.level}`).join(' · ')}</p></details></section>`;
+}
+
+function updateColonySlotHints() {
+  for (const box of document.querySelectorAll('[data-colony-slots]')) box.outerHTML = colonySlotsHtml();
+  const box = document.getElementById('colony-slot-status'), go = document.getElementById('m-go');
+  if (!box || !go) return;
+  const slots = state.snap?.empire?.colonySlots;
+  const personal = document.getElementById('mission')?.value === 'colonize';
+  box.hidden = !personal;
+  const blocked = personal && (!slots || !slots.free);
+  box.textContent = personal ? (slots?.blocker || (slots ? `${slots.free} Planetplatz frei · ${slots.owned}/${slots.cap} belegt · ${slots.pending} Kolonisationen unterwegs.` : 'Planetplätze werden geladen.')) : '';
+  go.disabled = go.dataset.submitting === '1' || go.dataset.fuelBlocked === '1' || blocked;
+  go.textContent = blocked ? 'Planetplatz gesperrt' : go.dataset.fuelBlocked === '1' ? 'Nicht genug Treibstoff' : 'Flotte senden';
+}
+
 function unlockHtml(kind, id) {
   const list = state.catalog.unlocks?.[`${kind}:${id}`] || [];
   if (!list.length) return "";
@@ -1390,7 +1409,7 @@ function allianceDeskHtml(detail) {
       return `<div class="intel-block">
         <h4>${esc(r.name)} · Stufe ${r.level}/${r.max}</h4>
         <p class="muted">${esc(r.blurb)}</p>
-        ${!done && !planet ? `<p class="hint">Einzahlungen bleiben erhalten. Zum Finanzieren und Starten muss zuerst der Allianzplanet gegründet werden.</p>${detail.perms?.planet ? '<button type="button" class="btn small" data-ally-found>Allianzplanet gründen</button>' : '<p class="hint">Die Allianzführung muss den Planeten gründen.</p>'}` : ''}
+        ${!done && !planet ? `<p class="hint">Nicht verfügbar: Ein Allianzplanet fehlt. Nächster Schritt: Die Allianzführung schickt ein Kolonieschiff zu einem freien Ziel in Reichweite und wählt auf der Karte „Als Allianz-Planet besiedeln“. Danach Ressourcen per Transport ins Allianzlager liefern. Bereits finanzierte Anteile bleiben erhalten.</p>${detail.perms?.planet ? '<button type="button" class="btn small" data-ally-found>Allianzplanet gründen</button>' : '<p class="hint">Die Allianzführung muss den Planeten gründen.</p>'}` : ''}
         ${!done && planet && !detail.canManagePlanet ? '<p class="hint">Zum Einzahlen und Starten braucht dein Rang Zugang zum Allianzplaneten. Die Führung kann ihn freigeben.</p>' : ""}
         ${done ? `<span class="chip ok">Max</span>` : `<div class="ally-progress"><i style="width:${pct}%"></i></div><div class="muted">${pct}% finanziert · Lagerbedarf: ${costHtml(remaining, null, state.catalog)}</div>`}
       </div>`;
@@ -1435,7 +1454,7 @@ function allianceQuickActionsHtml(rows,planetId,canManage) {
   const chosen=available.some(r=>r.id===state.allianceResearchChoice)?state.allianceResearchChoice:available[0]?.id;
   return `<section class="ally-quick-actions panel" data-alliance-quick-planet="${planetId || ''}">
     <label>Allianzforschung · Zahlung aus dem Allianzlager<select data-alliance-project aria-label="Allianzforschung auswählen" ${!available.length?'disabled':''}>${available.map(r=>`<option value="${r.id}" ${r.id===chosen?'selected':''}>${esc(r.name)} · ${Math.round((r.progress||0)*100)} % finanziert</option>`).join('')}</select></label>
-    ${!planetId ? '<p class="hint">Zuerst einen Allianzplaneten gründen. Gespeicherte Einzahlungen bleiben erhalten.</p>' : !canManage ? '<p class="hint">Die Allianzführung muss deinen Zugang zum Allianzplaneten freigeben.</p>' : !available.length ? '<p class="hint">Alle Allianzforschungen sind abgeschlossen.</p>' : `<div class="ally-quick-buttons"><button type="button" class="btn small" data-alliance-quick="fund">Einzahlen</button><button type="button" class="btn primary small" data-alliance-quick="start">Finanzieren & starten</button></div>`}
+    ${!planetId ? '<p class="hint">Nicht verfügbar: Ein Allianzplanet fehlt. Anführer, Co-Leader oder Offiziere müssen ein Kolonieschiff bereitstellen und auf der Karte bei einem freien Ziel „Als Allianz-Planet besiedeln“ wählen. Danach Ressourcen ins Allianzlager transportieren. Gespeicherte Einzahlungen bleiben erhalten.</p>' : !canManage ? '<p class="hint">Die Allianzführung muss deinen Zugang zum Allianzplaneten freigeben.</p>' : !available.length ? '<p class="hint">Alle Allianzforschungen sind abgeschlossen.</p>' : `<div class="ally-quick-buttons"><button type="button" class="btn small" data-alliance-quick="fund">Einzahlen</button><button type="button" class="btn primary small" data-alliance-quick="start">Finanzieren & starten</button></div>`}
     <p class="ally-quick-message" role="status" ${state.allianceQuickMessage?'':'hidden'}>${esc(state.allianceQuickMessage || '')}</p>
   </section>`;
 }
@@ -1519,12 +1538,13 @@ function buildRailHtml() {
 
 function plotNeedText(buildingId, buildings) {
   const spec = state.catalog?.buildings?.[buildingId];
-  const req = spec?.requires?.buildings || {};
-  for (const [id, n] of Object.entries(req)) {
-    if ((buildings[id] || 0) < n) return `${state.catalog.buildings[id]?.name || id} ${n}`;
+  const missing = [];
+  for (const [kind, levels] of [['buildings', buildings], ['techs', state.snap?.techs || {}]]) {
+    for (const [id, level] of Object.entries(spec?.requires?.[kind] || {})) {
+      if ((levels[id] || 0) < level) missing.push(`${state.catalog[kind]?.[id]?.name || id} Stufe ${level} (aktuell ${levels[id] || 0})`);
+    }
   }
-  if (spec?.requires?.techs && Object.keys(spec.requires.techs).length) return "Forschung fehlt";
-  return "Gesperrt";
+  return missing.length ? `Nicht verfügbar: ${missing.join(' · ')}. Gebäude unter „Gebäude“, Forschung im „Labor“ ausbauen.` : 'Voraussetzungen werden geprüft.';
 }
 
 let cityStateSignature = "";
@@ -1697,7 +1717,7 @@ const views = {
         const homeOnly = !p.isHome && (b.id === "archive" || b.id === "quantum_lab");
         let action = "";
         if (homeOnly) action = `<div class="lock">Nur Hauptplanet</div><p class="hint">Forschung auf ${esc(homeName)} gilt für alle Kolonien.</p>`;
-        else if (!info.unlocked) action = `<div class="lock">Voraussetzungen fehlen</div>`;
+        else if (!info.unlocked) action = `<div class="lock">Nicht verfügbar</div><p class="hint">${esc(plotNeedText(b.id, p.buildings))}</p>`;
         else if (info.max) action = `<div class="ok">Maximalstufe</div>`;
         else {
           const isRunning = runningBuilding.size > 0;
@@ -1850,6 +1870,7 @@ const views = {
     const prev = Object.fromEntries((state.preview?.techs || []).map((t) => [t.id, t]));
     const busy = state.snap.queue.some((q) => q.kind === "research");
     const rows = Object.values(state.catalog.techs)
+      .filter(t => !t.retired || (state.snap.techs[t.id] || 0) > 0 || state.snap.queue.some(q => q.kind === 'research' && q.itemId === t.id))
       .map((t) => {
         const job = state.snap.queue.find(q => q.kind === "research" && q.itemId === t.id);
         const info = prev[t.id] || {
@@ -1857,7 +1878,7 @@ const views = {
           unlocked: nodeUnlocked("tech", t.id),
         };
         const canResearch = !busy && canAfford(info.nextCost || {});
-        const action = !info.unlocked
+        const action = t.retired ? '<div class="muted">Bestandsforschung · Planetplätze im Labor über Kolonisation</div>' : !info.unlocked
           ? `<div class="lock">Voraussetzungen fehlen</div>`
           : info.max
             ? `<div class="ok">Abgeschlossen</div>`
@@ -1891,7 +1912,7 @@ const views = {
             const cards = ids
               .map((id) => {
                 const spec = specFor(kind, id);
-                if (!spec) return "";
+                if (!spec || spec.retired) return "";
                 const lvl = nodeLevel(kind, id);
                 const open = nodeUnlocked(kind, id);
                 const cls = !open ? "locked" : lvl > 0 ? "owned" : "ready";
@@ -2667,6 +2688,11 @@ function bindCity(root) {
     if (sync) state.cityScene?.setSelected(id || "");
   };
   view.querySelectorAll("[data-city-building]").forEach(button => {
+    button.addEventListener('pointerdown', event => {
+      // Keep a moving camera anchor attached to the original press until release.
+      button.setPointerCapture(event.pointerId);
+      event.stopPropagation();
+    });
     button.addEventListener("click", event => {
       event.stopPropagation();
       select(button.dataset.cityBuilding);
@@ -2707,6 +2733,7 @@ function bindCity(root) {
       const scene = await createColonyUnity(canvas, {
         state: unityColonyState(), selectedId: state.cityBuilding,
         onSelect: id => select(id, false),
+        isInputBlocked: overlayBlocksColony,
         onFrame: frame => {
           if (!view.isConnected || rootView() !== "command") return;
           paintColonyFrame(root, frame, state.cityBuilding);
@@ -4527,10 +4554,11 @@ function paintOrbitButton() {
 
 function showOrbitLocked(os) {
   const tasks = (os?.tasks || []).map((t) => `<button type="button" class="btn ${t.complete ? "ghost" : "primary"}" data-orbit-task="${esc(t.view || "infra")}" ${t.complete ? "disabled" : ""}><b>${esc(t.title)}</b><small>${esc(t.blurb)}</small></button>`).join("");
-  showModalEl(`<div class="panel orbit-lock"><h2>Keine Freigabe</h2><p>Ein Einsatz pro Tag. Erledige eine Aufgabe für einen weiteren Anflug.</p><div class="orbit-lock-tasks">${tasks || "<p class='muted'>Morgen um 00:00 UTC gibt es einen neuen Einsatz.</p>"}</div></div>`);
+  showModal(`<div class="panel orbit-lock"><button type="button" class="orbit-lock-close btn" aria-label="Orbit-Feuer schließen">×</button><h2>Keine Freigabe</h2><p>Ein Einsatz pro Tag. Erledige eine Aufgabe für einen weiteren Anflug.</p><div class="orbit-lock-tasks">${tasks || "<p class='muted'>Morgen um 00:00 UTC gibt es einen neuen Einsatz.</p>"}</div></div>`);
+  document.querySelector('.orbit-lock-close').onclick = hideModal;
   document.querySelectorAll("[data-orbit-task]").forEach((b) => {
     b.addEventListener("click", () => {
-      hideModalEl();
+      hideModal();
       setView(b.dataset.orbitTask);
     });
   });
@@ -4593,10 +4621,7 @@ async function claimOrbitSession(session, waves, kills) {
 
 async function launchOrbitSiege(planetId, planetName) {
   rememberOrbitPick(planetId, planetName);
-  const staleOrbit = document.querySelector(".orbit-game");
-  if (staleOrbit) staleOrbit.remove();
-  document.body.classList.remove("orbit-siege-open");
-  if (orbitStarting) return;
+  if (orbitStarting || document.querySelector('.orbit-game')) return;
   const target = chosenOrbitTarget();
   if (!target?.planetId) {
     toast("Wähle zuerst eine eigene Kolonie.", true);
@@ -4631,6 +4656,7 @@ async function launchOrbitSiege(planetId, planetName) {
       session: {},
       sessionReady,
       planetName: target.planetName,
+      onError: err => toast(err.message || 'Orbit-Ergebnis konnte nicht gespeichert werden.', true),
       onClaim: async ({ waves, kills, session }) => {
         const out = await claimOrbitSession(session, waves, kills);
         if (out?.empire) state.snap = out;
@@ -4647,7 +4673,7 @@ async function launchOrbitSiege(planetId, planetName) {
         orbitStarting = false;
         if (resumeUnity && rootView() === "command") setUnityColonyVisible(true);
         syncColonyPointerEvents();
-        if (state.view !== "galaxy") setView("galaxy");
+        // Preserve the view from which the player opened Orbit-Feuer.
       },
     });
   } catch (err) {
@@ -5124,6 +5150,7 @@ async function openMission(targetId, sys, initialMission = "", dialogOpts = {}) 
         )
         .join("")}
     </div>
+    <p id="colony-slot-status" class="hint" role="status" hidden></p>
     <div id="travel-box" class="travel-box muted">Schiffe wählen — Flugzeit erscheint hier.</div>
     <div id="acs-box" class="acs-box" hidden></div>
     <div id="cargo-fields" class="stack" style="margin-top:8px" hidden></div>
@@ -5149,6 +5176,7 @@ async function openMission(targetId, sys, initialMission = "", dialogOpts = {}) 
     return picked;
   };
   const paintCargo = () => {
+    updateColonySlotHints();
     const isTransport = missionSel.value === "transport" || missionSel.value === "collect";
     if (isTransport) {
       cargoBox.hidden = false;
@@ -5210,8 +5238,8 @@ async function openMission(targetId, sys, initialMission = "", dialogOpts = {}) 
           }`;
         const goBtn = document.getElementById("m-go");
         if (goBtn) {
-          goBtn.disabled = !fuelOk;
-          goBtn.textContent = fuelOk ? "Flotte senden" : "Nicht genug Treibstoff";
+          goBtn.dataset.fuelBlocked = fuelOk ? '0' : '1';
+          updateColonySlotHints();
         }
         paintAcs(t);
       } catch (err) {
@@ -5387,6 +5415,7 @@ async function openMission(targetId, sys, initialMission = "", dialogOpts = {}) 
     goBtn.textContent = "Flotte senden";
     goBtn.disabled = false;
   }
+  updateColonySlotHints();
   document.getElementById("m-go").onclick = async () => {
     const epoch=focusEpoch;
     const picked = {};
@@ -5395,6 +5424,7 @@ async function openMission(targetId, sys, initialMission = "", dialogOpts = {}) 
       if (n > 0) picked[input.dataset.ship] = n;
     }
     if (goBtn.disabled) return;
+    goBtn.dataset.submitting = '1';
     goBtn.disabled = true;
     try {
       const snap=await api("/fleet", {
@@ -5425,7 +5455,9 @@ async function openMission(targetId, sys, initialMission = "", dialogOpts = {}) 
       refresh().catch(()=>{});
     } catch (err) {
       toast(err.message, true);
-      goBtn.disabled = false;
+      delete goBtn.dataset.submitting;
+      updateColonySlotHints();
+      refresh(undefined,{rerender:false}).catch(()=>{});
     }
   };
 }

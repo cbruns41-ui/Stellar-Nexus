@@ -175,9 +175,6 @@ export async function verifyQaRegressions({base,headers,databasePath,send,evalua
   await send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:fire.x,y:fire.y,id:1}]});await pause(700);
   assert.ok(await evaluate(`document.querySelector('.orbit-fire').classList.contains('pressed')`));
   await send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await tap('.orbit-exit');
-  await until(`document.querySelector('#dead:not([hidden]) #again')`,10000);
-  assert.match(await evaluate(`document.querySelector('#dead-title')?.textContent || ''`),/Treffer/);
-  await tap('#again');
   await until(`!document.querySelector('.orbit-game')`,10000);
   assert.equal(await evaluate(`document.querySelector('#game').dataset.view`),'galaxy');
   console.log('QA: Orbit start, held touch fire and return to map passed');

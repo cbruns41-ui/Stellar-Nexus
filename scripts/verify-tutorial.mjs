@@ -105,6 +105,11 @@ try {
     const { verifyNotifications } = await import('./verify-notifications.mjs');
     await verifyNotifications({db,snap,send,evaluate,until,click,shot});
   }
+  if (process.argv.includes('--repairs')) {
+    const { verifyRepairs } = await import('./verify-repairs.mjs');
+    try { await verifyRepairs({db,snap,send,evaluate,until,click,shot,snapshot}); }
+    catch (error) { await shot('repair-failure'); throw error; }
+  }
   assert.deepEqual(errors,[],'No browser exceptions');
   await writeFile(new URL('verification.json',folder),JSON.stringify({passed:true,checks:['opt-in and skip','pause and resume','mobile spotlight geometry','blocked unrelated clicks','real building and research jobs','additional probe construction','real scout launch','matching spy report','completion'],errors},null,2));
   console.log('Tutorial browser flow passed');

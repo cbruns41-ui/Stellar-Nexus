@@ -424,12 +424,12 @@ const TECHS = {
   colonization: {
     id: "colonization",
     name: "Kolonisation",
-    blurb: "Kolonialdock frei. +1 Planet je Stufe. Das Dock schaltet das Kolonialschiff frei.",
+    blurb: "Schaltet persönliche Planetplätze frei: Planet 2 ab Stufe 3, Planet 3 ab 7, danach 12, 18, 25, 33, 42 … Das Kolonialdock ist ab Stufe 1 verfügbar.",
     branch: "expansion",
     baseCost: bag({ metal: 180, energy: 140, helium: 60, crystal: 120, diamond: 8 }),
     baseTime: 140,
     factor: 1.95,
-    max: 24,
+    max: 700,
     requires: { buildings: { archive: 3 }, techs: { warp: 1 } },
   },
   nexus_protocol: {
@@ -490,7 +490,8 @@ const TECHS = {
   astrophysics: {
     id: "astrophysics",
     name: "Astrophysik",
-    blurb: "+1 Kolonie alle 2 Stufen. Kartiert den äußeren Ring.",
+    blurb: "Bestandsforschung: Zusätzliche Planetplätze werden jetzt ausschließlich durch Kolonisation freigeschaltet. Vorhandene Stufen bleiben gespeichert; neue Aufträge sind nicht mehr nötig.",
+    retired: true,
     branch: "expansion",
     baseCost: bag({ metal: 200, energy: 180, helium: 80, crystal: 160, diamond: 14 }),
     baseTime: 155,
@@ -1098,9 +1099,7 @@ function meetsReq(req, buildings, techs) {
   return true;
 }
 
-function maxPlanets(colonizationLevel, astroLevel) {
-  return Math.min(36, 1 + (colonizationLevel || 0) + Math.floor((astroLevel || 0) / 2));
-}
+const { maxPlanets } = require('./colonization');
 
 function colonyShipCost(ownedPersonal) {
   const extra = Math.max(0, (Number(ownedPersonal) || 1) - 1);
@@ -1114,6 +1113,7 @@ function collectUnlocks() {
     (map[key] ||= []).push(target);
   };
   const scan = (item, kind) => {
+    if (item.retired) return;
     for (const [id, lvl] of Object.entries(item.requires?.buildings || {})) {
       note("building", id, { kind, id: item.id, name: item.name, need: lvl });
     }
