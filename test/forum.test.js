@@ -1,0 +1,26 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+const {openDb}=require('../src/db'),{ensurePlayer}=require('../src/seed'),forum=require('../src/forum');
+test('forum persists threads and replies, validates posts and enforces moderation, locks and mutes',t=>{
+  let now=Date.now();t.mock.method(Date,'now',()=>now);
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-forum-')),file=path.join(dir,'test.db');let db=openDb(file);
+  t.after(()=>{db.close();fs.rmSync(dir,{recursive:true,force:true});});
+  ensurePlayer(db,'ForumPlayer','local-password','Forum Player','#00ffff');
+  const user=db.prepare('SELECT * FROM users LIMIT 1').get(),admin={...user,is_admin:1};
+  assert.throws(()=>forum.create(db,user,{category:'wrong',title:'Title',body:'Text'}),/Kategorie/);
+  assert.throws(()=>forum.create(db,user,{category:'bugs',title:'x',body:'Text'}),/Zeichen/);
+  const id=forum.create(db,user,{category:'improvements',title:'Meine Idee',body:'Mehr Planeten'});
+  assert.throws(()=>forum.reply(db,user,id,{body:'Text'}),/10 Sekunden/);
+  now+=10001;forum.reply(db,user,id,{body:'Erste Antwort'});
+  assert.throws(()=>forum.moderate(db,user,id,{action:'delete'}),/Moderatorenrechte/);
+  forum.moderate(db,admin,id,{action:'lock',locked:true});now+=10001;
+  assert.throws(()=>forum.reply(db,user,id,{body:'Zweite Antwort'}),/geschlossen/);
+  forum.moderate(db,admin,id,{action:'lock',locked:false});
+  db.prepare('UPDATE users SET muted_until=-1 WHERE id=?').run(user.id);
+  assert.throws(()=>forum.reply(db,user,id,{body:'Zweite Antwort'}),/gesperrt/);
+  db.close();db=openDb(file);
+  assert.equal(forum.topic(db,id).title,'Meine Idee');
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM forum_replies WHERE topic_id=?').get(id).n,1);
+  forum.moderate(db,admin,id,{action:'delete'});
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM forum_replies').get().n,0);
+});

@@ -83,6 +83,8 @@ function attachRoutes(app, db) {
     next();
   };
 
+  require('./forum').attach(app, db, auth);
+
   const staff = (req, res, next) => {
     if (!moderation.canMod(req.user)) return fail(res, 403, "Keine Moderatorenrechte.");
     next();

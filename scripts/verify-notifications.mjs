@@ -37,7 +37,8 @@ export async function verifyNotifications({db,snap,send,evaluate,until,click,sho
   await click(`[data-mail-peer="${peer}"]`);
   await until(`document.querySelector('[data-badge="news-mail"]').hidden && !document.querySelector('.mail-unread')`);
   assert.equal(await evaluate(`document.querySelector('[data-badge="reports"]').textContent`),'1');
-  await evaluate(`document.querySelector('#nav [data-view="chat"]').click()`);
+  await evaluate(`document.querySelector('#nav [data-view="community"]').click()`);
+  await click('[data-view-jump="chat"]');
   await until(`document.querySelector('[data-chat-unread="trade"]')?.textContent==='1'`);
   assert.equal(await evaluate(`document.querySelector('[data-badge="chat"]').textContent`),'1');
   await click('[data-chat-ch="trade"]');await until(`document.querySelector('[data-badge="chat"]').hidden`);

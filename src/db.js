@@ -10,6 +10,18 @@ const SCHEMA = `
 PRAGMA foreign_keys = ON;
 PRAGMA busy_timeout = 3000;
 
+CREATE TABLE IF NOT EXISTS forum_topics (
+ id INTEGER PRIMARY KEY, author_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+ category TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL,
+ created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, locked INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS forum_replies (
+ id INTEGER PRIMARY KEY, topic_id INTEGER NOT NULL REFERENCES forum_topics(id) ON DELETE CASCADE,
+ author_id INTEGER REFERENCES users(id) ON DELETE SET NULL, body TEXT NOT NULL, created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS forum_reply_topic ON forum_replies(topic_id,id);
+CREATE INDEX IF NOT EXISTS forum_topic_activity ON forum_topics(updated_at);
+
 CREATE TABLE IF NOT EXISTS registration_challenges (
  id TEXT PRIMARY KEY, ip_hash TEXT NOT NULL, answer_hash TEXT NOT NULL, expires_at INTEGER NOT NULL
 );

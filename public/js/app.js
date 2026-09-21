@@ -6,6 +6,7 @@ import { battleReplayHtml, bindBattleReplays } from "./battle.js?v=2";
 import { startAllianceBossEncounter } from "./alliance-boss-game.js?v=16";
 import { CITY_PLOTS } from "./city.mjs?v=11";
 import { createTutorial } from "./tutorial.mjs?v=1";
+import { bootForum } from "./forum.mjs?v=1";
 import { notificationBadges } from "./notifications.mjs?v=1";
 import { shipBudget } from "./ship-budget.mjs?v=1";
 import { colonyRows, colonyHudHtml, paintColonyMarkers, paintColonyFrame } from "./colony-hud.mjs?v=10";
@@ -686,6 +687,7 @@ document.addEventListener("pointerdown", markUserInteraction, { passive: true })
 document.addEventListener("keydown", markUserInteraction, { passive: true });
 
 function liveRerender() {
+  if (['community','forum'].includes(state.view)) return false;
   if (isViewEditing()) return false;
   if (Date.now() - state.lastInteractionAt < 750) return false;
   const skip = new Set(["galaxy", "chat", "reports", "sim", "alliance", "settings", "moderation", "command", "infra", "yard", "defense", "research", "activity"]);
@@ -963,11 +965,12 @@ function renderView({preserveForm=true}={}) {
   let panel=$('command-panel');
   if(hasCommandPanel()){
    if(!panel){panel=document.createElement('section');panel.id='command-panel';panel.className='command-panel';panel.setAttribute('role','region');shell.append(panel);}
-   const titles={infra:'Gebäude',yard:'Hangar / Werft',research:state.snap.planet?.isAlliance?'Allianz-Labor':'Imperiums-Labor',activity:'Einsatz',alliance:'Allianz',reports:'Funk',defense:'Verteidigung'};
+   const titles={infra:'Gebäude',yard:'Hangar / Werft',research:state.snap.planet?.isAlliance?'Allianz-Labor':'Imperiums-Labor',activity:'Einsatz',alliance:'Allianz',reports:'Funk',defense:'Verteidigung',community:'Community',chat:'Community · Chat',forum:'Community · Forum'};
    const scroll=panel.querySelector('#panel-view')?.scrollTop||0;
    panel.dataset.planetId=state.snap.planet.id;panel.dataset.panel=active;
    const tools=alliancePanelTools(active);
-   panel.innerHTML='<header class="command-panel-head"><div><h2>'+esc(titles[active]||$('nav')?.querySelector('[data-view="'+active+'"]')?.textContent||'Kommando')+'</h2><span>Bauen / Verwalten auf: '+esc(state.snap.planet.name)+'</span></div><button type="button" class="btn" data-panel-close '+(active==='yard'?'data-yard-close':'')+' aria-label="Panel schließen">✕</button></header>'+tools+'<div id="panel-view" class="panel-view '+(active==='yard'?'yard-sheet':'')+'">'+views[active]()+'</div>';
+   const subtitle=['community','chat','forum'].includes(active)?'Austausch mit anderen Commandern':'Bauen / Verwalten auf: '+state.snap.planet.name;
+   panel.innerHTML='<header class="command-panel-head"><div><h2>'+esc(titles[active]||$('nav')?.querySelector('[data-view="'+active+'"]')?.textContent||'Kommando')+'</h2><span>'+esc(subtitle)+'</span></div><button type="button" class="btn" data-panel-close '+(active==='yard'?'data-yard-close':'')+' aria-label="Panel schließen">✕</button></header>'+tools+'<div id="panel-view" class="panel-view '+(active==='yard'?'yard-sheet':'')+'">'+views[active]()+'</div>';
    panel.querySelector('[data-panel-close]').onclick=closeCommandPanel;
    if(tools)bindAllianceQuickActions(panel);
    const content=$('panel-view');bindView(content);bindMediaFallbacks(content);if(draft)restoreViewForm(draft);content.scrollTop=preserveForm?scroll:0;
@@ -2331,8 +2334,14 @@ const views = {
       </div>`;
   },
 
+  community() {
+    return `<h2>Community</h2><p class="hint">Tausche dich mit anderen Spielern aus und gestalte Stellar Nexus mit.</p><div class="stack"><button class="btn primary" data-view-jump="chat">Chat <i data-badge="chat" hidden></i></button><p class="hint">Global, Allianz, System und Handel.</p><button class="btn primary" data-view-jump="forum">Forum</button><p class="hint">Verbesserungen, Beschwerden, Fehler und allgemeine Diskussionen.</p></div>`;
+  },
+  forum() {
+    return `<button class="btn ghost" data-view-jump="community">Zur Community</button><div id="forum-root"><p>Lade Forum…</p></div>`;
+  },
   chat() {
-    return `<div id="chat-root"><p class="muted">Lade Funk…</p></div>`;
+    return `<button class="btn ghost" data-view-jump="community">Zur Community</button><div id="chat-root"><p class="muted">Lade Funk…</p></div>`;
   },
 
   empire() {
@@ -2903,6 +2912,8 @@ function bindView(root) {
   if (state.view === "settings") bindSettings(root);
   if (state.view === "moderation") bootModeration();
   if (state.view === "chat") bootChat();
+  if (state.view === "forum") bootForum($("forum-root"), {api,esc,toast});
+  if (state.view === "community") paintBadges();
   if (state.view === "reports") bindNews(root);
   if (state.view === "sim") bindSim(root);
   root.querySelectorAll("[data-duration-choice]").forEach((button) => {
