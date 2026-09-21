@@ -349,6 +349,7 @@ function getAlliance(db, id, viewerEmpireId) {
     leaderId: a.leader_id,
     members,
     apps,
+    applicationPending: !!db.prepare('SELECT 1 FROM alliance_apps WHERE alliance_id=? AND empire_id=?').get(a.id, viewerEmpireId),
     score: allianceScore(db, a.id),
     createdAt: a.created_at,
     lore: a.lore || "",

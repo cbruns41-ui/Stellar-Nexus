@@ -3826,7 +3826,7 @@ async function openAllianceProfile(id) {
       <div class="intel-block"><h4>Besatzung</h4>${people}</div>
       <div class="row" style="margin-top:14px">
         <button class="btn ghost" id="ally-close">Schließen</button>
-        ${alliance.mine ? `<button class="btn primary" id="ally-manage">Zur Allianz</button>` : ""}
+        <button class="btn primary" id="ally-manage">${alliance.mine ? 'Zur Allianz' : 'Allianz auswählen'}</button>
       </div>
     </div>`);
     document.getElementById("ally-close").onclick = hideModal;
@@ -3842,13 +3842,15 @@ async function openAllianceProfile(id) {
   }
 }
 
+let allianceLoad = 0;
 async function bootAlliance() {
   const host = $("alliance-root");
   if (!host) return;
+  const load = ++allianceLoad;
+  const requestedId = state.allianceFocus;
   try {
     const { alliances, mine } = await getAlliances();
-    const focusId = state.allianceFocus || mine?.id || alliances[0]?.id;
-    state.allianceFocus = null;
+    const focusId = alliances.find(a => a.id === requestedId)?.id || mine?.id || alliances[0]?.id;
     let detail = null;
     if (focusId) {
       try {
@@ -3857,9 +3859,11 @@ async function bootAlliance() {
         detail = null;
       }
     }
+    if (load !== allianceLoad || !host.isConnected) return;
+    state.allianceFocus = detail?.id || null;
     const list = alliances
       .map(
-        (a) => `<button type="button" class="ally-row ${detail && a.id === detail.id ? "on" : ""}" data-ally-profile="${a.id}">
+        (a) => `<button type="button" class="ally-row ${detail && a.id === detail.id ? "on" : ""}" data-ally-select="${a.id}" aria-pressed="${detail?.id === a.id}">
           <img class="ally-thumb" src="${esc(a.banner)}" alt="" />
           <span><b style="color:${a.color}">[${esc(a.tag)}]</b> ${esc(a.name)}<div class="muted">${a.members}/${a.maxMembers || 15} · ${fmt(a.score)} · ${a.openJoin ? "offen" : "Bewerbung"}</div></span>
         </button>`
@@ -3965,6 +3969,10 @@ async function bootAlliance() {
             </div>
           </details>`
         : "";
+      const joinBlocker = mine && !detail.mine ? 'Du bist bereits in einer Allianz. Verlasse sie zuerst, um einer anderen beizutreten.'
+        : state.snap.empire.level < (detail.minLevel || 1) ? `Mindestlevel ${detail.minLevel} erforderlich (dein Level: ${state.snap.empire.level}).`
+        : detail.members.length >= (detail.maxMembers || 15) ? 'Diese Allianz ist voll. Aktuell sind keine Plätze frei.'
+        : !detail.openJoin && detail.applicationPending ? 'Bewerbung gesendet. Die Allianzleitung muss sie noch annehmen.' : '';
       const joinBlock = detail.mine
         ? detail.perms?.edit
           ? ""
@@ -3972,13 +3980,13 @@ async function bootAlliance() {
         : `<div class="row" style="margin-top:12px;gap:8px;flex-wrap:wrap">
             ${detail.recruit ? `<p class="hint" style="flex:1 1 100%">${esc(detail.recruit)}</p>` : ""}
             ${
-              detail.openJoin
-                ? `<button class="btn primary" id="ally-apply">Beitreten (offen, Level ${detail.minLevel || 1})</button>`
+              joinBlocker ? `<p class="hint" role="status">${esc(joinBlocker)}</p>` : detail.openJoin
+                ? `<button class="btn primary" id="ally-apply">[${esc(detail.tag)}] beitreten</button>`
                 : `<input id="ally-msg" maxlength="120" placeholder="Bewerbungstext">
-                   <button class="btn primary" id="ally-apply">Bewerben (ab Level ${detail.minLevel || 1})</button>`
+                   <button class="btn primary" id="ally-apply">Bei [${esc(detail.tag)}] bewerben</button>`
             }
           </div>`;
-      body = `<div class="panel" style="padding:14px">
+      body = `<div class="panel" id="ally-detail" data-alliance-id="${detail.id}" style="padding:14px">
         <div class="section-title"><h2 style="color:${detail.color}">[${esc(detail.tag)}] ${esc(detail.name)}</h2>
            <span class="muted">${fmt(detail.score)} Punkte · ${detail.members.length}/${detail.maxMembers || 15} Mitglieder</span></div>
         ${detail.motd && detail.mine ? `<p class="ally-motd">${esc(detail.motd)}</p>` : ""}
@@ -3986,12 +3994,12 @@ async function bootAlliance() {
         ${detail.website ? `<p class="muted">${esc(detail.website)}</p>` : ""}
         ${detail.lore ? `<p class="hint">${esc(detail.lore)}</p>` : ""}
         ${detail.mine && detail.bulletin ? `<div class="intel-block"><h4>Internes Bulletin</h4><p>${esc(detail.bulletin)}</p></div>` : ""}
+        ${joinBlock}
         ${detail.mine ? allianceBossHtml(detail.boss) + allianceDeskHtml(detail) : ""}
         <table class="table"><thead><tr><th></th><th>Commander</th><th>Imperium</th><th>Rang</th><th>Medaillen</th><th>Punkte</th><th></th></tr></thead>
         <tbody>${members}</tbody></table>
         ${detail.perms?.apps && apps ? `<h3 style="font-size:13px">Bewerbungen</h3>${apps}` : ""}
         ${settings}
-        ${joinBlock}
       </div>`;
     }
     const create = mine
@@ -4043,8 +4051,16 @@ async function bootAlliance() {
           })
         );
     });
-    host.querySelectorAll("[data-ally-profile]").forEach((b) =>
-      b.addEventListener("click", () => openAllianceProfile(Number(b.dataset.allyProfile)))
+    host.querySelectorAll("[data-ally-select]").forEach((b) =>
+      b.addEventListener("click", async () => {
+        state.allianceFocus = Number(b.dataset.allySelect);
+        const selectedId = state.allianceFocus;
+        host.querySelector('#ally-apply')?.setAttribute('disabled', '');
+        await bootAlliance();
+        if (state.allianceFocus !== selectedId || !host.isConnected) return;
+        host.querySelector(`[data-ally-select="${selectedId}"]`)?.focus({preventScroll:true});
+        host.querySelector(`[data-ally-select="${selectedId}"]`)?.scrollIntoView({block:'nearest',inline:'nearest'});
+      })
     );
     host.querySelectorAll("[data-set-rank]").forEach((sel) => {
       sel.onchange = () =>
@@ -4096,17 +4112,20 @@ async function bootAlliance() {
     }
     const applyBtn = host.querySelector("#ally-apply");
     if (applyBtn)
-      applyBtn.onclick = () =>
-        act(() =>
+      applyBtn.onclick = () => {
+        if (applyBtn.disabled) return;
+        applyBtn.disabled = true;
+        return act(() =>
           api("/alliances/apply", {
             method: "POST",
             body: { id: detail.id, message: host.querySelector("#ally-msg")?.value || "" },
           }).then(async (snap) => {
             state.snap = snap;
-            await bootAlliance();
+            toast(detail.openJoin ? `Du bist [${detail.tag}] beigetreten.` : `Bewerbung an [${detail.tag}] gesendet.`);
             return snap;
           })
         );
+      };
     host.querySelectorAll("[data-decide]").forEach((b) =>
       b.addEventListener("click", () =>
         act(() =>
@@ -4213,11 +4232,12 @@ async function bootAlliance() {
           api("/alliances", {
             method: "POST",
             body: { tag: fd.get("tag"), name: fd.get("name"), blurb: fd.get("blurb"), color: state.snap.empire.color },
-          })
+          }).then(snap => { state.allianceFocus = snap.alliance?.id || null; return snap; })
         );
       };
     }
   } catch (err) {
+    if (load !== allianceLoad || !host.isConnected) return;
     host.innerHTML = `<p class="danger">${esc(err.message)}</p>`;
   }
 }
