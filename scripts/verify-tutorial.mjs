@@ -110,6 +110,16 @@ try {
     try { await verifyRepairs({db,snap,send,evaluate,until,click,shot,snapshot}); }
     catch (error) { await shot('repair-failure'); throw error; }
   }
+  if (process.argv.includes('--colonization')) {
+    const { verifyColonization } = await import('./verify-colonization.mjs');
+    try { await verifyColonization({db,snap,send,evaluate,until,click,shot}); }
+    catch (error) { await shot('colonization-failure'); throw error; }
+  }
+  if (process.argv.includes('--protection')) {
+    const { verifyProtection } = await import('./verify-protection.mjs');
+    try { await verifyProtection({db,snap,send,evaluate,until,click,shot}); }
+    catch (error) { await shot('protection-failure'); throw error; }
+  }
   assert.deepEqual(errors,[],'No browser exceptions');
   await writeFile(new URL('verification.json',folder),JSON.stringify({passed:true,checks:['opt-in and skip','pause and resume','mobile spotlight geometry','blocked unrelated clicks','real building and research jobs','additional probe construction','real scout launch','matching spy report','completion'],errors},null,2));
   console.log('Tutorial browser flow passed');

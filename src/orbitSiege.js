@@ -162,6 +162,7 @@ function buildTaskPool(ctx) {
   });
   for (const id of Object.keys(TECHS)) {
     const spec = TECHS[id];
+    if (spec.retired) continue;
     const cur = ctx.techs[id] || 0;
     if (cur <= 0 || cur >= (spec.max || 20)) continue;
     if ((ctx.buildings.archive || 0) < 1) continue;

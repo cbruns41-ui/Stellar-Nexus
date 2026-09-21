@@ -6,6 +6,7 @@ function fixture(t) {
  t.after(()=>{db.close();fs.rmSync(dir,{recursive:true,force:true});});
  ensurePlayer(db,"Pilot","secret123","Pilot Empire","#00ffff");
  const empire=db.prepare("SELECT * FROM empires LIMIT 1").get(),home=db.prepare("SELECT * FROM planets WHERE empire_id=?").get(empire.id);
+ db.prepare('UPDATE empires SET created_at=? WHERE id=?').run(Date.now()-6*86400000,empire.id);
  db.prepare("UPDATE planets SET helium=8000,metal=8000,energy=8000,titan=4000 WHERE id=?").run(home.id);
  for(const [id,level] of [["shipyard",3],["colony_dock",1],["command",4]]) db.prepare("INSERT INTO buildings(planet_id,building_id,level) VALUES(?,?,?) ON CONFLICT(planet_id,building_id) DO UPDATE SET level=excluded.level").run(home.id,id,level);
  db.prepare("INSERT INTO research(empire_id,tech_id,level) VALUES(?,'colonization',3)").run(empire.id);
@@ -243,7 +244,7 @@ test("orbit-fire start alias returns a session instead of 404",async t=>{
 
 test('colony slots include outbound missions; rejected launch keeps ships and fuel',t=>{
  const {db,empire,home,target}=fixture(t);
- db.prepare("UPDATE research SET level=1 WHERE empire_id=? AND tech_id='colonization'").run(empire.id);
+ db.prepare("UPDATE research SET level=3 WHERE empire_id=? AND tech_id='colonization'").run(empire.id);
  game.addShips(db,home.id,{colony:2});
  withTx(db,()=>game.sendFleet(db,empire,home,target,'colonize',{colony:1},{}));
  const other=db.prepare('SELECT * FROM planets WHERE empire_id IS NULL AND id!=? LIMIT 1').get(target.id);

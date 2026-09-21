@@ -81,6 +81,7 @@ test('PVE: horsts progress on victory, stay bounded for 730 days and preserve be
 test('PVE: every active empire gets its own raid; old 0s raids expire without losses or backlog',t=>{
   const f=fixture(t),db=f.db;
   for(let i=0;i<3;i++)ensurePlayer(db,`RaidPilot${i}`,'secret123',`Raid Empire${i}`,'#ffffff');
+  db.prepare('UPDATE empires SET created_at=?').run(f.at()-6*24*HOUR);
   db.prepare('UPDATE empires SET last_seen=?').run(f.at());db.prepare('UPDATE planets SET founded_at=? WHERE empire_id IS NOT NULL').run(f.at()-4*HOUR);
   db.prepare("INSERT INTO raids(target_planet_id,ships,arrives_at,kind) VALUES(?,'{\"fighter\":8000}',?,'pirates')").run(f.home.id,f.at()-48*HOUR);
   const before=game.shipsMap(db,f.home.id);f.meta('last_galaxy',0);game.tickWorld(db);
@@ -122,7 +123,9 @@ test('PVE: migration recovers previously cleared systems and preserves its prote
 });
 
 test('PVE: travelling attacks freeze regeneration; raid rewards use the level saved on spawn',t=>{
+  // Raid reward checks use a commander whose initial shield has already expired.
   const f=fixture(t),db=f.db;npc.tick(db);game.addShips(db,f.home.id,{fighter:30});
+  db.prepare('UPDATE empires SET created_at=? WHERE id=?').run(f.at()-6*24*HOUR,f.empire.id);
   const remaining={fighter:1};npc.recordBattle(db,f.system(),remaining,false);setRemnantFleet(db,f.system().id,remaining);
   withTx(db,()=>game.sendFleet(db,f.empire,f.home,f.target,'attack',{fighter:1},{}));
   f.advance(25*HOUR);npc.tick(db);assert.deepEqual(remnantFleet(db,f.system().id),remaining);

@@ -12,6 +12,7 @@ export async function verifyGameFlows({base,headers,databasePath,send,evaluate,u
     db.prepare("UPDATE planets SET helium=50000,metal=50000,energy=50000,titan=10000 WHERE id=?").run(home.id);
     for(const [id,level] of [["command",4],["shipyard",3],["colony_dock",1]]) db.prepare("INSERT INTO buildings VALUES(?,?,?) ON CONFLICT(planet_id,building_id) DO UPDATE SET level=excluded.level").run(home.id,id,level);
     db.prepare("INSERT INTO research VALUES(?,'colonization',3) ON CONFLICT(empire_id,tech_id) DO UPDATE SET level=3").run(home.empire_id);
+    db.prepare('UPDATE empires SET created_at=? WHERE id=?').run(Date.now()-6*86400000,home.empire_id);
     db.prepare("INSERT INTO ships VALUES(?,'colony',1) ON CONFLICT(planet_id,ship_id) DO UPDATE SET count=1").run(home.id);
     db.prepare("INSERT INTO ships VALUES(?,'fighter',8) ON CONFLICT(planet_id,ship_id) DO UPDATE SET count=8").run(home.id);
   } finally { db.close(); }

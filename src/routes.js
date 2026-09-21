@@ -1212,10 +1212,10 @@ function attachRoutes(app, db) {
         return {
           id: t.id,
           level,
-          unlocked: meetsReq(t.requires, buildings, techs),
-          max: level >= t.max,
-          nextCost: level >= t.max ? null : scaledCost(t.baseCost, t.factor, level),
-          nextTime: level >= t.max ? null : scaledTime(t.baseTime, t.factor, level, rSpeed),
+          unlocked: !t.retired && meetsReq(t.requires, buildings, techs),
+          max: !!t.retired || level >= t.max,
+          nextCost: t.retired || level >= t.max ? null : scaledCost(t.baseCost, t.factor, level),
+          nextTime: t.retired || level >= t.max ? null : scaledTime(t.baseTime, t.factor, level, rSpeed),
         };
       }),
     });

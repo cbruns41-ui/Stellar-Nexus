@@ -107,3 +107,12 @@ body:has(#modal:not(.hidden):not([hidden])) #alert-strip,body:has(#modal:not(.hi
  body[data-mode="play"] .resources.expanded{top:calc(98px + var(--safe-top))!important}
  body[data-mode="play"] .top-actions{display:none!important}
 }
+
+.brand .beginner-protection { display:block; font:600 11px/18px system-ui,sans-serif; color:#8ce6b4; white-space:nowrap; }
+.brand .beginner-protection[data-active="false"] { color:#a9b8c8; }
+@media(max-width:760px) {
+ body[data-mode="play"] .shell { --top:calc(118px + var(--safe-top)); }
+ body[data-mode="play"] .shell:not(.show-resources) { --top:calc(74px + var(--safe-top)); }
+ body[data-mode="play"] .topbar { grid-template-rows:64px auto!important; }
+ body[data-mode="play"] .resources.expanded { top:calc(118px + var(--safe-top))!important; }
+}

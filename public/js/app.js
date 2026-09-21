@@ -711,7 +711,6 @@ function syncUnreadCounts(counts, empireId = state.snap?.empire?.id) {
   state.snap.unread = Object.values(counts).reduce((sum,n) => sum + Number(n || 0), 0);
   state.snap.hints = { ...state.snap.hints, reports: state.snap.unread };
   paintBadges();
-  updateColonySlotHints();
 }
 
 function allianceActivityRows() {
@@ -798,6 +797,7 @@ function paintAllianceActivityFromSnap() {
 function paintChrome() {
   const s = state.snap;
   if (!s?.empire) return;
+  paintBeginnerProtection();
   $("empire-name").textContent = s.user.isAdmin
     ? `${s.empire.name} · ADMIN`
     : s.user.isMod
@@ -822,6 +822,7 @@ function paintChrome() {
     if(!state.focusPending)sel.value=cur;
   }
   paintBadges();
+  updateColonySlotHints();
   paintAllianceActivityFromSnap();
   renderResources();
   renderDock();
@@ -1180,6 +1181,26 @@ function specFor(kind, id) {
   return state.catalog[bag]?.[id];
 }
 
+function paintBeginnerProtection() {
+  const empire = state.snap?.empire;
+  if (!empire) return;
+  let badge = document.getElementById('beginner-protection');
+  if (!badge) {
+    badge = document.createElement('span'); badge.id = 'beginner-protection'; badge.className = 'beginner-protection';
+    document.getElementById('planet-select')?.after(badge);
+  }
+  const left = Math.max(0, Number(empire.newbieUntil || 0) - Date.now());
+  const minutes = Math.ceil(left / 60000), days = Math.floor(minutes / 1440), hours = Math.floor(minutes % 1440 / 60);
+  const remaining = `${days ? days + ' T ' : ''}${hours ? hours + ' Std ' : ''}${minutes % 60} Min`;
+  const expiry = new Date(empire.newbieUntil || 0).toLocaleString('de-DE');
+  badge.textContent = left ? `Anfängerschutz · ${remaining}` : 'Anfängerschutz beendet';
+  badge.dataset.active = String(left > 0);
+  badge.title = left ? `Aktiv bis ${expiry}. Schutz vor Spielerangriffen und Piraten-Raids. Eigene Angriffe auf Piraten bleiben möglich und können Verluste verursachen. Spionage bleibt möglich.` : `Anfängerschutz endete am ${expiry}. Für Spielerangriffe gelten weiterhin die Fair-Play-Regeln.`;
+  badge.setAttribute('aria-label', badge.textContent + '. ' + badge.title);
+  const detail = document.getElementById('beginner-protection-detail');
+  if (detail) detail.textContent = `${badge.textContent}. ${badge.title}`;
+}
+
 function reqHtml(req) {
   if (!req || (!req.buildings && !req.techs)) return "";
   const bHave = state.snap.planet?.buildings || {};
@@ -1208,7 +1229,14 @@ function colonySlotsHtml() {
 }
 
 function updateColonySlotHints() {
-  for (const box of document.querySelectorAll('[data-colony-slots]')) box.outerHTML = colonySlotsHtml();
+  const signature = JSON.stringify(state.snap?.empire?.colonySlots);
+  for (const box of document.querySelectorAll('[data-colony-slots]')) {
+    if (box.dataset.signature === signature) continue;
+    const wasOpen = !!box.querySelector('details')?.open;
+    const next = document.createElement('div'); next.innerHTML = colonySlotsHtml();
+    const updated = next.firstElementChild;
+    if (updated) { updated.dataset.signature = signature; updated.querySelector('details').open = wasOpen; box.replaceWith(updated); }
+  }
   const box = document.getElementById('colony-slot-status'), go = document.getElementById('m-go');
   if (!box || !go) return;
   const slots = state.snap?.empire?.colonySlots;
@@ -1786,6 +1814,7 @@ const views = {
       .join("");
     return `<div class="section-title"><h2>Schiffswerft</h2><span class="muted">${p.isAlliance ? "Allianz-Planet · " : ""}${esc(p.name)} · <button type="button" class="btn ghost small" data-view-jump="command">Kolonie</button></span></div>
       ${hangarSummaryHtml(p)}
+      ${colonySlotsHtml()}
       ${queuedShips.length ? `<p class="queue-slot-note"><b>${queuedShips.length} Werftauftrag${queuedShips.length === 1 ? "" : "e"}</b> aktiv · weitere Aufträge können angehängt werden. ${queuedShips.map(q=>`${esc(q.name)}: <span data-live-eta="${q.completesAt}">${eta(q.completesAt-Date.now())}</span>`).join(" · ")}</p>` : ""}
       <p class="hint">Jetzt baubar berücksichtigt Ressourcen, Freischaltung, Hangarplätze und bereits bestellte Schiffe. Maximal 50 Schiffe je Auftrag. Die Mengen gelten jeweils für diesen Schiffstyp; alle Schiffe teilen sich dieselben Ressourcen.</p>
       <p class="hint">Tempo = Reisegeschwindigkeit. Eine gemischte Flotte fliegt so schnell wie das langsamste Schiff. Weite Systeme brauchen länger.</p>
@@ -1898,7 +1927,7 @@ const views = {
         </article>`;
       })
       .join("");
-    return `<div class="section-title"><h2>Imperiums-Labor</h2><span class="muted">Hauptplanet · Stufen gelten auf allen Kolonien · <button type="button" class="btn ghost small" data-view-jump="command">Kolonie</button></span></div><p class="hint">Forschung hier auf ${esc(state.snap.planet.name)} gilt für jede Kolonie. Weitere Planeten haben kein eigenes Labor.</p><div class="og-list">${rows}</div>`;
+    return `<div class="section-title"><h2>Imperiums-Labor</h2><span class="muted">Hauptplanet · Stufen gelten auf allen Kolonien · <button type="button" class="btn ghost small" data-view-jump="command">Kolonie</button></span></div><p class="hint">Forschung hier auf ${esc(state.snap.planet.name)} gilt für jede Kolonie. Weitere Planeten haben kein eigenes Labor.</p>${colonySlotsHtml()}<div class="og-list">${rows}</div>`;
   },
 
   tree() {
@@ -2328,7 +2357,8 @@ const views = {
           ? `<div class="medal-rack">${earned.map((m) => medalPin(m, true)).join("")}</div>`
           : `<p class="hint">Noch keine Medaille. Aufträge und Schlachten unter <button class="btn ghost small" data-view-jump="progress">Fortschritt</button>.</p>`
       }
-      <div class="section-title" style="margin-top:18px"><h2>Welten</h2><span class="muted">${e.planetCount}/${e.planetCap}</span></div>
+      <div class="section-title" style="margin-top:18px"><h2>Welten</h2><span class="muted">${e.planetCount}/${e.planetCap}</span></div>${colonySlotsHtml()}
+      <section class="panel" style="padding:14px;margin-bottom:12px"><h3>Anfängerschutz</h3><p id="beginner-protection-detail"></p><a href="/help.html#anfaengerschutz" target="_blank" rel="noopener">Schutzregeln in der Hilfe</a></section>
       <div class="panel table-wrap"><table class="table">
         <thead><tr><th>Planet</th><th>Typ</th>${ids.map((k) => `<th>${esc(state.catalog.resources[k].short)}</th>`).join("")}<th></th></tr></thead>
         <tbody>${rows}</tbody></table></div>
@@ -5758,6 +5788,7 @@ async function enterGame() {
 const handledCompletions = new Set();
 setInterval(() => {
   if (!state.snap) return;
+  paintBeginnerProtection();
   syncCityLive();
   renderResources();
   renderDock();

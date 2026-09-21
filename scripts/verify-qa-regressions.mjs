@@ -12,10 +12,10 @@ export async function verifyQaRegressions({base,headers,databasePath,send,evalua
     db.prepare('UPDATE systems SET remnant=0,pirate=0 WHERE id=?').run(home.system_id);
     db.prepare('UPDATE planets SET helium=50000,metal=50000,titan=50000,energy=50000,crystal=50000 WHERE id=?').run(home.id);
     for(const [id,level] of [['shipyard',5],['colony_dock',1],['command',4],['archive',2]])db.prepare('INSERT INTO buildings VALUES(?,?,?) ON CONFLICT(planet_id,building_id) DO UPDATE SET level=excluded.level').run(home.id,id,level);
-    db.prepare("INSERT INTO research VALUES(?,'colonization',6) ON CONFLICT(empire_id,tech_id) DO UPDATE SET level=6").run(home.empire_id);
+    db.prepare("INSERT INTO research VALUES(?,'colonization',33) ON CONFLICT(empire_id,tech_id) DO UPDATE SET level=33").run(home.empire_id);
     for(const [id,n] of [['colony',2],['fighter',90]])db.prepare('INSERT INTO ships VALUES(?,?,?) ON CONFLICT(planet_id,ship_id) DO UPDATE SET count=excluded.count').run(home.id,id,n);
     db.exec('DELETE FROM raids;DELETE FROM raid_engagements');
-    db.prepare('UPDATE empires SET last_raid=? WHERE id=?').run(Date.now(),home.empire_id);
+    db.prepare('UPDATE empires SET last_raid=?,created_at=? WHERE id=?').run(Date.now(),Date.now()-6*86400000,home.empire_id);
     return {home,targets};
   });
   await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});

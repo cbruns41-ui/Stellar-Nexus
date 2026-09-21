@@ -68,6 +68,7 @@ export async function verifyRepairs({db,snap,send,evaluate,until,click,shot,snap
     await new Promise(r=>setTimeout(r,500));
   }
   // The PvE raid control on the map must open its defense dialog after view changes.
+  db.prepare('UPDATE empires SET created_at=? WHERE id=?').run(Date.now()-6*86400000,eid);
   db.prepare("INSERT INTO raids(target_planet_id,ships,arrives_at,kind,expires_at) VALUES(?,'{\"fighter\":1}',?,'pirates',?)").run(pid,Date.now()-1000,Date.now()+7200000);
   await nav('command');await nav('galaxy');await until(`document.querySelector('[data-alert-defend]')`,45000);await click('[data-alert-defend]');
   await until(`document.querySelector('.group-fleet-sheet')`);await key('Escape');

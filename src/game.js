@@ -388,6 +388,7 @@ function tickWorld(db) {
     for (const q of dueQ) completeQueue(db, q);
     activity.completeDue(db, credit, addShips, addReport);
     npcSites.tick(db);
+    clearProtectedRaids(db);
     resolveDueFleets(db, t);
     resolveRaids(db);
     db.prepare("DELETE FROM sessions WHERE expires_at < ?").run(t);
@@ -1907,7 +1908,7 @@ function resolveColonize(db, fleet, ships, target, sys, techs, empire) {
     }
   } else {
     const owned = personalPlanetCount(db, empire.id);
-    if (owned >= maxPlanets(techs.colonization, techs.astrophysics)) {
+    if (owned >= maxPlanets(techs.colonization)) {
       addReport(db, fleet.empire_id, "fleet", `Kolonisation abgebrochen`, {
         ...context, text: colonySlots(techs.colonization, owned).blocker + " Die Flotte kehrt mit dem Kolonieschiff zurück.",
       });
@@ -2291,7 +2292,7 @@ function assignHome(db, empireId, empireName) {
   addDefenses(db, planet.id, { flak: 4, missile: 1 });
   db.prepare("UPDATE empires SET last_planet_id = ? WHERE id = ?").run(planet.id, empireId);
   addReport(db, empireId, "lore", "Willkommen im Stellar Nexus", {
-    text: "Dein Kommando-Nexus steht. Ein Spionagezentrum ist online — Sonden starten nur von dort. Baue Extraktoren aus, errichte Werft und Archiv, erforsche Warp und Kolonisation. Die erste Extra-Kolonie ist machbar, jede weitere wird deutlich teurer.",
+    text: "Dein Kommando-Nexus steht. Ein Spionagezentrum ist online — Sonden starten nur von dort. Baue Extraktoren aus, errichte Werft und Archiv, erforsche Warp und Kolonisation. Die erste Extra-Kolonie wird mit Kolonisation Stufe 3 frei, die zweite mit Stufe 7. Weitere Planetplätze brauchen zunehmend höhere Forschungsstufen.",
   });
   return planet.id;
 }
@@ -2633,7 +2634,7 @@ function snapshot(db, user, planetId) {
       name: empire.name,
       color: empire.color,
       planetCount: owned,
-      planetCap: maxPlanets(techs.colonization, techs.astrophysics),
+      planetCap: maxPlanets(techs.colonization),
       colonySlots: colonySlots(techs.colonization, owned, db.prepare("SELECT COUNT(*) AS n FROM fleets WHERE empire_id=? AND mission='colonize' AND is_return=0").get(empire.id).n),
       createdAt: empire.created_at,
       xp: empireFresh.xp || 0,
@@ -2649,6 +2650,7 @@ function snapshot(db, user, planetId) {
       translate: empireFresh.translate !== 0,
       newbie: isNewbie(empireFresh, db),
       newbieLeft: newbieLeft(empireFresh.created_at, db),
+      newbieUntil: fairplay.newbieUntil(empireFresh.created_at, db),
       species: empireFresh.species || "terran",
       nex: empireFresh.nex || 0,
       lastSpecies: empireFresh.last_species || 0,
@@ -2864,6 +2866,8 @@ function pirateShieldWindowMs() {
 
 function defendRaid(db, empire, raidId, deployments = []) {
   return withTx(db, () => {
+    const owner = db.prepare('SELECT * FROM empires WHERE id=?').get(empire.id);
+    if (isNewbie(owner, db)) throw new Error('Anfängerschutz aktiv: Piraten-Raids können dich nicht angreifen. Keine Verteidigungsfreigabe nötig.');
     const raid = db.prepare('SELECT r.* FROM raids r JOIN planets p ON p.id=r.target_planet_id WHERE r.id=? AND p.empire_id=?').get(raidId, empire.id);
     if (!raid) throw new Error('Raid nicht mehr aktiv. Den Kampfbericht findest du im Funk.');
     if (db.prepare('SELECT raid_id FROM raid_engagements WHERE raid_id=?').get(raid.id)) return { commonArrival: raid.arrives_at, launched: [], raidDefense: true };
@@ -2926,6 +2930,7 @@ function spawnRaid(db) {
       AND (IFNULL(founded_at,0)=0 OR founded_at<=?) ORDER BY RANDOM() LIMIT 1`).get(entry.id, at - pirateShieldWindowMs());
     if (!target) continue;
     const owner = db.prepare("SELECT * FROM empires WHERE id = ?").get(target.empire_id);
+    if (isNewbie(owner, db)) continue;
     const ships = pirates.raidFleetFor(db, owner, target);
     const raidLv = pirates.levelForFleet(ships);
     const kind = "pirates";
@@ -2949,6 +2954,25 @@ function spawnRaid(db) {
         { view: "defense", label: "Orbit verstärken", planetId: target.id },
         { view: "fleets", label: "Zur Flotte", planetId: target.id },
       ],
+    });
+  }
+}
+
+function clearProtectedRaids(db) {
+  const raids = db.prepare(`SELECT r.*,e.created_at,e.id AS empire_id,p.name AS planet_name FROM raids r
+    JOIN planets p ON p.id=r.target_planet_id JOIN empires e ON e.id=p.empire_id`).all();
+  for (const raid of raids) {
+    if (!isNewbie(raid, db)) continue;
+    for (const fleet of db.prepare('SELECT id FROM fleets WHERE raid_id=? AND is_return=0').all(raid.id)) {
+      recallFleet(db, {id:raid.empire_id}, fleet.id);
+      db.prepare('UPDATE fleets SET raid_id=NULL WHERE id=?').run(fleet.id);
+    }
+    db.prepare('DELETE FROM raid_engagements WHERE raid_id=?').run(raid.id);
+    db.prepare('DELETE FROM raids WHERE id=?').run(raid.id);
+    db.prepare("UPDATE reports SET seen=1 WHERE empire_id=? AND kind='alert' AND json_valid(body) AND json_extract(body,'$.planetId')=? AND json_extract(body,'$.expiresAt')=?").run(raid.empire_id,raid.target_planet_id,raid.expires_at);
+    addReport(db,raid.empire_id,'event',`Anfängerschutz: Raid auf ${raid.planet_name} aufgehoben`,{
+      text:'Dieser Piraten-Raid wurde wegen deines aktiven Anfängerschutzes aufgehoben. Es findet kein Kampf statt. Bereits entsandte Verstärkung kehrt zurück.',
+      planetId:raid.target_planet_id, newbieProtection:true,
     });
   }
 }

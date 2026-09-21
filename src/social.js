@@ -639,7 +639,7 @@ function listRanksFull(db) {
         alliance: al ? { id: al.id, tag: al.tag, name: al.name, color: al.color } : null,
         medals,
         title: medals[0]?.title || "Neuer Kommandant",
-        newbie: Date.now() < (e.created_at || 0) + (require("./settings").get(db).newbieDays || 5) * 24 * 60 * 60 * 1000,
+        newbie: require('./fairplay').isNewbie(e, db),
         vip: (Number(e.vip_until) || 0) > Date.now(),
         signet: !!e.signet,
       };

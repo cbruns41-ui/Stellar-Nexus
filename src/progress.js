@@ -306,7 +306,7 @@ const CONTRACTS = [
     chapter: "III · Hegemonie",
     title: "Sechs Banner",
     blurb: "Sechs Welten unter einer Flagge. Das ist ein Reich, kein Außenposten.",
-    hint: "Kolonisation und Astrophysik erhöhen das Limit.",
+    hint: "Kolonisation Stufe 25 schaltet den sechsten Planeten frei.",
     view: "galaxy",
     xp: 180,
     reward: bag({ metal: 1200, helium: 500, diamond: 28 }),
@@ -407,8 +407,8 @@ const CONTRACTS = [
     id: "colony10",
     chapter: "IV · Nexus",
     title: "Zehn Sonnen",
-    blurb: "Zehn Kolonien. Astrophysik und Kolonisation müssen mitwachsen.",
-    hint: "Forschung → Astrophysik, dann kolonisieren",
+    blurb: "Zehn Welten. Kolonisation muss mitwachsen.",
+    hint: "Kolonisation Stufe 63 schaltet den zehnten Planeten frei.",
     view: "galaxy",
     xp: 220,
     reward: bag({ metal: 1800, helium: 700, diamond: 36 }),
@@ -488,8 +488,8 @@ const CONTRACTS = [
   {
     id: "colony18",
     title: "Sternenkrone",
-    blurb: "Achtzehn Welten. Nur wer Astrophysik treibt, kommt so weit.",
-    hint: "Kolonisation 20 und Astrophysik für das Limit",
+    blurb: "Achtzehn Welten. Eine langfristige Kolonialmacht.",
+    hint: "Kolonisation Stufe 187 schaltet den achtzehnten Planeten frei.",
     view: "galaxy",
     xp: 260,
     reward: bag({ metal: 2800, helium: 900, diamond: 48 }),
@@ -550,8 +550,8 @@ const CONTRACTS = [
   {
     id: "colony28",
     title: "Imperium",
-    blurb: "Achtundzwanzig Welten. Das Limit liegt bei 36 — Astrophysik bis zum Schluss.",
-    hint: "Kolonisation und Astrophysik auf Maximalstufe",
+    blurb: "Achtundzwanzig Welten. Das Limit liegt bei 36 persönlichen Planeten.",
+    hint: "Kolonisation Stufe 432 schaltet den achtundzwanzigsten Planeten frei.",
     view: "galaxy",
     xp: 320,
     reward: bag({ metal: 5000, helium: 1400, diamond: 64 }),
@@ -1113,6 +1113,7 @@ function buildDailyPool(ctx) {
   const techIds = Object.keys(TECHS);
   for (const id of techIds) {
     const spec = TECHS[id];
+    if (spec.retired) continue;
     const cur = ctx.techs[id] || 0;
     if (cur <= 0 || cur >= (spec.max || 20)) continue;
     if ((ctx.buildings.archive || 0) < 1) continue;

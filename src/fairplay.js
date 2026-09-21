@@ -19,8 +19,9 @@ function newbieMs(db) {
 }
 
 function newbieLeft(createdAt, db) {
-  return Math.max(0, (createdAt || 0) + newbieMs(db) - Date.now());
+  return Math.max(0, newbieUntil(createdAt, db) - Date.now());
 }
+function newbieUntil(createdAt, db) { return (createdAt || 0) + newbieMs(db); }
 
 function isNewbie(empire, db) {
   return !!empire && newbieLeft(empire.created_at, db) > 0;
@@ -124,6 +125,7 @@ module.exports = {
   FAIR_MIN_ATTACKER,
   BASH_LIMIT,
   newbieLeft,
+  newbieUntil,
   isNewbie,
   inspect,
   assertCanAttack,
