@@ -10,7 +10,7 @@ import { bootForum } from "./forum.mjs?v=1";
 import { notificationBadges } from "./notifications.mjs?v=1";
 import { shipBudget } from "./ship-budget.mjs?v=1";
 import { colonyRows, colonyHudHtml, paintColonyMarkers, paintColonyFrame } from "./colony-hud.mjs?v=10";
-import { createColonyUnity, setUnityColonyVisible } from "./colony-unity.js?v=16";
+import { createColonyUnity, setUnityColonyVisible } from "./colony-unity.js?v=17";
 import { startOrbitSiege } from "./orbit-siege.mjs?v=19";
 
 
@@ -301,10 +301,10 @@ function overlayBlocksColony() {
   );
 }
 function syncColonyPointerEvents() {
-  const block = overlayBlocksColony();
+  // The colony scene is visual; HTML markers and controls own all pointer input.
   for (const id of ["colony-unity-layer", "colony-unity-canvas"]) {
     const el = $(id);
-    if (el) el.style.pointerEvents = block ? "none" : "";
+    if (el) el.style.pointerEvents = "none";
   }
 }
 
@@ -2334,14 +2334,11 @@ const views = {
       </div>`;
   },
 
-  community() {
-    return `<h2>Community</h2><p class="hint">Tausche dich mit anderen Spielern aus und gestalte Stellar Nexus mit.</p><div class="stack"><button class="btn primary" data-view-jump="chat">Chat <i data-badge="chat" hidden></i></button><p class="hint">Global, Allianz, System und Handel.</p><button class="btn primary" data-view-jump="forum">Forum</button><p class="hint">Verbesserungen, Beschwerden, Fehler und allgemeine Diskussionen.</p></div>`;
-  },
   forum() {
-    return `<button class="btn ghost" data-view-jump="community">Zur Community</button><div id="forum-root"><p>Lade Forum…</p></div>`;
+    return `<button class="btn ghost" data-view-jump="chat">Zum Chat</button><div id="forum-root"><p>Lade Forum…</p></div>`;
   },
   chat() {
-    return `<button class="btn ghost" data-view-jump="community">Zur Community</button><div id="chat-root"><p class="muted">Lade Funk…</p></div>`;
+    return `<button class="btn ghost" data-view-jump="forum">Zum Forum</button><div id="chat-root"><p class="muted">Lade Funk…</p></div>`;
   },
 
   empire() {
@@ -2913,7 +2910,6 @@ function bindView(root) {
   if (state.view === "moderation") bootModeration();
   if (state.view === "chat") bootChat();
   if (state.view === "forum") bootForum($("forum-root"), {api,esc,toast});
-  if (state.view === "community") paintBadges();
   if (state.view === "reports") bindNews(root);
   if (state.view === "sim") bindSim(root);
   root.querySelectorAll("[data-duration-choice]").forEach((button) => {
@@ -5072,16 +5068,18 @@ function openGroupMission(targetId, sys, mission = "attack", dialogOpts = {}) {
   if (!origins.length && !dialogOpts.raidId) return toast("Keine einsatzbereiten Schiffe auf deinen Planeten.", true);
   const cards = origins.map((planet) => {
     const ships = Object.entries(planet.ships || {}).filter(([, n]) => n > 0);
+    const local = !!dialogOpts.raidId && planet.id === targetId;
     return `<section class="group-origin" data-group-origin="${planet.id}">
       <div class="group-origin-head">
         <img src="/assets/planets/${planet.type || "terran"}.jpg" alt="" />
         <span><b>${esc(planet.name)}</b><small>${esc(planet.systemName || "")}</small></span>
-        <button type="button" class="btn ghost small" data-group-max="${planet.id}">Max</button>
+        <button type="button" class="btn ghost small" data-group-max="${planet.id}" ${local?'disabled':''}>${local?'Alle verteidigen':'Max'}</button>
       </div>
       <div class="group-ship-grid">${ships.map(([id, n]) => `<label>
         <span>${esc(state.catalog.ships[id]?.name || id)} <small>/${n}</small></span>
-        <input type="number" min="0" max="${n}" value="0" data-group-ship="${id}" inputmode="numeric" />
+        <input type="number" min="0" max="${n}" value="${local?n:0}" ${local?'disabled':''} data-group-ship="${id}" inputmode="numeric" />
       </label>`).join("")}</div>
+      ${dialogOpts.raidId?`<p class="hint" data-group-fuel>${local?'Lokale Raid-Verteidigung · 0 He3 · 0 Distanz. Alle stationierten Schiffe und Anlagen verteidigen.':'Verstärkung fliegt vom Startplaneten; normale He3-Kosten gelten.'}</p>`:''}
     </section>`;
   }).join("");
   const hostile = mission === "attack";
@@ -5101,7 +5099,7 @@ function openGroupMission(targetId, sys, mission = "attack", dialogOpts = {}) {
     </div>
   </div>`);
   const modal = document.getElementById("modal");
-  let submitting=false;
+  let submitting=false, preparing=0;
   const readDeployments = () => [...modal.querySelectorAll("[data-group-origin]")].map((card) => ({
     planetId: Number(card.dataset.groupOrigin),
     ships: Object.fromEntries([...card.querySelectorAll("[data-group-ship]")]
@@ -5112,17 +5110,37 @@ function openGroupMission(targetId, sys, mission = "attack", dialogOpts = {}) {
     const deployments = readDeployments();
     const count = deployments.reduce((sum, entry) => sum + Object.values(entry.ships).reduce((n, value) => n + value, 0), 0);
     document.getElementById("group-summary").textContent = `${deployments.length} Planet${deployments.length === 1 ? "" : "en"} · ${count} Schiffe · gemeinsamer Ankunfts-Tick`;
-    document.getElementById("group-launch").disabled = submitting || count <= 0 && !dialogOpts.raidId;
+    document.getElementById("group-launch").disabled = submitting || preparing>0 || count <= 0 && !dialogOpts.raidId;
   };
-  modal.querySelectorAll("[data-group-max]").forEach((button) => button.addEventListener("click", () => {
+  modal.querySelectorAll("[data-group-max]").forEach((button) => button.addEventListener("click", async () => {
     const card = modal.querySelector(`[data-group-origin="${button.dataset.groupMax}"]`);
-    card?.querySelectorAll("[data-group-ship]").forEach((input) => { input.value = input.max; });
-    paint();
+    const inputs=[...card.querySelectorAll('[data-group-ship]')];
+    if(!dialogOpts.raidId){inputs.forEach(input=>{input.value=input.max;});paint();return;}
+    preparing++;button.disabled=true;paint();
+    const previous=inputs.map(input=>input.value);
+    inputs.forEach(input=>{input.disabled=true;});
+    try {
+      const full=Object.fromEntries(inputs.map(input=>[input.dataset.groupShip,Number(input.max)]));
+      const preview=ships=>api('/travel',{method:'POST',body:{planetId:Number(button.dataset.groupMax),targetId,mission:'defend_raid',raidId:dialogOpts.raidId,ships}});
+      let ships=full,t=await preview(ships);
+      while(t.fuelNeeded>t.fuelAvailable && Object.values(ships).some(n=>n>0)){
+        const ratio=Math.min(.999,t.fuelAvailable/t.fuelNeeded);
+        ships=Object.fromEntries(Object.entries(ships).map(([id,n])=>[id,Math.floor(n*ratio)]));
+        if(!Object.values(ships).some(n=>n>0)){t={fuelNeeded:0};break;}
+        t=await preview(ships);
+      }
+      if(!card.isConnected)return;
+      inputs.forEach(input=>{input.value=ships[input.dataset.groupShip]||0;});
+      const count=Object.values(ships).reduce((a,n)=>a+n,0),total=Object.values(full).reduce((a,n)=>a+n,0);
+      card.querySelector('[data-group-fuel]').textContent=`${count} Schiffe · ${fmt(t.fuelNeeded||0)} He3${count<total?' · wegen He3-Mangel gekappt. Auswahl prüfen und Start bestätigen.':''}`;
+      if(count<total)toast(`He3 reicht für diese Auswahl: ${count} von ${total} Schiffen. Noch nicht gestartet.`,true);
+    } catch(err){inputs.forEach((input,i)=>{input.value=previous[i];});toast(err.message,true);}
+    finally {preparing--;button.disabled=false;inputs.forEach(input=>{input.disabled=false;});if(card.isConnected)paint();}
   }));
   modal.querySelectorAll("[data-group-ship]").forEach((input) => input.addEventListener("input", paint));
   document.getElementById("m-cancel").onclick = hideModal;
   document.getElementById("group-launch").onclick = async () => {
-    if(submitting)return;
+    if(submitting||preparing)return;
     submitting=true;
     const epoch=focusEpoch;
     const button = document.getElementById("group-launch");
@@ -5151,6 +5169,9 @@ function openGroupMission(targetId, sys, mission = "attack", dialogOpts = {}) {
 }
 
 async function openMission(targetId, sys, initialMission = "", dialogOpts = {}) {
+  if(initialMission==='intercept' && (state.snap.incoming||[]).some(r=>r.kind==='raid'&&r.planetId===targetId)) {
+    return openGroupMission(targetId,sys,'intercept',dialogOpts);
+  }
   const planet = sys.planets.find((p) => p.id === targetId);
   if (!planet) {
     toast("Zielplanet nicht gefunden.", true);
@@ -5428,6 +5449,10 @@ async function openMission(targetId, sys, initialMission = "", dialogOpts = {}) 
     box.querySelector("#acs-hold-ticks")?.addEventListener("change", paintTravel);
   };
   missionSel.onchange = () => {
+    if(missionSel.value==='intercept' && (state.snap.incoming||[]).some(r=>r.kind==='raid'&&r.planetId===targetId)) {
+      clearTimeout(travelTimer);clearTimeout(previewTimer);
+      return openGroupMission(targetId,sys,'intercept',dialogOpts);
+    }
     if (missionSel.value !== "spy") {
       const picked = pickedShips();
       const hasRealShip = Object.keys(picked).some((id) => id !== "probe");

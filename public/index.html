@@ -22,7 +22,7 @@
     <link rel="stylesheet" href="/css/style.css?v=129" />
     <link rel="stylesheet" href="/css/tutorial.css?v=1" />
     <link rel="stylesheet" href="/css/playtest-navigation.css?v=18" />
-    <link rel="stylesheet" href="/css/colony.css?v=10" />
+    <link rel="stylesheet" href="/css/colony.css?v=11" />
     <link rel="stylesheet" href="/css/orbit-siege.css?v=16" />
   </head>
   <body class="land">
@@ -316,7 +316,6 @@
           <span class="nav-group">Kommando</span>
           <button data-view="alliance">Allianz <i data-badge="alliance" hidden></i></button>
           <button data-view="reports">Funk <i data-badge="reports" hidden></i></button>
-          <button data-view="community">Community <i data-badge="chat" hidden></i></button>
           <button data-view="activity">Einsatz <i data-badge="activity" hidden></i></button>
           <button data-view="nexus">Nexus <i data-badge="nexus" hidden></i></button>
           <button data-view="sim">Simulator</button>
@@ -329,6 +328,11 @@
           <button data-view="settings">Optionen</button>
           <a class="nav-help" href="/help.html">Hilfe</a>
         </div>
+        <div class="nav-section">
+          <span class="nav-group">Community</span>
+          <button data-view="chat">Chat <i data-badge="chat" hidden></i></button>
+          <button data-view="forum">Forum</button>
+        </div>
         <div class="nav-section" id="nav-staff" hidden>
           <span class="nav-group">Leitung</span>
           <button data-view="moderation">Zentrale</button>
@@ -339,7 +343,7 @@
 
       <div id="alert-strip" class="alert-strip hidden" hidden></div>
       <div id="colony-unity-layer" class="colony-unity-layer hidden" hidden>
-        <canvas id="colony-unity-canvas" tabindex="0" aria-label="Planetenbasis – verschieben, zoomen und Gebäude auswählen"></canvas>
+        <canvas id="colony-unity-canvas" tabindex="-1" aria-hidden="true"></canvas>
         <div id="colony-unity-loading">Lade Basis…</div>
       </div>
       <main id="view" class="view"></main>
@@ -402,6 +406,6 @@
         });
     </script>
     <script src="/js/pwa.js?v=2"></script>
-    <script type="module" src="/js/app.js?v=212"></script>
+    <script type="module" src="/js/app.js?v=213"></script>
   </body>
 </html>

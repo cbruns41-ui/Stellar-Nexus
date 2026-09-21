@@ -48,6 +48,9 @@ document.addEventListener("visibilitychange", () => send("SetVisible", visible &
 motion.addEventListener("change", () => send("SetMotion", motion.matches ? "0" : "1"));
 export function unityColonyAvailable() { return !!instance; }
 export async function createColonyUnity(canvas, options = {}) {
+  canvas.style.pointerEvents = 'none';
+  canvas.tabIndex = -1;
+  canvasGesture = false;
   listeners = options; pendingState = options.state; selected = options.selectedId || "";
   canvas.onkeydown = event => {
     if (!visible) return;

@@ -1,0 +1,57 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+const require=createRequire(import.meta.url),game=require('../src/game');
+export async function verifyRaidInput({db,snap,send,evaluate,until,click,shot}) {
+ const pid=snap.planet.id,eid=snap.empire.id;
+ await send('Emulation.setDeviceMetricsOverride',{width:1440,height:960,deviceScaleFactor:1,mobile:false});
+ await send('Emulation.setTouchEmulationEnabled',{enabled:false});
+ db.prepare('DELETE FROM queue WHERE planet_id=?').run(pid);
+ db.prepare('UPDATE planets SET metal=100000,energy=100000,helium=100000,titan=100000,crystal=100000 WHERE id=?').run(pid);
+ await send('Page.reload');await until(`document.querySelector('[data-colony-marker="shipyard"]')`);
+ assert.equal(await evaluate(`getComputedStyle(document.querySelector('#colony-unity-canvas')).pointerEvents`),'none');
+ await click('[data-colony-marker="shipyard"]');await until(`document.querySelector('[data-colony-upgrade="shipyard"]:not([disabled])')`);
+ await click('[data-colony-upgrade="shipyard"]');
+ await until(`document.querySelector('#city-actions').textContent.includes('Ausbau') || document.querySelector('#city-actions').textContent.includes('Bau')`);
+ assert.ok(db.prepare("SELECT id FROM queue WHERE planet_id=? AND item_id='shipyard'").get(pid),'Direct marker upgrade queued');
+ await click('[data-colony-work="yard"]');await until(`document.querySelector('button[data-ship="probe"]:not([disabled])')`);
+ await evaluate(`document.querySelector('button[data-ship="probe"]').scrollIntoView({block:'center'})`);await click('button[data-ship="probe"]');
+ await until(`document.querySelector('[data-ship-building="probe"]')`);
+ assert.ok(db.prepare("SELECT id FROM queue WHERE planet_id=? AND item_id='probe'").get(pid),'Direct yard build queued');
+ await click('[data-panel-close]');
+ await click('[data-tab="map"]');await until(`document.querySelector('#starmap')`);
+ await click('[data-tab="home"]');await until(`document.querySelector('[data-colony-marker="shipyard"]')`);
+ await click('[data-colony-marker="shipyard"]');await until(`document.querySelector('[data-colony-work="yard"]')`);await click('.colony-card-close');
+ const home=db.prepare('SELECT * FROM planets WHERE id=?').get(pid);
+ const remote=db.prepare('SELECT * FROM planets WHERE empire_id IS NULL AND system_id=? LIMIT 1').get(home.system_id);
+ db.prepare('UPDATE planets SET empire_id=?,helium=0,last_tick=? WHERE id=?').run(eid,Date.now(),remote.id);
+ game.addShips(db,remote.id,{fighter:50,probe:1});game.addShips(db,pid,{fighter:40});
+ db.prepare('UPDATE empires SET created_at=? WHERE id=?').run(Date.now()-6*86400000,eid);
+ db.prepare('DELETE FROM raids WHERE target_planet_id=?').run(pid);
+ db.prepare('UPDATE planets SET helium=0,last_tick=? WHERE id=?').run(Date.now(),pid);
+ db.prepare("INSERT INTO raids(target_planet_id,ships,arrives_at,kind,expires_at) VALUES(?,'{\"fighter\":1}',1,'pirates',?)").run(pid,Date.now()+7200000);
+ await send('Page.reload');await until(`document.querySelector('[data-tab="map"]')`);await click('[data-tab="map"]');await until(`document.querySelector('[data-alert-defend]')`);
+ await click('[data-alert-defend]');await until(`document.querySelector('[data-group-origin="${pid}"]')`);
+ assert.match(await evaluate(`document.querySelector('[data-group-origin="${pid}"]').textContent`),/0 He3/);
+ const stock=game.shipsMap(db,pid);
+ const chosen=await evaluate(`Object.fromEntries([...document.querySelectorAll('[data-group-origin="${pid}"] [data-group-ship]')].map(i=>[i.dataset.groupShip,Number(i.value)]))`);
+ assert.deepEqual(chosen,stock);
+ await evaluate(`document.querySelector('[data-group-max="${remote.id}"]').scrollIntoView({block:'center'})`);await click(`[data-group-max="${remote.id}"]`);
+ await until(`document.querySelector('[data-group-origin="${remote.id}"] [data-group-fuel]').textContent.includes('gekappt')`);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM raid_engagements').get().n,0,'Max never launches a fallback');
+ assert.equal(await evaluate(`[...document.querySelectorAll('[data-group-origin="${remote.id}"] [data-group-ship]')].reduce((n,i)=>n+Number(i.value),0)`),0);
+ await shot('raid-local-zero-he3');
+ await click('#group-launch');await until(`document.querySelector('#modal').hidden`);
+ const report=JSON.parse(db.prepare("SELECT body FROM reports WHERE empire_id=? AND kind='combat' ORDER BY id DESC LIMIT 1").get(eid).body);
+ assert.deepEqual(report.defShips,stock,'Report contains the full displayed local fleet');
+ await click('[data-tab="home"]');
+ for(const id of [remote.id,pid]) {
+   await evaluate(`(()=>{const s=document.querySelector('#planet-select');s.value='${id}';s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+   await until(`document.querySelector('#planet-select')?.value==='${id}' && document.querySelector('.living-colony')`);
+   await new Promise(r=>setTimeout(r,1000));
+   assert.equal(await evaluate(`getComputedStyle(document.querySelector('#colony-unity-canvas')).pointerEvents`),'none');
+   await click('[data-colony-marker="shipyard"]');await until(`document.querySelector('[data-colony-work="yard"]')`);await click('.colony-card-close');
+ }
+ await click('[data-tab="cmd"]');await until(`document.querySelector('#game').classList.contains('nav-open')`);
+ await shot('community-menu-order');
+ console.log('Raid/input passed: zero-He3 full local fleet, remote max cap with feedback and no automatic launch, matching report, direct upgrade/yard build and map return');
+}

@@ -1,4 +1,7 @@
 /* Unity colony: screen-space HUD remains sharp at every camera zoom. */
+#colony-unity-layer, #colony-unity-canvas { pointer-events: none !important; }
+.living-colony :is(button, input, select, textarea, a, summary, [role="button"]),
+#command-panel, #command-panel :is(button, input, select, textarea, a, summary) { pointer-events: auto; }
 .shell.view-home.unity-active .view { pointer-events: none; }
 .shell.view-home .city-view.living-colony {
   position: relative; width: 100%; height: 100%; min-height: 100%;

@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 export async function verifyCommunity({db,snap,send,evaluate,until,click,shot}) {
-  await evaluate(`document.querySelector('[data-view="community"]').click()`);
-  await click('[data-view-jump="chat"]');await until(`document.querySelector('#chat-input')`);
-  await click('[data-view-jump="community"]');await click('[data-view-jump="forum"]');
+  assert.deepEqual(await evaluate(`[...document.querySelectorAll('#nav .nav-group')].slice(0,4).map(e=>e.textContent)`),['Bauen','Kommando','Reich','Community']);
+  await evaluate(`document.querySelector('#nav [data-view="chat"]').click()`);
+  await until(`document.querySelector('#chat-input')`);
+  await click('[data-view-jump="forum"]');
   await until(`document.querySelector('#forum-create')`);
   await evaluate(`(()=>{document.querySelector('#forum-create').parentElement.open=true;const f=document.querySelector('#forum-create');f.elements.title.value='Idee <img src=x onerror=alert(1)>';f.elements.body.value='Mehr Zusammenarbeit im Nexus';f.requestSubmit();})()`);
   await until(`document.querySelector('#forum-reply')`);
@@ -20,7 +21,7 @@ export async function verifyCommunity({db,snap,send,evaluate,until,click,shot}) 
   await shot('community-forum-mobile');
   await evaluate(`document.querySelector('#forum-back').scrollIntoView({block:'center'})`);await click('#forum-back');
   await until(`document.querySelector('[data-topic="${topic.id}"]')`);
-  await click('[data-view-jump="community"]');await click('[data-view-jump="forum"]');
+  await evaluate(`document.querySelector('#nav [data-view="chat"]').click()`);await click('[data-view-jump="forum"]');
   await until(`document.querySelector('[data-topic="${topic.id}"]')`);
   const anonymous=await fetch('http://localhost:3137/api/forum');assert.equal(anonymous.status,401);
   console.log('Community browser passed: chat navigation, real thread/reply persistence, escaped text, mobile moderation and authenticated API');

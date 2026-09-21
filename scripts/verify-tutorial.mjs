@@ -133,6 +133,12 @@ try {
     catch(error){await shot('community-failure');throw error;}
   }
   assert.deepEqual(errors,[],'No browser exceptions after community');
+  if(process.argv.includes('--raid-input')) {
+    const {verifyRaidInput}=await import('./verify-raid-input.mjs');
+    try{await verifyRaidInput({db,snap,send,evaluate,until,click,shot});}
+    catch(error){await shot('raid-input-failure');throw error;}
+  }
+  assert.deepEqual(errors,[],'No browser exceptions after raid/input');
   await writeFile(new URL('verification.json',folder),JSON.stringify({passed:true,checks:['opt-in and skip','pause and resume','mobile spotlight geometry','blocked unrelated clicks','real building and research jobs','additional probe construction','real scout launch','matching spy report','completion'],errors},null,2));
   console.log('Tutorial browser flow passed');
 } catch(err) {console.error(err);process.exitCode=1;}

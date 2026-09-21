@@ -14,6 +14,36 @@ function fixture(t) {
  const target=db.prepare("SELECT * FROM planets WHERE empire_id IS NULL AND system_id=? LIMIT 1").get(home.system_id);
  assert.ok(target);return {db,empire,home:db.prepare("SELECT * FROM planets WHERE id=?").get(home.id),target};
 }
+
+test('local raid defense costs zero He3 through the legacy fleet route and report includes full garrison',t=>{
+ const {db,empire,home}=fixture(t);
+ game.addShips(db,home.id,{fighter:60});
+ db.prepare('UPDATE planets SET helium=0,last_tick=? WHERE id=?').run(Date.now(),home.id);home.helium=0;
+ const ships=game.shipsMap(db,home.id);
+ const raid=Number(db.prepare("INSERT INTO raids(target_planet_id,ships,arrives_at,kind,expires_at) VALUES(?,'{\"fighter\":1}',1,'pirates',?)").run(home.id,Date.now()+7200000).lastInsertRowid);
+ const preview=game.previewRaidDefense(db,empire,home,home,ships,raid);
+ assert.equal(preview.fuelNeeded,0);assert.equal(preview.dist,0);
+ const result=game.sendFleet(db,empire,home,home,'intercept',ships,{});
+ assert.equal(result.raidDefense,true);assert.equal(result.launched.length,0);
+ const report=JSON.parse(db.prepare("SELECT body FROM reports WHERE kind='combat' ORDER BY id DESC LIMIT 1").get().body);
+ assert.deepEqual(report.defShips,ships);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM fleets WHERE is_return=0').get().n,0);
+ assert.ok(db.prepare('SELECT helium FROM planets WHERE id=?').get(home.id).helium>=0);
+});
+
+test('remote raid reinforcement retains travel fuel and insufficient fuel never substitutes a probe',t=>{
+ const {db,empire,home,target}=fixture(t);
+ db.prepare('UPDATE planets SET empire_id=? WHERE id=?').run(empire.id,target.id);target.empire_id=empire.id;
+ game.addShips(db,home.id,{fighter:60});
+ db.prepare('UPDATE planets SET helium=0,last_tick=? WHERE id=?').run(Date.now(),home.id);home.helium=0;
+ const ships=game.shipsMap(db,home.id);
+ const raid=Number(db.prepare("INSERT INTO raids(target_planet_id,ships,arrives_at,kind,expires_at) VALUES(?,'{\"fighter\":1}',1,'pirates',?)").run(target.id,Date.now()+7200000).lastInsertRowid);
+ assert.equal(game.previewRaidDefense(db,empire,home,target,ships,raid).fuelNeeded,game.previewTravel(db,empire,home,target,ships).fuelNeeded);
+ assert.throws(()=>game.defendRaid(db,empire,raid,[{planetId:home.id,ships}]),/Helium-3/);
+ assert.deepEqual(game.shipsMap(db,home.id),ships);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM fleets').get().n,0);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM raid_engagements').get().n,0);
+});
 test("research and archive are locked to the home planet and apply empire-wide",t=>{
  const {db,empire,home,target}=fixture(t);
  game.addShips(db,home.id,{colony:1});

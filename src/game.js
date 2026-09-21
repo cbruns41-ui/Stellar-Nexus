@@ -1943,6 +1943,10 @@ function resolveColonize(db, fleet, ships, target, sys, techs, empire) {
 
 function sendFleet(db, empire, origin, target, mission, shipsWanted, cargo, opts = {}) {
   if (!MISSIONS_OK[mission]) throw new Error("Unbekannte Mission.");
+  if (mission === 'intercept' && !opts.raidId && target.empire_id === empire.id) {
+    const raid = db.prepare('SELECT id FROM raids WHERE target_planet_id=? ORDER BY id LIMIT 1').get(target.id);
+    if (raid) return defendRaid(db, empire, raid.id, [{planetId:origin.id,ships:shipsWanted}]);
+  }
   if (origin.id === target.id && mission !== "expedition") throw new Error("Ziel darf nicht der Startplanet sein.");
   origin = accruePlanet(db, origin);
   const stationed = shipsMap(db, origin.id);
@@ -2899,6 +2903,13 @@ function defendRaid(db, empire, raidId, deployments = []) {
   });
 }
 
+function previewRaidDefense(db, empire, origin, target, ships, raidId) {
+  const raid = db.prepare('SELECT id FROM raids WHERE id=? AND target_planet_id=?').get(raidId,target.id);
+  if (!raid || target.empire_id !== empire.id) throw new Error('Raid nicht mehr aktiv oder Ziel gehört nicht dir.');
+  if (origin.id !== target.id) return previewTravel(db,empire,origin,target,ships);
+  return {localDefense:true,fuelNeeded:0,fuelAvailable:origin.helium || 0,dist:0,ms:0,ships:shipsMap(db,target.id)};
+}
+
 function sendFleetGroup(db, empire, target, mission, deployments) {
   if (mission !== "attack" && mission !== "intercept") throw new Error("Gemeinsame Flotten sind nur für Angriff oder Verteidigung verfügbar.");
   const raid = mission === 'intercept' && target.empire_id === empire.id && db.prepare('SELECT id FROM raids WHERE target_planet_id=? ORDER BY id LIMIT 1').get(target.id);
@@ -3384,6 +3395,7 @@ module.exports = {
   sendFleet,
   sendFleetGroup,
   defendRaid,
+  previewRaidDefense,
   claimQuest,
   claimDailyOp,
   claimWeeklyOp,

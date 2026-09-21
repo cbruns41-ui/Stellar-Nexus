@@ -1124,7 +1124,9 @@ function attachRoutes(app, db) {
       const { empire, planet } = loadCtx(req);
       const target = db.prepare("SELECT * FROM planets WHERE id = ?").get(Number(req.body?.targetId));
       if (!target) throw new Error("Zielplanet unbekannt.");
-      res.json(game.previewTravel(db, empire, planet, target, req.body?.ships || {}));
+      res.json(req.body?.mission === 'defend_raid'
+        ? game.previewRaidDefense(db,empire,planet,target,req.body?.ships || {},Number(req.body?.raidId))
+        : game.previewTravel(db, empire, planet, target, req.body?.ships || {}));
     } catch (err) {
       fail(res, 400, err.message);
     }
