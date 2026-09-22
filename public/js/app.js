@@ -374,7 +374,7 @@ function renderDock() {
           <span><strong class="queue-planet">${esc(item.planetName || "Welt")}</strong> · ${esc(item.name)}${item.qty > 1 ? " ×" + item.qty : ""}${item.levelTo ? " → " + item.levelTo : ""}</span>
           <div class="bar"><i style="width:${pct}%"></i></div>
           <div class="row"><span data-dock-eta>${eta(item.completesAt - t)}</span>
-            <button class="btn ghost small" data-cancel="${item.id}">Abbruch</button></div>
+            ${item.canCancel === false ? '' : `<button class="btn ghost small" data-cancel="${item.id}">Abbruch</button>`}</div>
         </div>`;
     })
     .join("");
@@ -1425,6 +1425,8 @@ function allianceDeskHtml(detail) {
     ? `<div class="ally-planet-card panel">
         <div class="section-title"><h2>Allianz-Planet</h2><span class="muted">${esc(planet.systemName || "")}</span></div>
         <p><b>${esc(planet.name)}</b> · Gemeinsames Lager, Allianzforschung, Orbit-Verteidigung und Flottenstützpunkt.</p>
+        <button class="btn" type="button" data-alliance-transport="${planet.id}" data-target-system="${planet.systemId}">Ressourcen ins Allianzlager senden</button>
+        ${detail.canManagePlanet ? `<button class="btn ghost" type="button" data-alliance-transport="${planet.id}" data-target-system="${planet.systemId}" data-collect>Ressourcen abholen</button>` : ''}
         ${detail.canManagePlanet ? `<button class="btn primary" type="button" id="ally-open-planet">Planet öffnen</button>` : `<p class="muted">Kein Zugang. Anführer kann dich freischalten.</p>`}
         ${grants ? `<div style="margin-top:12px"><h3 style="font-size:13px;margin:0 0 6px">Zugang</h3><p class="muted">Anführer und Co-Leader haben immer Zugang.</p>${grants}</div>` : ""}
       </div>`
@@ -1507,6 +1509,19 @@ function bindAllianceQuickActions(root) {
       }catch(err){state.allianceQuickMessage=err.message;message.textContent=err.message;throw err;}
     });
     if(bar.isConnected){delete bar.dataset.pending;bar.querySelectorAll('button,select').forEach(b=>b.disabled=false);}
+  }));
+}
+
+function bindAllianceTransports(root) {
+  root.querySelectorAll('[data-alliance-transport]').forEach(button => button.addEventListener('click', async () => {
+    button.disabled = true;
+    try {
+      const targetId = Number(button.dataset.allianceTransport);
+      const systemId = Number(button.dataset.targetSystem) || state.snap.alliance?.planet?.systemId || state.snap.planet.systemId;
+      const sys = await getSystem(systemId);
+      await openMission(targetId, sys, button.hasAttribute('data-collect') ? 'collect' : 'transport');
+    } catch (err) { toast(err.message, true); }
+    finally { button.disabled = false; }
   }));
 }
 
@@ -2938,9 +2953,7 @@ function bindView(root) {
     )
   );
   root.querySelectorAll('[data-ally-fund]').forEach(b=>b.addEventListener('click',()=>{b.disabled=true;act(()=>api('/alliances/research',{method:'POST',body:{id:b.dataset.allyFund,planetId:state.snap.planet.id,donate:true}}));}));
-  root.querySelectorAll('[data-alliance-transport]').forEach(b=>b.addEventListener('click',async()=>{
-    try { const p=state.snap.planet,sys=await getSystem(p.systemId);openMission(Number(b.dataset.allianceTransport),sys,'transport'); } catch(err){toast(err.message,true);}
-  }));
+  bindAllianceTransports(root);
   root.querySelectorAll("[data-ally-profile]").forEach((b) =>
     b.addEventListener("click", (ev) => {
       ev.stopPropagation();
@@ -4096,6 +4109,7 @@ async function bootAlliance() {
       </div>`;
     bindAllianceActivityClicks(host);
     bindAllianceQuickActions(host);
+    bindAllianceTransports(host);
     bindJumps(host);
     host.querySelectorAll('[data-open-ally-profile]').forEach(button => button.addEventListener('click', () => openAllianceProfile(Number(button.dataset.openAllyProfile))));
     host.querySelector("#ally-boss-launch")?.addEventListener("click", () => startAllianceBossEncounter({ detail, onDone: async () => {
@@ -5264,7 +5278,7 @@ async function openMission(targetId, sys, initialMission = "", dialogOpts = {}) 
         ["expedition", "Expedition"],
         ["deploy", "Stationieren"],
         ["transport", "Fracht senden"],
-        ["collect", "Fracht abholen"],
+        ...((planet.own || planet.canManage) ? [["collect", "Fracht abholen"]] : []),
         ["intercept", "Verteidigen"],
       ]
     : [
@@ -5331,7 +5345,7 @@ async function openMission(targetId, sys, initialMission = "", dialogOpts = {}) 
     const isTransport = missionSel.value === "transport" || missionSel.value === "collect";
     if (isTransport) {
       cargoBox.hidden = false;
-      const label = missionSel.value === "collect" ? "Fracht abholen (vom Ziel)" : "Fracht senden (vom Heimatplaneten)";
+      const label = missionSel.value === "collect" ? "Gewünschte Fracht am Ziel abholen; Rückflug zum Startplaneten." : "Fracht vom gewählten Startplaneten senden. Helium-3 für den Flug zusätzlich freihalten.";
       cargoBox.innerHTML = `<div class="muted" style="margin-bottom:6px">${label}</div>` +
         resourceIds()
           .map((k) => `<label>${esc(state.catalog.resources[k].name)} <input data-cargo="${k}" type="number" min="0" value="0"></label>`)

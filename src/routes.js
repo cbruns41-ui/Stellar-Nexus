@@ -1009,7 +1009,7 @@ function attachRoutes(app, db) {
       const { empire, planet } = loadCtx(req);
       const target = db.prepare("SELECT * FROM planets WHERE id = ?").get(Number(req.body?.targetId));
       if (!target) throw new Error("Zielplanet unbekannt.");
-      const result = game.sendFleet(
+      const result = withTx(db, () => game.sendFleet(
         db,
         empire,
         planet,
@@ -1018,7 +1018,7 @@ function attachRoutes(app, db) {
         req.body?.ships || {},
         req.body?.cargo || {},
         { holdMs: req.body?.holdMs, joinFleetId: req.body?.joinFleetId }
-      );
+      ));
       res.json({ ...game.snapshot(db, req.user, planet.id), launched: result });
     } catch (err) {
       fail(res, 400, err.message);

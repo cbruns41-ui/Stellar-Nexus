@@ -720,6 +720,7 @@ module.exports = {
   saveAvatarUpload,
   listAllianceActivity,
   ALLIANCE_RESEARCH,
+  ALLIANCE_RESOURCE_IDS,
   researchRows,
   allianceBonuses,
   emptyAllianceBonuses,

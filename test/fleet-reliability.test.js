@@ -199,7 +199,7 @@ test('alliance funding persists partial deposits and spends only the missing amo
  let row=social.researchRows(db,alliance.id,empire.id).find(r=>r.id==='supply_grid');assert.equal(row.funded.metal,100);assert.ok(row.progress>0 && row.progress<1);
  for(const [id,n] of Object.entries(row.remaining))db.prepare(`UPDATE planets SET ${id}=? WHERE id=?`).run(n,target.id);
  withTx(db,()=>game.enqueueAllianceResearch(db,empire,planet(),'supply_grid'));
- assert.equal(planet().metal,0);assert.equal(social.researchRows(db,alliance.id,empire.id).find(r=>r.id==='supply_grid').funded.metal,100);
+ assert.equal(planet().metal,0);assert.equal(social.researchRows(db,alliance.id,empire.id).find(r=>r.id==='supply_grid').funded.metal,100000);
 });
 
 test("orbit fire keeps a personal highscore until it is beaten and lists it in ranks",t=>{

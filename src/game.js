@@ -715,8 +715,11 @@ function enqueueResearch(db, empire, planet, techId) {
 }
 
 function cancelQueue(db, empire, queueId) {
-  const q = db.prepare("SELECT * FROM queue WHERE id = ? AND empire_id = ?").get(queueId, empire.id);
+  return withTx(db, () => {
+  const q = db.prepare("SELECT * FROM queue WHERE id = ?").get(queueId);
   if (!q) throw new Error("Auftrag nicht gefunden.");
+  const queuePlanet = db.prepare('SELECT * FROM planets WHERE id=?').get(q.planet_id);
+  if (q.kind === 'ally_research' ? !social.canManageAlliancePlanet(db, empire.id, queuePlanet) : q.empire_id !== empire.id) throw new Error('Keine Berechtigung zum Abbrechen dieses Auftrags.');
   db.prepare("DELETE FROM queue WHERE id = ?").run(q.id);
   if (q.planet_id) {
     const planet = db.prepare("SELECT * FROM planets WHERE id = ?").get(q.planet_id);
@@ -737,6 +740,7 @@ function cancelQueue(db, empire, queueId) {
         if (def) {
           const mul = def.factor ** Math.max(0, (q.level_to || 1) - 1);
           for (const id of RESOURCE_IDS) cost[id] = Math.floor((def.cost[id] || 0) * mul);
+          db.prepare('UPDATE alliance_research SET metal=0,helium=0,titan=0,energy=0,crystal=0 WHERE alliance_id=? AND research_id=?').run(planet.alliance_id, def.id);
         }
       } else {
         const spec = TECHS[q.item_id];
@@ -745,6 +749,7 @@ function cancelQueue(db, empire, queueId) {
       credit(db, planet, scaleBag(cost, 0.5));
     }
   }
+  });
 }
 
 function hopsAllowed(techs, buildings = {}) {
@@ -1141,11 +1146,11 @@ function resolveFleet(db, fleet) {
     return;
   }
   if (fleet.mission === "transport") {
-    if (target.empire_id === fleet.empire_id || social.canUseAlliancePlanet(db,fleet.empire_id,target)) {
+    if (target.alliance_id ? social.canUseAlliancePlanet(db,fleet.empire_id,target) : target.empire_id === fleet.empire_id) {
       accruePlanet(db, target);
       credit(db, target, readCargo(fleet));
       addReport(db, fleet.empire_id, "fleet", `Fracht gesendet: ${target.name}`, {
-        text: `Fracht geliefert.`,
+        text: `Fracht geliefert an ${target.name}.`, planetId: target.id, cargoDelivered: readCargo(fleet),
       });
       launchReturn(db, fleet, ships, emptyBag());
     } else {
@@ -1154,9 +1159,9 @@ function resolveFleet(db, fleet) {
     return;
   }
   if (fleet.mission === "collect") {
-    if (target.empire_id === fleet.empire_id || social.canUseAlliancePlanet(db,fleet.empire_id,target)) {
+    if (target.alliance_id ? social.canManageAlliancePlanet(db,fleet.empire_id,target) : target.empire_id === fleet.empire_id) {
       accruePlanet(db, target);
-      const wanted = readCargo(fleet);
+      const wanted = JSON.parse(fleet.cargo || '{}').requestedCargo || readCargo(fleet);
       const available = stockBag(target);
       const haul = emptyBag();
       for (const k of RESOURCE_IDS) haul[k] = clamp(Number(wanted?.[k]) || 0, 0, available[k]);
@@ -1168,7 +1173,7 @@ function resolveFleet(db, fleet) {
       spend(db, target, haul);
       const haulDesc = Object.entries(haul).filter(([, v]) => v > 0).map(([k, v]) => `${v} ${k}`).join(", ");
       addReport(db, fleet.empire_id, "fleet", `Frachtabholung startet von ${target.name}`, {
-        text: `Ladung: ${haulDesc || "nichts"}.`,
+        text: `Ladung: ${haulDesc || "nichts"}.`, planetId: target.id, cargoCollected: haul,
       });
       launchReturn(db, fleet, ships, haul);
     } else {
@@ -2053,9 +2058,22 @@ function sendFleet(db, empire, origin, target, mission, shipsWanted, cargo, opts
   }
 
   let haul = emptyBag();
+  let requestedCargo;
+  if (mission === 'transport' || mission === 'collect') {
+    requestedCargo = Object.fromEntries(RESOURCE_IDS.map(id => {
+      const n = Number(cargo?.[id] ?? 0);
+      if (!Number.isSafeInteger(n) || n < 0) throw new Error('Frachtmengen müssen nichtnegative ganze Zahlen sein.');
+      return [id, n];
+    }));
+    if (bagSum(requestedCargo) > fleetCargo(ships)) throw new Error('Frachtkapazität überschritten.');
+  }
   if (mission === "transport") {
     const cur = stockBag(origin);
-    for (const k of RESOURCE_IDS) haul[k] = clamp(Number(cargo?.[k]) || 0, 0, cur[k]);
+    for (const k of RESOURCE_IDS) {
+      const available = Math.max(0, cur[k] - (k === 'helium' ? fuelNeeded : 0));
+      if (requestedCargo[k] > available) throw new Error(k === 'helium' ? `Helium-3 reicht nicht für Fracht und Treibstoff (${fuelNeeded} He3).` : 'Nicht genug Ressourcen für diese Fracht.');
+      haul[k] = requestedCargo[k];
+    }
     const cap = fleetCargo(ships);
     if (bagSum(haul) > cap) throw new Error("Frachtkapazität überschritten.");
     spend(db, origin, haul);
@@ -2125,7 +2143,7 @@ function sendFleet(db, empire, origin, target, mission, shipsWanted, cargo, opts
       target.id,
       mission,
       JSON.stringify(ships),
-      JSON.stringify(haul),
+      JSON.stringify(mission === 'collect' ? { ...haul, requestedCargo } : haul),
       haul.metal,
       haul.energy,
       haul.crystal,
@@ -2197,6 +2215,9 @@ function enqueueAllianceResearch(db, empire, planet, researchId) {
   planet = accruePlanet(db, planet);
   if (!canAfford(planet, remaining)) throw new Error("Nicht genug Ressourcen auf dem Allianz-Planeten.");
   spend(db, planet, remaining);
+  for (const id of social.ALLIANCE_RESOURCE_IDS) {
+    db.prepare(`UPDATE alliance_research SET ${id}=? WHERE alliance_id=? AND research_id=?`).run(Math.floor((def.cost[id] || 0) * mul), planet.alliance_id, def.id);
+  }
   const t = now();
   const dur = scaledTime(def.baseTime || 240, def.factor, level, researchSpeed(db, empire.id));
   db.prepare(
@@ -2514,6 +2535,7 @@ function snapshot(db, user, planetId) {
       levelTo: q.level_to,
       planetId: q.planet_id,
       planetName: q.planet_name || "Unbekannte Welt",
+      canCancel: q.kind === 'ally_research' ? social.canManageAlliancePlanet(db, empire.id, db.prepare('SELECT * FROM planets WHERE id=?').get(q.planet_id)) : q.empire_id === empire.id,
       startedAt: q.started_at,
       completesAt: q.completes_at,
     }));
