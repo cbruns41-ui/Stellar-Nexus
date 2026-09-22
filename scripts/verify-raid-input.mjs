@@ -30,6 +30,10 @@ export async function verifyRaidInput({db,snap,send,evaluate,until,click,shot}) 
  db.prepare('UPDATE planets SET helium=0,last_tick=? WHERE id=?').run(Date.now(),pid);
  db.prepare("INSERT INTO raids(target_planet_id,ships,arrives_at,kind,expires_at) VALUES(?,'{\"fighter\":1}',1,'pirates',?)").run(pid,Date.now()+7200000);
  await send('Page.reload');await until(`document.querySelector('[data-tab="map"]')`);await click('[data-tab="map"]');await until(`document.querySelector('[data-alert-defend]')`);
+ await evaluate(`document.querySelector('#orders').open=true`);
+ await until(`(()=>{const e=document.querySelector('#map-orbit-fire');if(!e)return false;const r=e.getBoundingClientRect();return e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));})()`);
+ await shot('raid-open-dock-orbit-reachable');
+ await evaluate(`document.querySelector('#orders').open=false`);
  await click('[data-alert-defend]');await until(`document.querySelector('[data-group-origin="${pid}"]')`);
  assert.match(await evaluate(`document.querySelector('[data-group-origin="${pid}"]').textContent`),/0 He3/);
  const stock=game.shipsMap(db,pid);
@@ -43,6 +47,20 @@ export async function verifyRaidInput({db,snap,send,evaluate,until,click,shot}) 
  await click('#group-launch');await until(`document.querySelector('#modal').hidden`);
  const report=JSON.parse(db.prepare("SELECT body FROM reports WHERE empire_id=? AND kind='combat' ORDER BY id DESC LIMIT 1").get(eid).body);
  assert.deepEqual(report.defShips,stock,'Report contains the full displayed local fleet');
+ assert.ok(report.raidId,'Combat report identifies the completed raid');
+ const retry=await evaluate(`fetch('/api/raids/${report.raidId}/defend',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deployments:[]})}).then(r=>r.status)`);
+ assert.equal(retry,200,'Retry after victory returns success, not HTTP 400');
+ const media=await evaluate(`import('/js/ui.js').then(({mediaTag})=>['/assets/activity/patrol.jpg','/assets/techs/ai.jpg','/assets/ships/fighter.jpg'].map(src=>mediaTag(src)))`);
+ assert.ok(media[0].startsWith('<img') && media[1].startsWith('<img') && media[2].startsWith('<video'),'Only existing video assets are requested');
+ db.prepare('DELETE FROM ships WHERE planet_id IN (?,?)').run(pid,remote.id);
+ db.prepare('DELETE FROM defenses WHERE planet_id=?').run(pid);
+ db.prepare("DELETE FROM buildings WHERE planet_id=? AND building_id IN ('shield','citadel')").run(pid);
+ db.prepare("UPDATE planets SET directive='' WHERE id=?").run(pid);
+ db.prepare("INSERT INTO raids(target_planet_id,ships,arrives_at,kind,expires_at) VALUES(?,'{\"fighter\":1}',1,'pirates',?)").run(pid,Date.now()+7200000);
+ await send('Page.reload');await until(`document.querySelector('[data-tab="map"]')`);await click('[data-tab="map"]');await until(`document.querySelector('[data-alert-defend]')`);
+ await click('[data-alert-defend]');await until(`document.querySelector('#group-launch')`);
+ assert.equal(await evaluate(`document.querySelector('#group-launch').disabled`),true,'Zero ships and zero defenses cannot start');
+ await click('#m-cancel');
  await click('[data-tab="home"]');
  for(const id of [remote.id,pid]) {
    await evaluate(`(()=>{const s=document.querySelector('#planet-select');s.value='${id}';s.dispatchEvent(new Event('change',{bubbles:true}));})()`);

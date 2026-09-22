@@ -24,6 +24,18 @@ export async function verifyAllianceSelection({db,snap,send,evaluate,until,click
     assert.equal(await evaluate(`!!document.querySelector('.ally-sheet')`),false,'Selection does not open profile overlay');
   };
   await nav('alliance'); await choose(open.id);
+  const profile = async (id, tag, prefix='.ally-list') => {
+    const selector = `${prefix} [data-open-ally-profile="${id}"]`;
+    await evaluate(`document.querySelector('${selector}').scrollIntoView({block:'center',inline:'center'})`);
+    await click(selector);
+    await until(`document.querySelector('.ally-sheet h2')?.textContent.includes('[${tag}]')`);
+    await evaluate(`document.querySelector('#ally-close').scrollIntoView({block:'center'})`);
+    await click('#ally-close');
+    await until(`!document.querySelector('.ally-sheet')`);
+  };
+  await profile(first.id, 'SEL1');
+  await selected(open.id);
+  await profile(open.id, 'SEL2', '#ally-detail');
   assert.match(await evaluate(`document.querySelector('#ally-apply').textContent`),/SEL2/);
   await nav('empire'); await nav('alliance'); await selected(open.id);
   // An older, slower response must not overwrite the most recent selection.
@@ -41,6 +53,9 @@ export async function verifyAllianceSelection({db,snap,send,evaluate,until,click
   // Physical clicks on the horizontally scrolling mobile list and the chosen join button.
   await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
   await choose(open.id);
+  await profile(closed.id, 'SEL3');
+  await selected(open.id);
+  await shot('alliance-mobile-profile-controls');
   db.prepare('UPDATE alliances SET min_level=60 WHERE id=?').run(open.id);
   await choose(first.id); await choose(open.id);
   assert.match(await evaluate(`document.querySelector('#ally-detail').textContent`),/Mindestlevel 60/);

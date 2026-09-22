@@ -77,7 +77,8 @@ export function mediaTag(src, cls = "") {
   const jpg = String(src || "");
   const mp4 = jpg.replace(/\.jpe?g$/i, ".mp4");
   const c = cls ? ` class="${cls}"` : "";
-  if (!/\.jpe?g$/i.test(jpg)) return `<img${c} src="${esc(jpg)}" alt="" loading="lazy" decoding="async" />`;
+  const hasVideo = /^\/assets\/(?:ships\/(?:probe|interceptor|helix|frigate|fighter|dreadnought|destroyer|cruiser|colony|carrier|cargo|bomber|battleship|aeon)|planets\/(?:terran|ruin|ocean|lava|ice|gas|desert)(?:-colony)?|species\/(?:veyari|terran|nyxian|kryll|helion|draxen)|alliances\/b1)\.jpg$/.test(jpg);
+  if (!hasVideo) return `<img${c} src="${esc(jpg)}" alt="" loading="lazy" decoding="async" />`;
   const mobileLite = navigator.connection?.saveData || (window.matchMedia?.("(max-width: 760px)")?.matches && Number(navigator.deviceMemory || 4) <= 4);
   if (mobileLite) return `<img${c} src="${esc(jpg)}" alt="" loading="lazy" decoding="async" />`;
   return `<video${c} autoplay muted loop playsinline preload="metadata" poster="${esc(jpg)}" src="${esc(mp4)}" data-fallback="${esc(jpg)}"></video>`;

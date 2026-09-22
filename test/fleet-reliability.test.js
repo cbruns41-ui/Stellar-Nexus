@@ -44,6 +44,39 @@ test('remote raid reinforcement retains travel fuel and insufficient fuel never 
  assert.equal(db.prepare('SELECT COUNT(*) n FROM fleets').get().n,0);
  assert.equal(db.prepare('SELECT COUNT(*) n FROM raid_engagements').get().n,0);
 });
+
+test('completed raid retry returns its own report without another battle or reward',t=>{
+ const {db,empire,home}=fixture(t);
+ game.addShips(db,home.id,{fighter:60});
+ const raid=Number(db.prepare("INSERT INTO raids(target_planet_id,ships,arrives_at,kind,expires_at) VALUES(?,'{\"fighter\":1}',1,'pirates',?)").run(home.id,Date.now()+7200000).lastInsertRowid);
+ game.defendRaid(db,empire,raid,[]);
+ const before=db.prepare('SELECT * FROM planets WHERE id=?').get(home.id);
+ const ships=game.shipsMap(db,home.id);
+ const reports=db.prepare("SELECT COUNT(*) n FROM reports WHERE kind='combat'").get().n;
+ const retry=game.defendRaid(db,empire,raid,[]);
+ assert.equal(retry.completed,true);
+ assert.ok(retry.reportId);
+ assert.deepEqual(db.prepare('SELECT * FROM planets WHERE id=?').get(home.id),before);
+ assert.deepEqual(game.shipsMap(db,home.id),ships);
+ assert.equal(db.prepare("SELECT COUNT(*) n FROM reports WHERE kind='combat'").get().n,reports);
+ assert.throws(()=>game.defendRaid(db,{id:empire.id+999},raid,[]),/Raid nicht mehr aktiv/);
+});
+
+test('empty raid defense is rejected but static defenses can fight without ships',t=>{
+ const {db,empire,home}=fixture(t);
+ db.prepare('DELETE FROM ships WHERE planet_id=?').run(home.id);
+ db.prepare('DELETE FROM defenses WHERE planet_id=?').run(home.id);
+ db.prepare("DELETE FROM buildings WHERE planet_id=? AND building_id IN ('shield','citadel')").run(home.id);
+ db.prepare("UPDATE planets SET directive='' WHERE id=?").run(home.id);
+ const raid=Number(db.prepare("INSERT INTO raids(target_planet_id,ships,arrives_at,kind,expires_at) VALUES(?,'{\"fighter\":1}',1,'pirates',?)").run(home.id,Date.now()+7200000).lastInsertRowid);
+ assert.throws(()=>game.defendRaid(db,empire,raid,[]),/Keine Schiffe oder Verteidigungsanlagen/);
+ assert.throws(()=>game.defendRaid(db,empire,raid,{}),/Ungültige Verteidigungsflotte/);
+ assert.throws(()=>game.defendRaid(db,empire,raid,Array(9).fill({})),/Maximal 8 Planeten/);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM raid_engagements').get().n,0);
+ assert.ok(db.prepare('SELECT id FROM raids WHERE id=?').get(raid));
+ db.prepare("INSERT INTO buildings VALUES(?,'shield',1)").run(home.id);
+ assert.equal(game.defendRaid(db,empire,raid,[]).raidDefense,true);
+});
 test("research and archive are locked to the home planet and apply empire-wide",t=>{
  const {db,empire,home,target}=fixture(t);
  game.addShips(db,home.id,{colony:1});

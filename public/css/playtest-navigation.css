@@ -26,6 +26,9 @@ body[data-mode="play"] .nav{top:var(--game-top,60px)!important;bottom:var(--game
 body[data-mode="play"] .nav-open .nav{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));align-content:start;gap:10px}
 body[data-mode="play"] .nav-section{display:contents}body[data-mode="play"] .nav-group{grid-column:1/-1}
 body[data-mode="play"] .nav button{min-height:48px;margin:0}
+.nav .nav-help{color:#f0d39a;border-color:#a88a52;background:#29251d;min-height:48px;display:flex;align-items:center;justify-content:center}
+.nav .nav-help:hover,.nav .nav-help:focus-visible{color:#fff0cc;border-color:#f0d39a;background:#3b3223}
+.nav .nav-help:focus-visible{outline:2px solid #f0d39a;outline-offset:3px}
 body[data-mode="play"] .nav-logout{grid-column:1/-1;margin-top:14px;order:99}
 body[data-mode="play"] .nav-backdrop{top:var(--game-top,60px)!important;bottom:var(--game-bottom,66px)!important;z-index:90!important}
 body[data-mode="play"] .shell:not(.nav-open) .nav-backdrop{display:none!important;pointer-events:none!important}
@@ -80,10 +83,17 @@ body[data-mode="play"] .shell #dock{display:block!important;position:relative;z-
 @media(max-width:860px){.og-build-flag{max-width:calc(100% - 16px)}}
 .shell.view-galaxy .sys-panel{bottom:58px}.shell.view-galaxy .map-raid-banner{bottom:62px}
 .shell.view-galaxy .map-orbit-fire{top:auto;bottom:58px}
+.shell.view-galaxy:has(#orders[open]) #map-orbit-fire{top:72px;bottom:auto}
 /* #modal is a sibling of #game. Scope to body so this rule actually matches. */
 body:has(#modal:not(.hidden):not([hidden])) #alert-strip,body:has(#modal:not(.hidden):not([hidden])) #map-raid-banner,body:has(#modal:not(.hidden):not([hidden])) #dock,
 .map-wrap:has(#sysbox:not(:empty)) .map-raid-banner,.shell:has(#command-panel:not([hidden])) #alert-strip{visibility:hidden!important;pointer-events:none!important}
 .group-close{z-index:6;min-width:44px;min-height:44px}
+.ally-list-entry{flex:none;min-width:0;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.ally-layout>div{min-width:0;max-width:100%}
+.ally-members-scroll{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
+.ally-list-entry .ally-row{width:100%;margin:0;min-height:48px;grid-template-columns:auto minmax(0,1fr)}
+.ally-list-entry .ally-profile-open{width:100%;min-height:44px;margin-top:4px;color:var(--cyan)}
+@media(max-width:600px){.ally-list-entry{flex:0 0 min(78vw,280px);scroll-snap-align:start;margin-right:5px}.ally-list-entry .ally-row{flex:none}}
 .shell.view-home .living-colony .colony-tools,.shell.view-home .living-colony .city-actions,.shell.view-home .living-colony .city-sheet{pointer-events:auto!important}
 .shell.view-home,.shell.view-home #view,.shell.view-home .city-view{touch-action:auto}
 .duration-row{grid-template-columns:repeat(3,minmax(0,1fr))!important}

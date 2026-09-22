@@ -3375,6 +3375,40 @@ function openSanctionSheet(empireId, userId) {
   };
 }
 
+function openShipGrant(userId, username) {
+  showModal(`<form class="sheet panel stack" id="admin-ship-grant">
+    <h2>Schiffe vergeben</h2>
+    <p>Empfänger: <b>${esc(username)}</b> · Gutschrift auf dem Hauptplaneten.</p>
+    <p class="hint">Bei vollem Hangar werden die Schiffe in der Reserve aufbewahrt.</p>
+    <label>Schiffstyp<select name="shipId">${Object.values(state.catalog.ships).map(ship => `<option value="${esc(ship.id)}">${esc(ship.name)}</option>`).join('')}</select></label>
+    <label>Stückzahl<input name="amount" type="number" min="1" max="50" step="1" value="1" required inputmode="numeric"></label>
+    <p class="group-error" data-grant-error role="alert" hidden></p>
+    <div class="row"><button type="button" class="btn ghost" data-grant-cancel>Abbrechen</button><button type="submit" class="btn primary">Schiffe vergeben</button></div>
+  </form>`);
+  const form = document.getElementById('admin-ship-grant');
+  form.querySelector('[data-grant-cancel]').onclick = hideModal;
+  let pending = false;
+  form.onsubmit = async event => {
+    event.preventDefault();
+    if (pending || !form.reportValidity()) return;
+    pending = true;
+    const submit = form.querySelector('[type="submit"]'), error = form.querySelector('[data-grant-error]');
+    submit.disabled = true;
+    error.hidden = true;
+    try {
+      const out = await api('/admin/player', { method: 'POST', body: { userId, action: 'ships', shipId: form.elements.shipId.value, amount: Number(form.elements.amount.value) } });
+      if (form.isConnected) hideModal();
+      toast(`${out.username}: ${out.detail}`);
+    } catch (err) {
+      error.textContent = err.message;
+      error.hidden = false;
+    } finally {
+      pending = false;
+      submit.disabled = false;
+    }
+  };
+}
+
 function playerRow(p) {
   const flags = [
     p.isAdmin ? "Admin" : "",
@@ -3396,7 +3430,7 @@ function playerRow(p) {
         <button class="btn ghost small" data-grant="nex" data-user="${p.userId}" data-amt="100">+100 Nex</button>
         <button class="btn ghost small" data-grant="vip" data-user="${p.userId}" data-amt="7">+7d Pass</button>
         <button class="btn ghost small" data-grant="kit" data-user="${p.userId}">Kit</button>
-        <button class="btn ghost small" data-grant="fighters" data-user="${p.userId}" data-amt="5">+5 Jäger</button>` : ""}
+        <button class="btn ghost small" data-grant-ships="${p.userId}" data-username="${esc(p.username)}">Schiffe vergeben</button>` : ""}
     </td>
   </tr>`;
 }
@@ -3547,6 +3581,9 @@ async function bootModeration() {
             toast(err.message, true);
           }
         };
+      });
+      root.querySelectorAll('[data-grant-ships]').forEach(button => {
+        button.onclick = () => openShipGrant(Number(button.dataset.grantShips), button.dataset.username);
       });
     };
     bindRows(host);
@@ -3870,10 +3907,10 @@ async function bootAlliance() {
     state.allianceFocus = detail?.id || null;
     const list = alliances
       .map(
-        (a) => `<button type="button" class="ally-row ${detail && a.id === detail.id ? "on" : ""}" data-ally-select="${a.id}" aria-pressed="${detail?.id === a.id}">
+        (a) => `<div class="ally-list-entry"><button type="button" class="ally-row ${detail && a.id === detail.id ? "on" : ""}" data-ally-select="${a.id}" aria-pressed="${detail?.id === a.id}">
           <img class="ally-thumb" src="${esc(a.banner)}" alt="" />
           <span><b style="color:${a.color}">[${esc(a.tag)}]</b> ${esc(a.name)}<div class="muted">${a.members}/${a.maxMembers || 15} · ${fmt(a.score)} · ${a.openJoin ? "offen" : "Bewerbung"}</div></span>
-        </button>`
+        </button><button type="button" class="btn ghost small ally-profile-open" data-open-ally-profile="${a.id}" aria-label="Allianzprofil von ${esc(a.name)} öffnen">Allianzprofil öffnen</button></div>`
       )
       .join("");
     let body = `<p class="muted">Noch keine Allianzen. Gründe die erste.</p>`;
@@ -3996,6 +4033,7 @@ async function bootAlliance() {
       body = `<div class="panel" id="ally-detail" data-alliance-id="${detail.id}" style="padding:14px">
         <div class="section-title"><h2 style="color:${detail.color}">[${esc(detail.tag)}] ${esc(detail.name)}</h2>
            <span class="muted">${fmt(detail.score)} Punkte · ${detail.members.length}/${detail.maxMembers || 15} Mitglieder</span></div>
+        <button type="button" class="btn small" data-open-ally-profile="${detail.id}">Allianzprofil öffnen</button>
         ${detail.motd && detail.mine ? `<p class="ally-motd">${esc(detail.motd)}</p>` : ""}
         <p>${esc(detail.blurb || "Kein Manifest.")}</p>
         ${detail.website ? `<p class="muted">${esc(detail.website)}</p>` : ""}
@@ -4003,8 +4041,8 @@ async function bootAlliance() {
         ${detail.mine && detail.bulletin ? `<div class="intel-block"><h4>Internes Bulletin</h4><p>${esc(detail.bulletin)}</p></div>` : ""}
         ${joinBlock}
         ${detail.mine ? allianceBossHtml(detail.boss) + allianceDeskHtml(detail) : ""}
-        <table class="table"><thead><tr><th></th><th>Commander</th><th>Imperium</th><th>Rang</th><th>Medaillen</th><th>Punkte</th><th></th></tr></thead>
-        <tbody>${members}</tbody></table>
+        <div class="ally-members-scroll"><table class="table"><thead><tr><th></th><th>Commander</th><th>Imperium</th><th>Rang</th><th>Medaillen</th><th>Punkte</th><th></th></tr></thead>
+        <tbody>${members}</tbody></table></div>
         ${detail.perms?.apps && apps ? `<h3 style="font-size:13px">Bewerbungen</h3>${apps}` : ""}
         ${settings}
       </div>`;
@@ -4031,6 +4069,7 @@ async function bootAlliance() {
     bindAllianceActivityClicks(host);
     bindAllianceQuickActions(host);
     bindJumps(host);
+    host.querySelectorAll('[data-open-ally-profile]').forEach(button => button.addEventListener('click', () => openAllianceProfile(Number(button.dataset.openAllyProfile))));
     host.querySelector("#ally-boss-launch")?.addEventListener("click", () => startAllianceBossEncounter({ detail, onDone: async () => {
       state.allianceFocus = detail.id;
       await refresh(undefined,{rerender:false});
@@ -5083,6 +5122,7 @@ function openGroupMission(targetId, sys, mission = "attack", dialogOpts = {}) {
     </section>`;
   }).join("");
   const hostile = mission === "attack";
+  const staticRaidDefense = !!dialogOpts.raidId && !!state.snap.planets.find(p => p.id === targetId)?.hasStaticRaidDefense;
   showModal(`<div class="sheet panel group-fleet-sheet">
     <div class="group-body">
     <button type="button" class="group-close" id="m-cancel" aria-label="Schließen">×</button>
@@ -5110,7 +5150,8 @@ function openGroupMission(targetId, sys, mission = "attack", dialogOpts = {}) {
     const deployments = readDeployments();
     const count = deployments.reduce((sum, entry) => sum + Object.values(entry.ships).reduce((n, value) => n + value, 0), 0);
     document.getElementById("group-summary").textContent = `${deployments.length} Planet${deployments.length === 1 ? "" : "en"} · ${count} Schiffe · gemeinsamer Ankunfts-Tick`;
-    document.getElementById("group-launch").disabled = submitting || preparing>0 || count <= 0 && !dialogOpts.raidId;
+    if (staticRaidDefense && count === 0) document.getElementById("group-summary").textContent = 'Stationierte Abwehr verteidigt · 0 Schiffe · 0 He3';
+    document.getElementById("group-launch").disabled = submitting || preparing>0 || (count <= 0 && !staticRaidDefense);
   };
   modal.querySelectorAll("[data-group-max]").forEach((button) => button.addEventListener("click", async () => {
     const card = modal.querySelector(`[data-group-origin="${button.dataset.groupMax}"]`);

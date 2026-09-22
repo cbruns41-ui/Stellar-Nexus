@@ -4,7 +4,7 @@ const settings = require("./settings");
 const premium = require("./premium");
 const pirates = require("./pirates");
 const { expandGalaxy } = require("./galaxy");
-const { bag, RESOURCE_IDS } = require("./catalog");
+const { bag, RESOURCE_IDS, SHIPS } = require("./catalog");
 
 function assertAdmin(user) {
   if (!user?.is_admin) throw new Error("Nur Admin.");
@@ -82,6 +82,12 @@ function playerAction(db, user, body) {
     const n = Math.max(1, Math.min(1000000, amount || 1000));
     game.grantResources(db, empire, bag({ [res]: n }));
     detail = `+${n} ${res}`;
+  } else if (action === "ships") {
+    const shipId = String(body?.shipId || '');
+    if (!Object.hasOwn(SHIPS, shipId)) throw new Error('Unbekannter Schiffstyp.');
+    if (!Number.isSafeInteger(amount) || amount < 1 || amount > 50) throw new Error('Bitte eine ganze Stückzahl von 1 bis 50 angeben.');
+    const planetName = game.grantShipsToHome(db, empire, { [shipId]: amount });
+    detail = `+${amount} ${SHIPS[shipId].name} auf ${planetName}`;
   } else if (action === "fighters") {
     const n = Math.max(1, Math.min(50, amount || 5));
     game.grantShipsToHome(db, empire, { fighter: n });

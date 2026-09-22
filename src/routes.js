@@ -1360,7 +1360,7 @@ function attachRoutes(app, db) {
 
   app.post("/api/admin/player", auth, adminOnly, (req, res) => {
     try {
-      const out = admin.playerAction(db, req.user, req.body || {});
+      const out = withTx(db, () => admin.playerAction(db, req.user, req.body || {}));
       res.json(out);
     } catch (err) {
       fail(res, 400, err.message);

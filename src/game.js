@@ -2740,6 +2740,7 @@ function snapshot(db, user, planetId) {
           .filter((d) => d.resource)
           .map((d) => ({ id: d.id, name: d.name, resource: d.resource, level: b[d.id] || 0 })),
         shipCount,
+        hasStaticRaidDefense: Object.values(defensesMap(db, p.id)).some(n => n > 0) || b.shield > 0 || b.citadel > 0 || p.directive === 'fortress',
         shipCap: shipCap(db, p.id),
         ships: shipsMap(db, p.id),
       };
@@ -2873,10 +2874,15 @@ function defendRaid(db, empire, raidId, deployments = []) {
     const owner = db.prepare('SELECT * FROM empires WHERE id=?').get(empire.id);
     if (isNewbie(owner, db)) throw new Error('Anfängerschutz aktiv: Piraten-Raids können dich nicht angreifen. Keine Verteidigungsfreigabe nötig.');
     const raid = db.prepare('SELECT r.* FROM raids r JOIN planets p ON p.id=r.target_planet_id WHERE r.id=? AND p.empire_id=?').get(raidId, empire.id);
-    if (!raid) throw new Error('Raid nicht mehr aktiv. Den Kampfbericht findest du im Funk.');
+    if (!raid) {
+      const report = db.prepare("SELECT id FROM reports WHERE empire_id=? AND kind='combat' AND json_extract(body,'$.raidId')=? ORDER BY id DESC LIMIT 1").get(empire.id, raidId);
+      if (report) return { raidDefense: true, completed: true, reportId: report.id, launched: [] };
+      throw new Error('Raid nicht mehr aktiv. Den Kampfbericht findest du im Funk.');
+    }
     if (db.prepare('SELECT raid_id FROM raid_engagements WHERE raid_id=?').get(raid.id)) return { commonArrival: raid.arrives_at, launched: [], raidDefense: true };
     if ((raid.expires_at || raid.arrives_at + 2 * 3600000) <= now()) throw new Error('Die Piraten sind bereits abgezogen. Es wurden keine Schiffe oder Ressourcen verloren.');
-    if (!Array.isArray(deployments) || deployments.length > ACS_MAX_FLEETS) throw new Error('Ungültige Verteidigungsflotte.');
+    if (!Array.isArray(deployments)) throw new Error('Ungültige Verteidigungsflotte.');
+    if (deployments.length > ACS_MAX_FLEETS) throw new Error(`Maximal ${ACS_MAX_FLEETS} Planeten pro gemeinsamer Verteidigung.`);
     const target = db.prepare('SELECT * FROM planets WHERE id=?').get(raid.target_planet_id);
     const origins = new Set();
     const prepared = deployments.map(entry => {
@@ -2892,6 +2898,11 @@ function defendRaid(db, empire, raidId, deployments = []) {
       if (!Object.keys(ships).length) throw new Error('Keine Schiffe ausgewählt.');
       return { origin, ships };
     });
+    const buildings = buildingsMap(db, target.id);
+    const hasLocalDefense = Object.values(shipsMap(db, target.id)).some(n => n > 0)
+      || Object.values(defensesMap(db, target.id)).some(n => n > 0)
+      || buildings.shield > 0 || buildings.citadel > 0 || target.directive === 'fortress';
+    if (!prepared.length && !hasLocalDefense) throw new Error('Keine Schiffe oder Verteidigungsanlagen einsatzbereit.');
     const launched = prepared.filter(entry => entry.origin.id !== target.id).map(entry => sendFleet(db, empire, entry.origin, target, 'intercept', entry.ships, {}, {raidId:raid.id}));
     const fleetIds = launched.map(fleet => fleet.fleetId);
     const commonArrival = fleetIds.length ? Math.max(...fleetIds.map(id => db.prepare('SELECT arrives_at FROM fleets WHERE id=?').get(id).arrives_at)) : now();
@@ -3049,6 +3060,7 @@ function resolveRaids(db) {
         loot: taken,
         planet: target.name,
         raid: true,
+        raidId: r.id,
         planetId: target.id,
         systemId: target.system_id,
       });
@@ -3083,6 +3095,7 @@ function resolveRaids(db) {
         relicId: prize.relicId || null,
         planet: target.name,
         raid: true,
+        raidId: r.id,
         planetId: target.id,
         systemId: target.system_id,
       });
@@ -3276,7 +3289,7 @@ function grantResources(db, empire, amounts) {
 }
 
 function grantShipsToHome(db, empire, ships) {
-  const planet = db.prepare("SELECT * FROM planets WHERE empire_id = ? ORDER BY id").get(empire.id);
+  const planet = homePlanetOf(db, empire.id);
   if (!planet) throw new Error("Kein Planet im Imperium.");
   addShips(db, planet.id, ships);
   return planet.name;
