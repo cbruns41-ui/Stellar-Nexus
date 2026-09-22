@@ -130,7 +130,7 @@ function attachRoutes(app, db) {
     }
     catch(err) { fail(res,400,err.message); }
   });
-  app.get("/api/admin/registrations",auth,adminOnly,(_req,res)=>res.json({registrations:registration.list(db)}));
+  app.get("/api/admin/registrations",auth,adminOnly,(req,res)=>res.json(registration.listPage(db,req.query)));
   app.post("/api/admin/registrations/:id/confirmation",auth,adminOnly,async(req,res)=>{
     try {
       if(!await registration.notifyPlayer(db,Number(req.params.id))) return fail(res,502,"Account ist freigegeben, aber die Bestätigungsmail konnte nicht versendet werden. Versandstatus im Adminbereich prüfen.");
@@ -1296,14 +1296,14 @@ function attachRoutes(app, db) {
 
   app.post("/api/mod/sanction", auth, staff, (req, res) => {
     try {
-      const out = moderation.applySanction(
+      const out = withTx(db, () => moderation.applySanction(
         db,
         req.user,
         { userId: Number(req.body?.userId) || 0, empireId: Number(req.body?.empireId) || 0 },
         String(req.body?.kind || "ban"),
         String(req.body?.duration || "1d"),
         req.body?.reason
-      );
+      ));
       res.json(out);
     } catch (err) {
       fail(res, 400, err.message);
@@ -1312,12 +1312,12 @@ function attachRoutes(app, db) {
 
   app.post("/api/mod/lift", auth, staff, (req, res) => {
     try {
-      const out = moderation.liftSanction(
+      const out = withTx(db, () => moderation.liftSanction(
         db,
         req.user,
         { userId: Number(req.body?.userId) || 0, empireId: Number(req.body?.empireId) || 0 },
         String(req.body?.kind || "ban")
-      );
+      ));
       res.json(out);
     } catch (err) {
       fail(res, 400, err.message);
@@ -1326,7 +1326,7 @@ function attachRoutes(app, db) {
 
   app.post("/api/mod/moderator", auth, staff, (req, res) => {
     try {
-      const out = moderation.setModerator(db, req.user, Number(req.body?.userId), !!req.body?.on);
+      const out = withTx(db, () => moderation.setModerator(db, req.user, Number(req.body?.userId), req.body?.on));
       res.json(out);
     } catch (err) {
       fail(res, 400, err.message);
@@ -1335,7 +1335,7 @@ function attachRoutes(app, db) {
 
   app.post("/api/mod/chat/delete", auth, staff, (req, res) => {
     try {
-      res.json(moderation.deleteChat(db, req.user, req.body?.id));
+      res.json(withTx(db, () => moderation.deleteChat(db, req.user, req.body?.id)));
     } catch (err) {
       fail(res, 400, err.message);
     }
@@ -1351,7 +1351,7 @@ function attachRoutes(app, db) {
 
   app.post("/api/admin/settings", auth, adminOnly, (req, res) => {
     try {
-      const out = admin.saveSettings(db, req.user, req.body || {});
+      const out = withTx(db, () => admin.saveSettings(db, req.user, req.body || {}));
       res.json({ ...out, ...moderation.overview(db) });
     } catch (err) {
       fail(res, 400, err.message);
@@ -1369,7 +1369,7 @@ function attachRoutes(app, db) {
 
   app.post("/api/admin/world", auth, adminOnly, (req, res) => {
     try {
-      const out = admin.worldAction(db, req.user, req.body || {});
+      const out = withTx(db, () => admin.worldAction(db, req.user, req.body || {}));
       res.json(out);
     } catch (err) {
       fail(res, 400, err.message);

@@ -10,6 +10,31 @@ function body(db,ip,username="NewPilot") {
   return {username,password:"validpassword",empire:"New Empire",species:"terran",email:`${username}@example.org`,human:"on",terms:"on",privacy:"on",age16:"on",challengeId:challenge.id,answer:String(numbers[0]+numbers[1])};
 }
 
+test('registration inbox pages all records, keeps failed confirmations open and archives sent ones', t => {
+  const db = fixture(t);
+  const user = db.prepare('INSERT INTO users(username,password_hash,created_at) VALUES(?,?,?)');
+  const insert = db.prepare('INSERT INTO registration_requests(user_id,email,ip_hash,empire,species,token_hash,status,player_mail_status,expires_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)');
+  for (let i = 0; i < 125; i++) {
+    const id = Number(user.run(`Inbox_${i}`, 'fixture-only', Date.now()).lastInsertRowid);
+    insert.run(id, `inbox${i}@example.org`, `fixture-${i}`, 'Inbox Empire', 'terran', `token-${i}`, i < 12 ? 'pending' : 'approved', i < 12 ? 'pending' : i === 12 ? 'failed' : 'sent', Date.now() + 100000, Date.now());
+  }
+  const open = registration.listPage(db);
+  assert.deepEqual(open.counts, {open: 13, done: 112, all: 125});
+  assert.equal(open.total, 13); assert.equal(open.pages, 2); assert.equal(open.registrations.length, 10);
+  assert.equal(open.registrations[0].username, 'Inbox_12');
+  const second = registration.listPage(db, {page: 2});
+  assert.equal(second.registrations.length, 3);
+  assert.equal(new Set([...open.registrations, ...second.registrations].map(r => r.id)).size, 13);
+  assert.equal(registration.listPage(db, {filter:'done'}).total, 112);
+  assert.equal(registration.listPage(db, {filter:'all', page: 999}).page, 13);
+  assert.equal(registration.listPage(db, {filter:'all', q:'inbox124@example.org'}).registrations[0].username, 'Inbox_124');
+  assert.equal(registration.listPage(db, {filter:'all', q:'%'}).total, 0, 'Search treats SQL wildcards as literal text');
+  assert.equal(registration.listPage(db, {filter:'all', q:'Inbox_1'}).total, 36);
+  db.prepare("UPDATE registration_requests SET player_mail_status='sent',player_mail_error='' WHERE id=?").run(open.registrations[0].id);
+  assert.equal(registration.listPage(db).counts.open, 12);
+  assert.equal(registration.listPage(db, {filter:'done', q:'inbox12@example.org'}).total, 1);
+});
+
 test("registration mail defaults to the support admin, including previously blank settings", t=>{
   const db=fixture(t);
   assert.equal(settings.get(db).betaEmail,"mail.nexus@gmx.net");

@@ -91,6 +91,24 @@ body:has(#modal:not(.hidden):not([hidden])) #alert-strip,body:has(#modal:not(.hi
 .ally-list-entry{flex:none;min-width:0;padding-bottom:8px;border-bottom:1px solid var(--line)}
 .ally-layout>div{min-width:0;max-width:100%}
 .ally-members-scroll{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
+.registration-overview{padding:12px;min-width:0}
+.admin-options>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;color:var(--cyan);font-weight:700}
+#mod-root #registration-admin{margin-bottom:14px;max-width:1100px}
+#mod-root #mod-search{flex-wrap:wrap}
+#mod-root #mod-q{min-width:0!important;flex:1 1 180px}
+@media(max-width:600px){#mod-results .table,#mod-results tbody{display:block;width:100%;min-width:0}#mod-results thead{display:none}#mod-results tr{display:grid;grid-template-columns:minmax(0,1fr) auto;padding:8px 0;border-bottom:1px solid var(--line)}#mod-results td{min-width:0;white-space:normal;overflow-wrap:anywhere}#mod-results td:nth-child(3),#mod-results .mod-actions{grid-column:1/-1}#mod-results .mod-actions button{min-height:44px;flex:1 1 auto}}
+.registration-overview>summary,.registration-entry>summary{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;cursor:pointer;list-style:none}
+.registration-overview>summary::before,.registration-entry>summary::before{content:'▸';color:var(--cyan)}
+.registration-overview[open]>summary::before,.registration-entry[open]>summary::before{content:'▾'}
+.registration-overview>summary b,.registration-entry>summary b{margin-right:auto}
+.registration-tools{display:flex;align-items:end;flex-wrap:wrap;gap:8px;margin:12px 0}
+.registration-tools label{display:grid;gap:5px;flex:1 1 180px;min-width:0}
+.registration-tools input,.registration-tools select{width:100%;min-width:0}
+.registration-entry{border-top:1px solid var(--line);padding:6px 0;overflow-wrap:anywhere}
+.registration-entry-body{padding:0 8px 10px}
+.registration-entry p{margin:8px 0}
+.registration-pages{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px}
+@media(max-width:600px){.registration-overview>summary,.registration-entry>summary{flex-wrap:wrap}.registration-overview>summary span,.registration-entry>summary span{flex-basis:100%;font-size:12px}.registration-pages{flex-wrap:wrap}}
 .ally-list-entry .ally-row{width:100%;margin:0;min-height:48px;grid-template-columns:auto minmax(0,1fr)}
 .ally-list-entry .ally-profile-open{width:100%;min-height:44px;margin-top:4px;color:var(--cyan)}
 @media(max-width:600px){.ally-list-entry{flex:0 0 min(78vw,280px);scroll-snap-align:start;margin-right:5px}.ally-list-entry .ally-row{flex:none}}

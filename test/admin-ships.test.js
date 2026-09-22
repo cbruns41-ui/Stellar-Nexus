@@ -10,6 +10,27 @@ const { attachRoutes } = require('../src/routes');
 const game = require('../src/game');
 const { SHIPS } = require('../src/catalog');
 
+test('full hangar reports the colony ship in reserve and releases it when a berth opens', t => {
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-grant-reserve-')),db=openDb(path.join(dir,'test.db'));
+  t.after(()=>{db.close();fs.rmSync(dir,{recursive:true,force:true});});
+  ensureAdmin(db);ensurePlayer(db,'ReservePilot','secret123','Reserve Empire','#00ffff');
+  const actor=db.prepare("SELECT * FROM users WHERE username='Admin'").get();
+  const recipient=db.prepare("SELECT * FROM users WHERE username='ReservePilot'").get();
+  const empire=db.prepare('SELECT * FROM empires WHERE user_id=?').get(recipient.id),home=game.homePlanetOf(db,empire.id);
+  const hangar=require('../src/hangar');
+  db.prepare('DELETE FROM ships WHERE planet_id=?').run(home.id);
+  game.addShips(db,home.id,{fighter:hangar.shipCap(db,home.id)});
+  const out=require('../src/tx').withTx(db,()=>require('../src/admin').playerAction(db,actor,{userId:recipient.id,action:'ships',shipId:'colony',amount:1}));
+  assert.equal(out.delivery.planetId,home.id);assert.equal(out.delivery.stationed,0);assert.equal(out.delivery.reserve,1);
+  assert.match(out.detail,/0 einsatzbereit, 1 in Reserve/);
+  const report=JSON.parse(db.prepare("SELECT body FROM reports WHERE empire_id=? AND title='Schiffe vom Admin erhalten'").get(empire.id).body);
+  assert.equal(report.delivery.reserve,1);assert.equal(report.planetId,home.id);
+  db.prepare("UPDATE ships SET count=count-1 WHERE planet_id=? AND ship_id='fighter'").run(home.id);
+  hangar.reconcile(db,home.id);
+  assert.equal(game.shipsMap(db,home.id).colony,1);
+  assert.equal(hangar.reserveMap(db,home.id).colony,undefined);
+});
+
 test('admin grants every catalog ship to the chosen home planet with validation and an audit trail', async t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nexus-admin-ships-'));
   const db = openDb(path.join(dir, 'test.db'));

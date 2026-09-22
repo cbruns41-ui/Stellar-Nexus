@@ -123,6 +123,19 @@ async function notifyPlayer(db,id,transport) {
 }
 function pending(db,userId) { return !!db.prepare("SELECT id FROM registration_requests WHERE user_id=? AND status!='approved'").get(userId); }
 function list(db) { return db.prepare("SELECT r.id,u.username,r.email,r.status,r.mail_status,r.mail_error,r.player_mail_status,r.player_mail_error,r.created_at FROM registration_requests r JOIN users u ON u.id=r.user_id ORDER BY r.id DESC LIMIT 100").all(); }
+function listPage(db, query = {}) {
+  const filter = ['open', 'done', 'all'].includes(query.filter) ? query.filter : 'open';
+  const q = String(query.q || '').trim().slice(0, 180);
+  const search = `%${q.replace(/[\\%_]/g, '\\$&')}%`;
+  const done = "(r.status='approved' AND r.player_mail_status='sent')";
+  const where = `${filter === 'done' ? done : filter === 'open' ? `NOT ${done}` : '1=1'} AND (u.username LIKE ? ESCAPE '\\' OR r.email LIKE ? ESCAPE '\\')`;
+  const total = db.prepare(`SELECT COUNT(*) n FROM registration_requests r JOIN users u ON u.id=r.user_id WHERE ${where}`).get(search, search).n;
+  const pageSize = 10, pages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(pages, Math.max(1, Math.floor(Number(query.page) || 1)));
+  const counts = db.prepare(`SELECT COUNT(*) AS allCount, COALESCE(SUM(${done}),0) AS doneCount FROM registration_requests r`).get();
+  const registrations = db.prepare(`SELECT r.id,u.username,r.email,r.status,r.mail_status,r.mail_error,r.player_mail_status,r.player_mail_error,r.player_mail_attempted_at,r.created_at,r.approved_at FROM registration_requests r JOIN users u ON u.id=r.user_id WHERE ${where} ORDER BY r.id DESC LIMIT ? OFFSET ?`).all(search, search, pageSize, (page - 1) * pageSize);
+  return { registrations, filter, q, page, pageSize, pages, total, counts: { open: counts.allCount - counts.doneCount, done: counts.doneCount, all: counts.allCount } };
+}
 async function resend(db,id,transport) {
   const row=db.prepare("SELECT r.id,u.username,r.email FROM registration_requests r JOIN users u ON u.id=r.user_id WHERE r.id=? AND r.status='pending'").get(id);
   if(!row) throw new Error("Keine offene Registrierung.");
@@ -130,4 +143,4 @@ async function resend(db,id,transport) {
   db.prepare("UPDATE registration_requests SET token_hash=?,expires_at=? WHERE id=?").run(digest(token),Date.now()+7*86400000,id);
   if(!await notifyAdmin(db,{...row,token},transport)) throw new Error("Mailversand fehlgeschlagen. SMTP-Konfiguration und Empfänger prüfen.");
 }
-module.exports={challenge,request,notifyAdmin,notifyPlayer,review,approve,pending,list,resend,ipKey,SUPPORT_SIGNATURE};
+module.exports={challenge,request,notifyAdmin,notifyPlayer,review,approve,pending,list,listPage,resend,ipKey,SUPPORT_SIGNATURE};

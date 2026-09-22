@@ -23,7 +23,9 @@ export async function verifyAdminShips({ db, send, evaluate, until, click, shot 
   await shot('admin-grant-colony-mobile');
   const before = count();
   await evaluate(`document.querySelector('#admin-ship-grant').requestSubmit();document.querySelector('#admin-ship-grant').requestSubmit()`);
-  await until(`!document.querySelector('#admin-ship-grant')`);
+  await until(`document.querySelector('[data-grant-done]')`);
+  assert.match(await evaluate(`document.querySelector('#admin-ship-grant').textContent`), /einsatzbereit/);
+  await click('[data-grant-done]');
   assert.equal(count(), before + 1, 'Double submission grants exactly one colony ship');
   const logs = db.prepare("SELECT detail FROM mod_log WHERE target_id=? AND action='grant'").all(player.userId);
   assert.equal(logs.length, 1);

@@ -6,11 +6,12 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { tutorialSteps } from '../public/js/tutorial.mjs';
 const cwd = fileURLToPath(new URL('../', import.meta.url));
-const base = 'http://localhost:3137', debug = 9357;
+const port = 20000 + (process.pid % 10000) * 2;
+const base = `http://localhost:${port}`, debug = port + 1;
 const databasePath = fileURLToPath(new URL(`../tmp/tutorial-${process.pid}.db`, import.meta.url));
 const folder = new URL('../tmp/tutorial-review/', import.meta.url);
 await mkdir(folder, { recursive:true });
-const server = spawn(process.execPath, ['server.js'], { cwd, env:{...process.env, PORT:'3137',DATABASE_PATH:databasePath,SMTP_HOST:'',COOKIE_SECURE:'0'}, stdio:['ignore','pipe','pipe'],windowsHide:true });
+const server = spawn(process.execPath, ['server.js'], { cwd, env:{...process.env, PORT:String(port),DATABASE_PATH:databasePath,SMTP_HOST:'',COOKIE_SECURE:'0'}, stdio:['ignore','pipe','pipe'],windowsHide:true });
 let ready = false, logs = '';
 server.stdout.on('data', data => { if(String(data).includes(base)) ready = true; });
 server.stderr.on('data', data => { logs += String(data); });
@@ -145,6 +146,18 @@ try {
     catch (error) { await shot('admin-ships-failure'); throw error; }
   }
   assert.deepEqual(errors,[],'No browser exceptions after admin ship grant');
+  if (process.argv.includes('--admin-registrations')) {
+    const { verifyAdminRegistrations } = await import('./verify-admin-registrations.mjs');
+    try { await verifyAdminRegistrations({db,send,evaluate,until,click,shot}); }
+    catch (error) { await shot('admin-registrations-failure'); throw error; }
+  }
+  assert.deepEqual(errors,[],'No browser exceptions after admin registrations');
+  if (process.argv.includes('--admin-functions')) {
+    const { verifyAdminFunctions } = await import('./verify-admin-functions.mjs');
+    try { await verifyAdminFunctions({db,send,evaluate,until,click,shot}); }
+    catch (error) { await shot('admin-functions-failure'); throw error; }
+  }
+  assert.deepEqual(errors,[],'No browser exceptions after admin functions');
   await writeFile(new URL('verification.json',folder),JSON.stringify({passed:true,checks:['opt-in and skip','pause and resume','mobile spotlight geometry','blocked unrelated clicks','real building and research jobs','additional probe construction','real scout launch','matching spy report','completion'],errors},null,2));
   console.log('Tutorial browser flow passed');
 } catch(err) {console.error(err);process.exitCode=1;}

@@ -12,6 +12,7 @@ import { shipBudget } from "./ship-budget.mjs?v=1";
 import { colonyRows, colonyHudHtml, paintColonyMarkers, paintColonyFrame } from "./colony-hud.mjs?v=10";
 import { createColonyUnity, setUnityColonyVisible } from "./colony-unity.js?v=17";
 import { startOrbitSiege } from "./orbit-siege.mjs?v=19";
+import { bootRegistrations } from './admin-registrations.mjs?v=1';
 
 
 const $ = (id) => document.getElementById(id);
@@ -3353,7 +3354,7 @@ function openSanctionSheet(empireId, userId) {
     </div>
   </div>`);
   document.getElementById("mod-cancel").onclick = hideModal;
-  document.getElementById("mod-go").onclick = async () => {
+  document.getElementById("mod-go").onclick = adminAction(document.getElementById("mod-go"), async () => {
     try {
       const out = await api("/mod/sanction", {
         method: "POST",
@@ -3367,12 +3368,12 @@ function openSanctionSheet(empireId, userId) {
       });
       hideModal();
       toast(`${out.username}: ${out.kind === "mute" ? "Funk" : "Account"} gesperrt (${out.label})`);
-      if (state.view === "moderation") bootModeration();
+      if (state.view === "moderation") await bootModeration();
       if (state.view === "chat") loadChatLog().catch(() => {});
     } catch (err) {
       toast(err.message, true);
     }
-  };
+  });
 }
 
 function openShipGrant(userId, username) {
@@ -3397,7 +3398,12 @@ function openShipGrant(userId, username) {
     error.hidden = true;
     try {
       const out = await api('/admin/player', { method: 'POST', body: { userId, action: 'ships', shipId: form.elements.shipId.value, amount: Number(form.elements.amount.value) } });
-      if (form.isConnected) hideModal();
+      if (form.isConnected) {
+        form.innerHTML = `<h2>Schiffe gutgeschrieben</h2><p><b>${esc(out.username)}</b>: ${esc(out.detail)}</p>${out.delivery?.reserve ? '<p class="hint">Schiffe in der Reserve sind noch nicht auswählbar. Zuerst Hangarplätze freimachen oder die Werft ausbauen.</p>' : ''}<p>Der Spieler findet den Beleg im Funk und den Bestand auf dem genannten Planeten.</p><button type="button" class="btn primary" data-grant-done>Schließen</button>`;
+        form.onsubmit = event => event.preventDefault();
+        form.querySelector('[data-grant-done]').onclick = hideModal;
+        form.querySelector('[data-grant-done]').focus();
+      }
       toast(`${out.username}: ${out.detail}`);
     } catch (err) {
       error.textContent = err.message;
@@ -3406,6 +3412,18 @@ function openShipGrant(userId, username) {
       pending = false;
       submit.disabled = false;
     }
+  };
+}
+
+function adminAction(control, handler) {
+  return async event => {
+    event?.preventDefault();
+    if (control.dataset.pending) return;
+    control.dataset.pending = '1';
+    const button = control.matches('button') ? control : control.querySelector('[type="submit"]');
+    if (button) button.disabled = true;
+    try { await handler(event); }
+    finally { delete control.dataset.pending; if (button) button.disabled = false; }
   };
 }
 
@@ -3423,25 +3441,27 @@ function playerRow(p) {
     <td>${fmt(p.score)}</td>
     <td class="muted">${esc(flags || "—")}</td>
     <td class="mod-actions">
-      ${p.banned ? `<button class="btn ghost small" data-lift="ban" data-user="${p.userId}">Ban aufheben</button>` : `<button class="btn danger small" data-sanction="${p.userId}">Sperren</button>`}
-      ${p.muted ? `<button class="btn ghost small" data-lift="mute" data-user="${p.userId}">Funk frei</button>` : ""}
+      ${!p.isAdmin && p.userId !== state.snap.user.id && (!p.isMod || state.snap.user.isAdmin) ? `${p.banned ? `<button class="btn ghost small" data-lift="ban" data-user="${p.userId}">Ban aufheben</button>` : `<button class="btn danger small" data-sanction="${p.userId}">Sperren</button>`}${p.muted ? `<button class="btn ghost small" data-lift="mute" data-user="${p.userId}">Funk frei</button>` : ''}` : ''}
       ${state.snap.user.isAdmin && !p.isAdmin ? `<button class="btn ghost small" data-staff="${p.userId}" data-on="${p.isMod ? 0 : 1}">${p.isMod ? "Mod entziehen" : "Zum Mod machen"}</button>` : ""}
-      ${state.snap.user.isAdmin ? `
+      ${state.snap.user.isAdmin && p.empireId ? `
         <button class="btn ghost small" data-grant="nex" data-user="${p.userId}" data-amt="100">+100 Nex</button>
         <button class="btn ghost small" data-grant="vip" data-user="${p.userId}" data-amt="7">+7d Pass</button>
         <button class="btn ghost small" data-grant="kit" data-user="${p.userId}">Kit</button>
-        <button class="btn ghost small" data-grant-ships="${p.userId}" data-username="${esc(p.username)}">Schiffe vergeben</button>` : ""}
+        <button class="btn primary small" data-grant-ships="${p.userId}" data-username="${esc(p.username)}">Schiffe vergeben</button>` : ""}
     </td>
   </tr>`;
 }
 
+let moderationLoad = 0, moderationSearch = '';
 async function bootModeration() {
   const host = $("mod-root");
   if (!host) return;
+  const load = ++moderationLoad;
   try {
     const data = await api("/mod/overview");
     const isAdmin = !!state.snap.user.isAdmin;
-    const adminData = isAdmin ? await api("/admin/overview").catch(() => null) : null;
+    const adminData = isAdmin ? await api("/admin/overview") : null;
+    if (!host.isConnected || load !== moderationLoad) return;
     const staff = (data.staff || []).map(playerRow).join("");
     const sanctions = (data.sanctions || []).map(playerRow).join("");
     const chatRows = (data.chat || [])
@@ -3492,11 +3512,13 @@ async function bootModeration() {
           <div class="stat panel"><em>Piraten</em><strong>${st.threat || 1}</strong><small>${st.pirates || 0} Horste</small></div>
           <div class="stat panel"><em>Beta</em><strong>${st.betaRegistrations || 0}</strong><small>Registrierungen</small></div>
         </div>
-        <section class="panel" style="padding:14px;margin-bottom:14px;max-width:1100px">
+        <section class="panel" id="registration-admin">Registrierungen werden geladen …</section>
+        <details class="panel admin-options" style="padding:14px;margin-bottom:14px;max-width:1100px">
+          <summary>Welt-Einstellungen öffnen</summary>
           <h3 style="margin:0 0 10px;font-size:13px">Welt-Einstellungen</h3>
           <p class="hint">Sofort wirksam, ohne Deploy. Kampf- und Premium-Werte gelten für alle.</p>
-          <section class="panel" id="registration-admin">Registrierungen werden geladen …</section><form id="admin-settings" class="admin-form">${settingsHtml}<button class="btn primary" type="submit">Einstellungen speichern</button></form>
-        </section>
+          <form id="admin-settings" class="admin-form">${settingsHtml}<button class="btn primary" type="submit">Einstellungen speichern</button><p data-settings-status role="status" hidden></p></form>
+        </details>
         <section class="panel" style="padding:14px;margin-bottom:14px;max-width:1100px">
           <h3 style="margin:0 0 10px;font-size:13px">Sofort-Aktionen</h3>
           <div class="row" style="flex-wrap:wrap;gap:8px;justify-content:flex-start">
@@ -3512,15 +3534,16 @@ async function bootModeration() {
       : "";
     host.innerHTML = `<div class="section-title"><h2>${isAdmin ? "Admin-Zentrale" : "Moderation"}</h2><span class="muted">${isAdmin ? "Einstellungen & Spieler" : "Moderator"}</span></div>
       <p class="hint">${isAdmin ? "Weltwerte, Gutschriften und Funk — ohne Code-Änderung." : "Funk- und Account-Sperren, Chat löschen."}</p>
-      ${adminBlock}
       <section class="panel" style="padding:14px;margin-bottom:14px;max-width:1100px">
         <h3 style="margin:0 0 8px;font-size:13px">Spieler suchen</h3>
+        ${isAdmin ? '<p class="hint">Spieler suchen, dann „Schiffe vergeben“, Nex oder Pass auswählen.</p>' : ''}
         <form id="mod-search" class="row" style="gap:8px;justify-content:flex-start">
-          <input id="mod-q" maxlength="24" placeholder="Commander-ID oder Imperium…" style="min-width:200px">
+          <input id="mod-q" maxlength="24" aria-label="Spieler oder Imperium suchen" value="${esc(moderationSearch)}" placeholder="Commander-ID oder Imperium…" style="min-width:200px">
           <button class="btn primary" type="submit">Suchen</button>
         </form>
-        <div id="mod-results" style="margin-top:10px"></div>
+        <div id="mod-results" class="table-wrap" style="margin-top:10px" aria-live="polite"></div>
       </section>
+      ${adminBlock}
       <div class="section-title"><h2>Team</h2></div>
       <div class="table-wrap panel" style="margin-bottom:14px;max-width:1100px"><table class="table"><thead><tr><th>Spieler</th><th>Punkte</th><th>Status</th><th></th></tr></thead><tbody>${staff || `<tr><td class="muted" colspan="4">Niemand.</td></tr>`}</tbody></table></div>
       <div class="section-title"><h2>Aktive Sperren</h2></div>
@@ -3534,43 +3557,43 @@ async function bootModeration() {
         b.onclick = () => openSanctionSheet(0, Number(b.dataset.sanction));
       });
       root.querySelectorAll("[data-lift]").forEach((b) => {
-        b.onclick = async () => {
+        b.onclick = adminAction(b, async () => {
           try {
             const out = await api("/mod/lift", { method: "POST", body: { userId: Number(b.dataset.user), kind: b.dataset.lift } });
             toast(`${out.username}: Sperre aufgehoben`);
-            bootModeration();
+            await bootModeration();
           } catch (err) {
             toast(err.message, true);
           }
-        };
+        });
       });
       root.querySelectorAll("[data-staff]").forEach((b) => {
-        b.onclick = async () => {
+        b.onclick = adminAction(b, async () => {
           try {
             const out = await api("/mod/moderator", {
               method: "POST",
               body: { userId: Number(b.dataset.staff), on: b.dataset.on === "1" },
             });
             toast(`${out.username}: ${out.isMod ? "ist Moderator" : "kein Moderator mehr"}`);
-            bootModeration();
+            await bootModeration();
           } catch (err) {
             toast(err.message, true);
           }
-        };
+        });
       });
       root.querySelectorAll("[data-chat-del]").forEach((b) => {
-        b.onclick = async () => {
+        b.onclick = adminAction(b, async () => {
           try {
             await api("/mod/chat/delete", { method: "POST", body: { id: Number(b.dataset.chatDel) } });
             toast("Nachricht gelöscht");
-            bootModeration();
+            await bootModeration();
           } catch (err) {
             toast(err.message, true);
           }
-        };
+        });
       });
       root.querySelectorAll("[data-grant]").forEach((b) => {
-        b.onclick = async () => {
+        b.onclick = adminAction(b, async () => {
           try {
             const out = await api("/admin/player", {
               method: "POST",
@@ -3580,7 +3603,7 @@ async function bootModeration() {
           } catch (err) {
             toast(err.message, true);
           }
-        };
+        });
       });
       root.querySelectorAll('[data-grant-ships]').forEach(button => {
         button.onclick = () => openShipGrant(Number(button.dataset.grantShips), button.dataset.username);
@@ -3588,16 +3611,14 @@ async function bootModeration() {
     };
     bindRows(host);
     const registrations=host.querySelector("#registration-admin");
-    if(registrations) api("/admin/registrations").then(data=>{
-      if(!registrations.isConnected) return;
-      registrations.innerHTML=`<h3>Registrierungen zur Freigabe</h3><p>Freigabe erfolgt über den Link in der Admin-E-Mail. Empfänger unter Open Beta eintragen. Nach Freigabe erhält der Spieler eine Bestätigungsmail.</p>${data.registrations.map(r=>`<div class="panel"><b>${esc(r.username)}</b> · ${esc(r.email)}<p>${r.status==="approved"?"Freigegeben":"Wartet auf Freigabe"} · Admin-Mail: ${esc(r.mail_status)}</p>${r.mail_status==="failed"?`<p class="error">${esc(r.mail_error)}</p>`:""}${r.status==="pending"?`<button class="btn" data-resend-registration="${r.id}">Freigabe-Mail erneut senden</button>`:`<p>Spieler-Bestätigung: ${esc(r.player_mail_status === 'sent' ? 'Versandt' : r.player_mail_status === 'failed' ? 'Versand fehlgeschlagen' : r.player_mail_status === 'sending' ? 'Versand läuft' : 'Noch nicht versandt')}</p>${r.player_mail_error ? `<p class="error">${esc(r.player_mail_error)}</p>` : ''}${r.player_mail_status !== 'sent' ? `<button class="btn" data-confirm-registration="${r.id}">Bestätigung an Spieler senden</button>` : ''}`}</div>`).join("")||"Keine Registrierungen."}`;
-      registrations.querySelectorAll('[data-confirm-registration]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await api(`/admin/registrations/${b.dataset.confirmRegistration}/confirmation`,{method:'POST',body:{},timeoutMs:45000});toast('Bestätigungsmail an Spieler versandt');bootModeration();}catch(err){toast(err.message,true);b.disabled=false;}});
-      registrations.querySelectorAll("[data-resend-registration]").forEach(b=>b.onclick=async()=>{b.disabled=true;try{await api(`/admin/registrations/${b.dataset.resendRegistration}/resend`,{method:"POST",body:{}});toast("Freigabe-Mail gesendet");bootModeration();}catch(err){toast(err.message,true);b.disabled=false;}});
-    }).catch(err=>{registrations.textContent=err.message;});
+    if (registrations) bootRegistrations(registrations);
     const setForm = host.querySelector("#admin-settings");
     if (setForm) {
-      setForm.onsubmit = async (ev) => {
+      setForm.onsubmit = adminAction(setForm, async (ev) => {
         ev.preventDefault();
+        const status = setForm.querySelector('[data-settings-status]');
+        status.hidden = true;
+        status.classList.remove('error');
         const patch = {};
         for (const el of setForm.querySelectorAll("[name]")) {
           patch[el.name] = el.type === "checkbox" ? el.checked : el.value;
@@ -3605,27 +3626,27 @@ async function bootModeration() {
         try {
           await api("/admin/settings", { method: "POST", body: patch });
           toast("Einstellungen gespeichert");
-          await refresh();
-          bootModeration();
+          status.textContent = 'Einstellungen gespeichert.'; status.hidden = false;
         } catch (err) {
+          status.textContent = err.message; status.hidden = false; status.classList.add('error');
           toast(err.message, true);
         }
-      };
+      });
     }
     host.querySelectorAll("[data-world]").forEach((b) => {
-      b.onclick = async () => {
+      b.onclick = adminAction(b, async () => {
         try {
           const out = await api("/admin/world", { method: "POST", body: { action: b.dataset.world } });
           toast(out.detail || "OK");
-          bootModeration();
+          await bootModeration();
         } catch (err) {
           toast(err.message, true);
         }
-      };
+      });
     });
     const bc = host.querySelector("#admin-broadcast");
     if (bc) {
-      bc.onsubmit = async (ev) => {
+      bc.onsubmit = adminAction(bc, async (ev) => {
         ev.preventDefault();
         const body = host.querySelector("#admin-bc")?.value.trim();
         if (!body) return;
@@ -3636,25 +3657,32 @@ async function bootModeration() {
         } catch (err) {
           toast(err.message, true);
         }
-      };
+      });
     }
     const form = host.querySelector("#mod-search");
+    let searchRequest = 0;
     form.onsubmit = async (ev) => {
       ev.preventDefault();
       const q = host.querySelector("#mod-q").value.trim();
+      moderationSearch = q;
+      const request = ++searchRequest;
       const box = host.querySelector("#mod-results");
-      if (q.length < 1) return;
+      if (q.length < 1) { box.textContent = 'Spielernamen oder Imperium eingeben.'; return; }
+      box.textContent = 'Spieler werden gesucht …';
       try {
         const { players } = await api("/mod/search?q=" + encodeURIComponent(q));
+        if (!box.isConnected || request !== searchRequest || load !== moderationLoad) return;
         box.innerHTML = players?.length
           ? `<table class="table"><thead><tr><th>Spieler</th><th>Punkte</th><th>Status</th><th></th></tr></thead><tbody>${players.map(playerRow).join("")}</tbody></table>`
           : `<p class="muted">Kein Treffer.</p>`;
         bindRows(box);
       } catch (err) {
-        toast(err.message, true);
+        if (box.isConnected && request === searchRequest) box.textContent = err.message;
       }
     };
+    if (moderationSearch) form.requestSubmit();
   } catch (err) {
+    if (!host.isConnected || load !== moderationLoad) return;
     host.innerHTML = `<p class="danger">${esc(err.message)}</p>`;
   }
 }

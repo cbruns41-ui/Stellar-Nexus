@@ -102,6 +102,7 @@ function dropSessions(db, userId) {
 
 function applySanction(db, actor, targetRef, kind, durationId, reason) {
   assertStaff(actor);
+  if (!['ban', 'mute'].includes(kind)) throw new Error('Ungültige Sperrart.');
   const target = targetRef.userId ? loadUser(db, targetRef.userId) : loadUserByEmpire(db, targetRef.empireId);
   assertTarget(actor, target);
   const spec = parseDuration(durationId);
@@ -120,9 +121,9 @@ function applySanction(db, actor, targetRef, kind, durationId, reason) {
 
 function liftSanction(db, actor, targetRef, kind) {
   assertStaff(actor);
+  if (!['ban', 'mute'].includes(kind)) throw new Error('Ungültige Sperrart.');
   const target = targetRef.userId ? loadUser(db, targetRef.userId) : loadUserByEmpire(db, targetRef.empireId);
-  if (!target) throw new Error("Spieler unbekannt.");
-  if (target.is_admin) throw new Error("Admins können nicht bearbeitet werden.");
+  assertTarget(actor, target);
   if (kind === "mute") {
     db.prepare("UPDATE users SET muted_until = 0, mute_reason = '' WHERE id = ?").run(target.id);
     log(db, actor.id, target.id, "unmute", "");
@@ -135,6 +136,7 @@ function liftSanction(db, actor, targetRef, kind) {
 
 function setModerator(db, actor, userId, on) {
   if (!actor?.is_admin) throw new Error("Nur Admins können Moderatoren ernennen.");
+  if (typeof on !== 'boolean') throw new Error('Ungültige Rollenauswahl.');
   const target = loadUser(db, userId);
   if (!target) throw new Error("Spieler unbekannt.");
   if (target.is_admin) throw new Error("Admins brauchen keine Extra-Rolle.");
@@ -180,13 +182,13 @@ function publicUser(db, row) {
 function searchPlayers(db, query) {
   const q = String(query || "").trim();
   if (q.length < 1) return [];
-  const like = `%${q.replace(/[%_]/g, "")}%`;
+  const like = `%${q.replace(/[\\%_]/g, '\\$&')}%`;
   const rows = db
     .prepare(
       `SELECT u.*, e.id AS empire_id, e.name AS empire_name, e.last_seen
        FROM users u
        LEFT JOIN empires e ON e.user_id = u.id
-       WHERE u.username LIKE ? COLLATE NOCASE OR IFNULL(e.name,'') LIKE ? COLLATE NOCASE
+       WHERE u.username LIKE ? ESCAPE '\\' COLLATE NOCASE OR IFNULL(e.name,'') LIKE ? ESCAPE '\\' COLLATE NOCASE
        ORDER BY u.id DESC LIMIT 40`
     )
     .all(like, like);
